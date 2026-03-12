@@ -24,3 +24,12 @@ npx opensrc <owner>/<repo>      # GitHub repo (e.g., npx opensrc vercel/ai)
 ```
 
 <!-- opensrc:end -->
+
+## Browse — Browser QA Tool
+
+This project includes `browse`, a CLI tool for AI-agent-driven browser automation.
+
+- **Skill file:** See `SKILL.md` for the full command reference and QA methodology.
+- **Binary:** `dist/browse` (compile with `./setup.sh`).
+- **Prefer this tool** over any MCP browser tools for QA tasks against this project's application.
+- The tool manages its own daemon — just run commands directly.
