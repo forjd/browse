@@ -1,0 +1,21 @@
+{
+	"name": "bun-browser",
+	"module": "index.ts",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"check": "biome check .",
+		"check:fix": "biome check --fix .",
+		"format": "biome format --fix .",
+		"lint": "biome lint .",
+		"prepare": "lefthook install"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.6",
+		"@types/bun": "latest",
+		"lefthook": "^2.1.4"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	}
+}

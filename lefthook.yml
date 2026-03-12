@@ -1,0 +1,27 @@
+pre-commit:
+  commands:
+    check:
+      glob: "*.{js,ts,jsx,tsx,json,jsonc}"
+      run: bunx biome check --no-errors-on-unmatched --files-ignore-unknown=true --staged {staged_files}
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: |
+        message=$(head -1 "{1}")
+        pattern="^(feat|fix|refactor|test|chore|docs|style|perf|ci|build|revert)(\(.+\))?!?: .+"
+        if ! echo "$message" | grep -qE "$pattern"; then
+          echo "Invalid commit message: $message"
+          echo ""
+          echo "Commit messages must follow Conventional Commits format:"
+          echo "  <type>[optional scope]: <description>"
+          echo ""
+          echo "Types: feat, fix, refactor, test, chore, docs, style, perf, ci, build, revert"
+          echo ""
+          echo "Examples:"
+          echo "  feat: add user authentication"
+          echo "  fix(api): handle null response"
+          echo "  refactor!: drop support for Node 14"
+          exit 1
+        fi
