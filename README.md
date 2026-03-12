@@ -172,4 +172,4 @@ Measured with `browse benchmark`:
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE). Copyright (c) 2026 [Forjd.dev](https://forjd.dev)
