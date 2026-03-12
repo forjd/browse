@@ -4,11 +4,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
 import { RingBuffer } from "./buffers.ts";
+import { handleAssert } from "./commands/assert.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
 import { handleClick } from "./commands/click.ts";
 import { type ConsoleEntry, handleConsole } from "./commands/console.ts";
 import { handleFill } from "./commands/fill.ts";
+import { handleFlow } from "./commands/flow.ts";
 import { handleGoto } from "./commands/goto.ts";
+import { handleHealthcheck } from "./commands/healthcheck.ts";
 import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handleQuit } from "./commands/quit.ts";
@@ -187,6 +190,21 @@ export async function startServer(
 					response = await handleTab(tabRegistry, request.args, {
 						clearRefs,
 						createTab,
+					});
+					break;
+				case "flow":
+					response = await handleFlow(config, page, request.args, {
+						consoleBuffer: getActiveConsoleBuffer(),
+						networkBuffer: getActiveNetworkBuffer(),
+					});
+					break;
+				case "assert":
+					response = await handleAssert(config, page, request.args);
+					break;
+				case "healthcheck":
+					response = await handleHealthcheck(config, page, request.args, {
+						consoleBuffer: getActiveConsoleBuffer(),
+						networkBuffer: getActiveNetworkBuffer(),
 					});
 					break;
 				case "quit":

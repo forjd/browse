@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Admin - Create User</title></head>
+<body>
+<h1>User Management</h1>
+<script>
+  // Check for session cookie
+  const hasSession = document.cookie.includes('session=');
+  if (hasSession) {
+    document.body.innerHTML += `
+      <form class="create-user">
+        <label for="user-email">Email</label>
+        <input type="text" id="user-email" name="email" />
+        <label for="user-role">Role</label>
+        <select id="user-role" name="role">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit">Create User</button>
+      </form>
+    `;
+  } else {
+    document.body.innerHTML += '<p>Access denied</p>';
+  }
+</script>
+</body>
+</html>

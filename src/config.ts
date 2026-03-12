@@ -15,8 +15,67 @@ export type EnvironmentConfig = {
 	successCondition: SuccessCondition;
 };
 
+// Phase 4 types
+
+export type WaitCondition =
+	| { urlContains: string }
+	| { urlPattern: string }
+	| { elementVisible: string }
+	| { textVisible: string }
+	| { timeout: number };
+
+export type AssertCondition =
+	| { visible: string }
+	| { notVisible: string }
+	| { textContains: string }
+	| { textNotContains: string }
+	| { urlContains: string }
+	| { urlPattern: string }
+	| { elementText: { selector: string; contains: string } }
+	| { elementCount: { selector: string; count: number } };
+
+export type FlowStep =
+	| { goto: string }
+	| { click: string }
+	| { fill: Record<string, string> }
+	| { select: Record<string, string> }
+	| { screenshot: true | string }
+	| { console: "error" | "warning" | "all" }
+	| { network: true }
+	| { wait: WaitCondition }
+	| { assert: AssertCondition }
+	| { login: string }
+	| { snapshot: true };
+
+export type FlowConfig = {
+	description?: string;
+	variables?: string[];
+	steps: FlowStep[];
+};
+
+export type PermissionConfig = {
+	page: string;
+	granted: AssertCondition;
+	denied: AssertCondition;
+};
+
+export type HealthcheckPage = {
+	url: string;
+	name?: string;
+	screenshot?: boolean;
+	console?: "error" | "warning";
+	assertions?: AssertCondition[];
+};
+
+export type HealthcheckConfig = {
+	pages: HealthcheckPage[];
+};
+
 export type BrowseConfig = {
 	environments: Record<string, EnvironmentConfig>;
+	flows?: Record<string, FlowConfig>;
+	permissions?: Record<string, PermissionConfig>;
+	healthcheck?: HealthcheckConfig;
 };
 
 export function loadConfig(path: string): {
@@ -59,6 +118,31 @@ const VALID_CONDITION_KEYS = new Set([
 	"elementVisible",
 ]);
 
+const VALID_FLOW_STEP_KEYS = new Set([
+	"goto",
+	"click",
+	"fill",
+	"select",
+	"screenshot",
+	"console",
+	"network",
+	"wait",
+	"assert",
+	"login",
+	"snapshot",
+]);
+
+const VALID_ASSERT_CONDITION_KEYS = new Set([
+	"visible",
+	"notVisible",
+	"textContains",
+	"textNotContains",
+	"urlContains",
+	"urlPattern",
+	"elementText",
+	"elementCount",
+]);
+
 export function validateConfig(data: unknown): string | null {
 	if (
 		typeof data !== "object" ||
@@ -70,10 +154,9 @@ export function validateConfig(data: unknown): string | null {
 		return "Invalid browse.config.json: missing 'environments' object.";
 	}
 
-	const envs = (data as Record<string, unknown>).environments as Record<
-		string,
-		unknown
-	>;
+	const obj = data as Record<string, unknown>;
+
+	const envs = obj.environments as Record<string, unknown>;
 
 	for (const [name, envRaw] of Object.entries(envs)) {
 		if (typeof envRaw !== "object" || envRaw === null) {
@@ -104,6 +187,132 @@ export function validateConfig(data: unknown): string | null {
 		) {
 			return `Invalid browse.config.json: environment '${name}' has an invalid 'successCondition'. Must have exactly one of: urlContains, urlPattern, elementVisible.`;
 		}
+	}
+
+	// Validate flows (optional)
+	if (obj.flows !== undefined) {
+		if (
+			typeof obj.flows !== "object" ||
+			obj.flows === null ||
+			Array.isArray(obj.flows)
+		) {
+			return "Invalid browse.config.json: 'flows' must be an object.";
+		}
+
+		const flows = obj.flows as Record<string, unknown>;
+		for (const [name, flowRaw] of Object.entries(flows)) {
+			if (typeof flowRaw !== "object" || flowRaw === null) {
+				return `Invalid browse.config.json: flow '${name}' must be an object.`;
+			}
+
+			const flow = flowRaw as Record<string, unknown>;
+
+			if (!Array.isArray(flow.steps)) {
+				return `Invalid browse.config.json: flow '${name}' is missing 'steps' array.`;
+			}
+
+			if (flow.steps.length === 0) {
+				return `Invalid browse.config.json: flow '${name}' has empty 'steps' array.`;
+			}
+
+			for (let i = 0; i < flow.steps.length; i++) {
+				const step = flow.steps[i];
+				if (typeof step !== "object" || step === null) {
+					return `Invalid browse.config.json: flow '${name}' step ${i + 1} must be an object.`;
+				}
+				const stepKeys = Object.keys(step as Record<string, unknown>);
+				if (stepKeys.length === 0 || !VALID_FLOW_STEP_KEYS.has(stepKeys[0])) {
+					return `Invalid browse.config.json: flow '${name}' step ${i + 1} has invalid type. Valid step types: ${[...VALID_FLOW_STEP_KEYS].join(", ")}.`;
+				}
+			}
+		}
+	}
+
+	// Validate permissions (optional)
+	if (obj.permissions !== undefined) {
+		if (
+			typeof obj.permissions !== "object" ||
+			obj.permissions === null ||
+			Array.isArray(obj.permissions)
+		) {
+			return "Invalid browse.config.json: 'permissions' must be an object.";
+		}
+
+		const perms = obj.permissions as Record<string, unknown>;
+		for (const [name, permRaw] of Object.entries(perms)) {
+			if (typeof permRaw !== "object" || permRaw === null) {
+				return `Invalid browse.config.json: permission '${name}' must be an object.`;
+			}
+
+			const perm = permRaw as Record<string, unknown>;
+
+			if (typeof perm.page !== "string") {
+				return `Invalid browse.config.json: permission '${name}' is missing 'page'.`;
+			}
+
+			for (const field of ["granted", "denied"] as const) {
+				if (typeof perm[field] !== "object" || perm[field] === null) {
+					return `Invalid browse.config.json: permission '${name}' is missing '${field}'.`;
+				}
+				const condErr = validateAssertCondition(
+					perm[field],
+					`permission '${name}' ${field}`,
+				);
+				if (condErr) return condErr;
+			}
+		}
+	}
+
+	// Validate healthcheck (optional)
+	if (obj.healthcheck !== undefined) {
+		if (typeof obj.healthcheck !== "object" || obj.healthcheck === null) {
+			return "Invalid browse.config.json: 'healthcheck' must be an object.";
+		}
+
+		const hc = obj.healthcheck as Record<string, unknown>;
+
+		if (!Array.isArray(hc.pages) || hc.pages.length === 0) {
+			return "Invalid browse.config.json: healthcheck 'pages' must be a non-empty array.";
+		}
+
+		for (let i = 0; i < hc.pages.length; i++) {
+			const page = hc.pages[i] as Record<string, unknown>;
+			if (typeof page !== "object" || page === null) {
+				return `Invalid browse.config.json: healthcheck page ${i + 1} must be an object.`;
+			}
+			if (typeof page.url !== "string") {
+				return `Invalid browse.config.json: healthcheck page ${i + 1} is missing 'url'.`;
+			}
+
+			if (page.assertions !== undefined) {
+				if (!Array.isArray(page.assertions)) {
+					return `Invalid browse.config.json: healthcheck page ${i + 1} 'assertions' must be an array.`;
+				}
+				for (let j = 0; j < page.assertions.length; j++) {
+					const condErr = validateAssertCondition(
+						page.assertions[j],
+						`healthcheck page ${i + 1} assertion ${j + 1}`,
+					);
+					if (condErr) return condErr;
+				}
+			}
+		}
+	}
+
+	return null;
+}
+
+function validateAssertCondition(
+	condition: unknown,
+	context: string,
+): string | null {
+	if (typeof condition !== "object" || condition === null) {
+		return `Invalid browse.config.json: ${context} must be an object.`;
+	}
+
+	const keys = Object.keys(condition as Record<string, unknown>);
+	if (keys.length !== 1 || !VALID_ASSERT_CONDITION_KEYS.has(keys[0])) {
+		return `Invalid browse.config.json: ${context} has invalid condition. Valid keys: ${[...VALID_ASSERT_CONDITION_KEYS].join(", ")}.`;
 	}
 
 	return null;

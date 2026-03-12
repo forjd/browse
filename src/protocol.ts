@@ -12,6 +12,9 @@ const VALID_COMMANDS = [
 	"auth-state",
 	"login",
 	"tab",
+	"flow",
+	"assert",
+	"healthcheck",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

@@ -22,6 +22,10 @@ Commands:
   tab new [url]           Open new tab
   tab switch <index>      Switch to tab by index
   tab close [index]       Close a tab
+  flow list               List configured flows
+  flow <name> [--var k=v] Execute a named flow
+  assert <type> <args>    Assert a condition (PASS/FAIL)
+  healthcheck [--var k=v] Run healthcheck across configured pages
   quit                    Shut down the daemon`;
 
 export type ParsedArgs =
