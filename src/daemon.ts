@@ -294,7 +294,14 @@ export async function startDaemon(
 
 	const context: BrowserContext = await chromium.launchPersistentContext(
 		userDataDir,
-		{ headless: options.headless ?? true },
+		{
+			headless: options.headless ?? true,
+			channel: "chromium",
+			ignoreDefaultArgs: ["--enable-automation"],
+			viewport: { width: 1440, height: 900 },
+			userAgent:
+				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+		},
 	);
 
 	const page: Page = context.pages()[0] ?? (await context.newPage());
