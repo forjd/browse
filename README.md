@@ -9,12 +9,22 @@ Built for AI agents doing QA, but works just as well by hand.
 Requires [Bun](https://bun.sh) >= 1.0.
 
 ```sh
-git clone https://github.com/user/bun-browser.git
-cd bun-browser
+git clone https://github.com/forjd/browse.git
+cd browse
 ./setup.sh
 ```
 
 This installs dependencies, downloads Chromium, compiles a self-contained binary to `dist/browse`, and symlinks it to `~/.local/bin/browse`.
+
+### Claude Code skill
+
+If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), install the skill so Claude can drive the browser for you:
+
+```sh
+bunx @anthropic-ai/skills add forjd/browse
+# or
+npx @anthropic-ai/skills add forjd/browse
+```
 
 ## Usage
 
