@@ -21,9 +21,7 @@ This installs dependencies, downloads Chromium, compiles a self-contained binary
 If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), install the skill so Claude can drive the browser for you:
 
 ```sh
-bunx @anthropic-ai/skills add forjd/browse
-# or
-npx @anthropic-ai/skills add forjd/browse
+npx skills add forjd/browse
 ```
 
 ## Usage
