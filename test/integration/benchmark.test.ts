@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
-import type { ServerDeps } from "../../src/daemon.ts";
 import { startServer } from "../../src/daemon.ts";
 import type { LifecycleConfig } from "../../src/lifecycle.ts";
 import type { Response } from "../../src/protocol.ts";
