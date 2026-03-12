@@ -1,4 +1,12 @@
-const VALID_COMMANDS = ["goto", "text", "quit"] as const;
+const VALID_COMMANDS = [
+	"goto",
+	"text",
+	"quit",
+	"snapshot",
+	"click",
+	"fill",
+	"select",
+] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
 

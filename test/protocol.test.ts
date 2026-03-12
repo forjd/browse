@@ -20,6 +20,26 @@ describe("parseRequest", () => {
 		expect(result).toEqual({ cmd: "quit", args: [] });
 	});
 
+	test("parses snapshot command with flags", () => {
+		const result = parseRequest('{"cmd":"snapshot","args":["-i"]}');
+		expect(result).toEqual({ cmd: "snapshot", args: ["-i"] });
+	});
+
+	test("parses click command with ref", () => {
+		const result = parseRequest('{"cmd":"click","args":["@e1"]}');
+		expect(result).toEqual({ cmd: "click", args: ["@e1"] });
+	});
+
+	test("parses fill command with ref and value", () => {
+		const result = parseRequest('{"cmd":"fill","args":["@e3","hello world"]}');
+		expect(result).toEqual({ cmd: "fill", args: ["@e3", "hello world"] });
+	});
+
+	test("parses select command with ref and option", () => {
+		const result = parseRequest('{"cmd":"select","args":["@e5","Admin"]}');
+		expect(result).toEqual({ cmd: "select", args: ["@e5", "Admin"] });
+	});
+
 	test("throws on malformed JSON", () => {
 		expect(() => parseRequest("not json")).toThrow("Invalid JSON");
 	});

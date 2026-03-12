@@ -246,6 +246,271 @@ async function testPagePersistence() {
 	}
 }
 
+// ─── Phase 1: Snapshot + Refs ────────────────────────────────────
+
+const TEST_PAGE = `file://${join(import.meta.dir, "fixtures", "test-page.html")}`;
+
+async function testSnapshot() {
+	console.log("\nsnapshot (default mode):");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+
+		const res = await sendCommand(paths.socketPath, "snapshot");
+		assert(res.ok === true, "snapshot returns ok");
+		if (res.ok) {
+			assert(res.data.includes('[page] "Test Page"'), "shows page title");
+			assert(res.data.includes("[link]"), "includes links");
+			assert(res.data.includes("[button]"), "includes buttons");
+			assert(res.data.includes("[textbox]"), "includes textbox");
+			assert(res.data.includes("@e"), "assigns refs");
+			// Should not include structural elements
+			assert(
+				!res.data.includes("[heading"),
+				"excludes headings in default mode",
+			);
+			assert(
+				!res.data.includes("[paragraph]"),
+				"excludes paragraphs in default mode",
+			);
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testSnapshotInclusive() {
+	console.log("\nsnapshot -i (inclusive mode):");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+
+		const res = await sendCommand(paths.socketPath, "snapshot", ["-i"]);
+		assert(res.ok === true, "snapshot -i returns ok");
+		if (res.ok) {
+			assert(res.data.includes("[heading"), "includes headings");
+			assert(res.data.includes("Dashboard"), "includes heading text");
+			assert(
+				res.data.includes("[button]"),
+				"still includes interactive elements",
+			);
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testClickByRef() {
+	console.log("\nclick by ref:");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+		const snapRes = await sendCommand(paths.socketPath, "snapshot");
+		assert(snapRes.ok === true, "snapshot ok");
+
+		if (snapRes.ok) {
+			// Find the Increment button ref
+			const lines = snapRes.data.split("\n");
+			const incrementLine = lines.find((l: string) => l.includes("Increment"));
+			assert(!!incrementLine, "found Increment button in snapshot");
+
+			if (incrementLine) {
+				const refMatch = incrementLine.match(/@e\d+/);
+				assert(!!refMatch, "Increment button has a ref");
+
+				if (refMatch) {
+					const clickRes = await sendCommand(paths.socketPath, "click", [
+						refMatch[0],
+					]);
+					assert(clickRes.ok === true, "click returns ok");
+					if (clickRes.ok) {
+						assert(
+							clickRes.data.includes("Clicked"),
+							"click returns confirmation",
+						);
+					}
+
+					// Verify the counter changed
+					const textRes = await sendCommand(paths.socketPath, "text");
+					assert(textRes.ok === true, "text returns ok");
+					if (textRes.ok) {
+						assert(
+							textRes.data.includes("Count: 1"),
+							"counter incremented after click",
+						);
+					}
+				}
+			}
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testFillByRef() {
+	console.log("\nfill by ref:");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+		const snapRes = await sendCommand(paths.socketPath, "snapshot");
+		assert(snapRes.ok === true, "snapshot ok");
+
+		if (snapRes.ok) {
+			// Find the search textbox ref
+			const lines = snapRes.data.split("\n");
+			const searchLine = lines.find((l: string) => l.includes("[textbox]"));
+			assert(!!searchLine, "found textbox in snapshot");
+
+			if (searchLine) {
+				const refMatch = searchLine.match(/@e\d+/);
+				assert(!!refMatch, "textbox has a ref");
+
+				if (refMatch) {
+					const fillRes = await sendCommand(paths.socketPath, "fill", [
+						refMatch[0],
+						"test query",
+					]);
+					assert(fillRes.ok === true, "fill returns ok");
+					if (fillRes.ok) {
+						assert(
+							fillRes.data.includes("Filled"),
+							"fill returns confirmation",
+						);
+						assert(
+							fillRes.data.includes("test query"),
+							"fill confirmation includes value",
+						);
+					}
+				}
+			}
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testStaleRefsAfterNavigation() {
+	console.log("\nstale refs after navigation:");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+		await sendCommand(paths.socketPath, "snapshot");
+
+		// Navigate away — refs should become stale
+		await sendCommand(paths.socketPath, "goto", [
+			"data:text/html,<title>Other</title><body>Other page</body>",
+		]);
+
+		const clickRes = await sendCommand(paths.socketPath, "click", ["@e1"]);
+		assert(clickRes.ok === false, "click fails with stale refs");
+		if (!clickRes.ok) {
+			assert(clickRes.error.includes("stale"), "error mentions staleness");
+			assert(
+				clickRes.error.includes("browse snapshot"),
+				"error suggests re-snapshotting",
+			);
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testDuplicateElements() {
+	console.log("\nduplicate element handling:");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+		const snapRes = await sendCommand(paths.socketPath, "snapshot");
+		assert(snapRes.ok === true, "snapshot ok");
+
+		if (snapRes.ok) {
+			const deleteLines = snapRes.data
+				.split("\n")
+				.filter((l: string) => l.includes("Delete"));
+			assert(
+				deleteLines.length === 3,
+				`found 3 Delete buttons (got ${deleteLines.length})`,
+			);
+			assert(snapRes.data.includes("1 of 3"), "first delete shows '1 of 3'");
+			assert(snapRes.data.includes("3 of 3"), "last delete shows '3 of 3'");
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testSnapshotRefreshAfterNavigation() {
+	console.log("\nsnapshot refresh after navigation:");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+		await sendCommand(paths.socketPath, "snapshot");
+
+		// Navigate to a different page
+		await sendCommand(paths.socketPath, "goto", [
+			"data:text/html,<title>Simple</title><body><button>Only Button</button></body>",
+		]);
+
+		// Re-snapshot should work
+		const snapRes = await sendCommand(paths.socketPath, "snapshot");
+		assert(snapRes.ok === true, "re-snapshot after navigation ok");
+		if (snapRes.ok) {
+			assert(
+				snapRes.data.includes("Only Button"),
+				"snapshot reflects new page",
+			);
+
+			// New refs should work
+			const clickRes = await sendCommand(paths.socketPath, "click", ["@e1"]);
+			assert(clickRes.ok === true, "click on new ref succeeds");
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
 // ─── Run all ──────────────────────────────────────────────────────
 
 async function main() {
@@ -254,12 +519,22 @@ async function main() {
 	console.log("Integration tests\n==================");
 
 	try {
+		// Phase 0
 		await testGotoAndText();
 		await testGotoMissingUrl();
 		await testUnknownCommand();
 		await testQuitCleansUp();
 		await testIdleTimeout();
 		await testPagePersistence();
+
+		// Phase 1
+		await testSnapshot();
+		await testSnapshotInclusive();
+		await testClickByRef();
+		await testFillByRef();
+		await testStaleRefsAfterNavigation();
+		await testDuplicateElements();
+		await testSnapshotRefreshAfterNavigation();
 	} finally {
 		rmSync(TEST_DIR, { recursive: true, force: true });
 	}

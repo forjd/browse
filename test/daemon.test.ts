@@ -21,11 +21,15 @@ function testPaths(): LifecycleConfig & { dir: string } {
 	};
 }
 
+const mainFrameSentinel = {};
+
 function mockPage(overrides: Record<string, unknown> = {}) {
 	return {
 		goto: mock(() => Promise.resolve()),
 		title: mock(() => Promise.resolve("Mock Title")),
 		innerText: mock(() => Promise.resolve("Mock body text")),
+		on: mock(() => {}),
+		mainFrame: mock(() => mainFrameSentinel),
 		...overrides,
 	} as never;
 }

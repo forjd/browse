@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Page</title>
+</head>
+<body>
+  <h1>Dashboard</h1>
+  <p>Welcome back. You have 3 pending invitations.</p>
+
+  <nav aria-label="Main">
+    <a href="#home">Home</a>
+    <a href="#users">Users</a>
+  </nav>
+
+  <label for="search">Search</label>
+  <input id="search" type="text" placeholder="Search..." />
+
+  <button type="button" id="create-btn">Create New</button>
+
+  <label for="role-select">Role</label>
+  <select id="role-select" aria-label="Role">
+    <option value="admin">Admin</option>
+    <option value="editor">Editor</option>
+    <option value="viewer">Viewer</option>
+  </select>
+
+  <!-- Duplicate buttons for disambiguation testing -->
+  <button type="button" class="delete-btn">Delete</button>
+  <button type="button" class="delete-btn">Delete</button>
+  <button type="button" class="delete-btn">Delete</button>
+
+  <!-- Counter for click verification -->
+  <span id="counter">Count: 0</span>
+  <button type="button" id="increment" onclick="document.getElementById('counter').textContent = 'Count: ' + (++window._count)">Increment</button>
+
+  <script>
+    window._count = 0;
+  </script>
+</body>
+</html>

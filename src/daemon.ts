@@ -3,8 +3,12 @@ import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
+import { handleClick } from "./commands/click.ts";
+import { handleFill } from "./commands/fill.ts";
 import { handleGoto } from "./commands/goto.ts";
 import { handleQuit } from "./commands/quit.ts";
+import { handleSelect } from "./commands/select.ts";
+import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleText } from "./commands/text.ts";
 import {
 	cleanupFiles,
@@ -15,6 +19,7 @@ import {
 } from "./lifecycle.ts";
 import type { Response } from "./protocol.ts";
 import { parseRequest, serialiseResponse } from "./protocol.ts";
+import { markStale } from "./refs.ts";
 
 export type DaemonOptions = {
 	socketPath: string;
@@ -55,6 +60,13 @@ export async function startServer(
 		shutdown();
 	});
 
+	// Mark refs as stale when the page navigates
+	page.on("framenavigated", (frame) => {
+		if (frame === page.mainFrame()) {
+			markStale();
+		}
+	});
+
 	async function handleConnection(data: string): Promise<string> {
 		idleTimer.reset();
 
@@ -68,6 +80,18 @@ export async function startServer(
 					break;
 				case "text":
 					response = await handleText(page);
+					break;
+				case "snapshot":
+					response = await handleSnapshot(page, request.args);
+					break;
+				case "click":
+					response = await handleClick(page, request.args);
+					break;
+				case "fill":
+					response = await handleFill(page, request.args);
+					break;
+				case "select":
+					response = await handleSelect(page, request.args);
 					break;
 				case "quit":
 					response = await handleQuit();

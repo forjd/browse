@@ -6,9 +6,13 @@ import type { Response } from "./protocol.ts";
 const USAGE = `Usage: browse <command> [args...]
 
 Commands:
-  goto <url>    Navigate to URL, return page title
-  text          Return visible text content
-  quit          Shut down the daemon`;
+  goto <url>          Navigate to URL, return page title
+  text                Return visible text content
+  snapshot [-i|-f]    Show page elements with refs
+  click <@ref>        Click an element by ref
+  fill <@ref> <val>   Fill an input by ref
+  select <@ref> <opt> Select a dropdown option by ref
+  quit                Shut down the daemon`;
 
 export type ParsedArgs =
 	| { cmd: string; args: string[] }
