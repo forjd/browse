@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Console Test Page</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    h1 { color: #333; }
+    .header { background: #eee; padding: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Console Test</h1>
+  </div>
+  <p>This page logs messages at various levels and fetches endpoints that fail.</p>
+
+  <script>
+    // Log messages at various levels
+    console.log("Page loaded successfully");
+    console.info("Info: initialisation complete");
+    console.warn("Deprecation: componentWillMount has been renamed");
+    console.error("Uncaught TypeError: Cannot read properties of undefined");
+
+    // Fetch endpoints that will fail (these are relative URLs that won't exist on file://)
+    // We use a data URL trick to avoid cross-origin issues in tests.
+    // The integration test will inject a real server URL instead.
+  </script>
+</body>
+</html>

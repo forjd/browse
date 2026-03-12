@@ -6,7 +6,11 @@
  * so they run as a standalone script with manual assertions.
  */
 
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import {
+	createServer as createHttpServer,
+	type Server as HttpServer,
+} from "node:http";
 import { connect } from "node:net";
 import { join } from "node:path";
 import { startDaemon } from "../src/daemon.ts";
@@ -511,6 +515,397 @@ async function testSnapshotRefreshAfterNavigation() {
 	}
 }
 
+// ─── Phase 2: Screenshot, Console, Network ──────────────────────
+
+async function testScreenshotFullPage() {
+	console.log("\nscreenshot (full-page):");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+
+		const res = await sendCommand(paths.socketPath, "screenshot");
+		assert(res.ok === true, "screenshot returns ok");
+		if (res.ok) {
+			assert(res.data.endsWith(".png"), "returns a .png path");
+			assert(existsSync(res.data), "screenshot file exists");
+			const stat = statSync(res.data);
+			assert(stat.size > 0, "screenshot file is non-empty");
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testScreenshotExplicitPath() {
+	console.log("\nscreenshot (explicit path):");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+
+		const outPath = join(TEST_DIR, "explicit-shot.png");
+		const res = await sendCommand(paths.socketPath, "screenshot", [outPath]);
+		assert(res.ok === true, "screenshot returns ok");
+		if (res.ok) {
+			assertEqual(res.data, outPath, "returns the specified path");
+			assert(existsSync(outPath), "file exists at specified path");
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testScreenshotViewport() {
+	console.log("\nscreenshot --viewport:");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+
+		const outPath = join(TEST_DIR, "viewport-shot.png");
+		const res = await sendCommand(paths.socketPath, "screenshot", [
+			outPath,
+			"--viewport",
+		]);
+		assert(res.ok === true, "viewport screenshot returns ok");
+		if (res.ok) {
+			assert(existsSync(outPath), "viewport screenshot file exists");
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testScreenshotSelector() {
+	console.log("\nscreenshot --selector:");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+
+		const outPath = join(TEST_DIR, "element-shot.png");
+		const res = await sendCommand(paths.socketPath, "screenshot", [
+			outPath,
+			"--selector",
+			"h1",
+		]);
+		assert(res.ok === true, "element screenshot returns ok");
+		if (res.ok) {
+			assert(existsSync(outPath), "element screenshot file exists");
+			const stat = statSync(outPath);
+			assert(stat.size > 0, "element screenshot is non-empty");
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+async function testScreenshotSelectorMissing() {
+	console.log("\nscreenshot --selector (missing element):");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [TEST_PAGE]);
+
+		const res = await sendCommand(paths.socketPath, "screenshot", [
+			"--selector",
+			".nonexistent-element",
+		]);
+		assert(res.ok === false, "returns error for missing selector");
+		if (!res.ok) {
+			assert(
+				res.error.includes(".nonexistent-element"),
+				"error mentions the selector",
+			);
+		}
+	} finally {
+		await daemon.shutdown();
+	}
+}
+
+function startTestHttpServer(): Promise<{ server: HttpServer; port: number }> {
+	return new Promise((resolve) => {
+		const server = createHttpServer((req, res) => {
+			if (req.url === "/api/ok") {
+				res.writeHead(200, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ status: "ok" }));
+			} else if (req.url === "/api/missing") {
+				res.writeHead(404, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ error: "not found" }));
+			} else if (req.url === "/api/error") {
+				res.writeHead(500, { "Content-Type": "application/json" });
+				res.end(JSON.stringify({ error: "internal error" }));
+			} else if (req.url === "/console-test") {
+				res.writeHead(200, { "Content-Type": "text/html" });
+				res.end(`<!DOCTYPE html>
+<html><head><title>Console Test</title></head>
+<body>
+<h1>Console Test</h1>
+<script>
+  console.log("Page loaded successfully");
+  console.error("Test error message");
+  console.warn("Test warning message");
+
+  fetch("/api/ok");
+  fetch("/api/missing");
+  fetch("/api/error");
+</script>
+</body></html>`);
+			} else {
+				res.writeHead(404);
+				res.end("not found");
+			}
+		});
+		server.listen(0, "127.0.0.1", () => {
+			const addr = server.address();
+			const port = typeof addr === "object" && addr ? addr.port : 0;
+			resolve({ server, port });
+		});
+	});
+}
+
+async function testConsoleDrain() {
+	console.log("\nconsole (drain and clear):");
+	const { server: httpServer, port } = await startTestHttpServer();
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [
+			`http://127.0.0.1:${port}/console-test`,
+		]);
+		// Small delay for console messages to be captured
+		await Bun.sleep(500);
+
+		const res = await sendCommand(paths.socketPath, "console");
+		assert(res.ok === true, "console returns ok");
+		if (res.ok) {
+			assert(
+				res.data.includes("Page loaded successfully"),
+				"contains log message",
+			);
+			assert(res.data.includes("[ERROR]"), "contains error level");
+			assert(res.data.includes("Test error message"), "contains error text");
+		}
+
+		// Second call should be empty (drained)
+		const res2 = await sendCommand(paths.socketPath, "console");
+		assert(res2.ok === true, "second console call returns ok");
+		if (res2.ok) {
+			assertEqual(res2.data, "No console messages.", "buffer was drained");
+		}
+	} finally {
+		await daemon.shutdown();
+		httpServer.close();
+	}
+}
+
+async function testConsoleFilter() {
+	console.log("\nconsole --level error:");
+	const { server: httpServer, port } = await startTestHttpServer();
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [
+			`http://127.0.0.1:${port}/console-test`,
+		]);
+		await Bun.sleep(500);
+
+		const res = await sendCommand(paths.socketPath, "console", [
+			"--level",
+			"error",
+		]);
+		assert(res.ok === true, "console --level error returns ok");
+		if (res.ok) {
+			assert(res.data.includes("[ERROR]"), "contains error messages");
+			assert(!res.data.includes("[LOG]"), "does not contain log messages");
+			assert(
+				!res.data.includes("[WARNING]"),
+				"does not contain warning messages",
+			);
+		}
+	} finally {
+		await daemon.shutdown();
+		httpServer.close();
+	}
+}
+
+async function testConsoleKeep() {
+	console.log("\nconsole --keep:");
+	const { server: httpServer, port } = await startTestHttpServer();
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [
+			`http://127.0.0.1:${port}/console-test`,
+		]);
+		await Bun.sleep(500);
+
+		const res1 = await sendCommand(paths.socketPath, "console", ["--keep"]);
+		assert(res1.ok === true, "console --keep returns ok");
+		if (res1.ok) {
+			assert(
+				res1.data.includes("Page loaded successfully"),
+				"contains messages",
+			);
+		}
+
+		// Buffer should still have messages
+		const res2 = await sendCommand(paths.socketPath, "console");
+		assert(res2.ok === true, "second console call returns ok");
+		if (res2.ok) {
+			assert(
+				res2.data.includes("Page loaded successfully"),
+				"messages still present after --keep",
+			);
+		}
+	} finally {
+		await daemon.shutdown();
+		httpServer.close();
+	}
+}
+
+async function testNetworkFailures() {
+	console.log("\nnetwork (failed requests):");
+	const { server: httpServer, port } = await startTestHttpServer();
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [
+			`http://127.0.0.1:${port}/console-test`,
+		]);
+		await Bun.sleep(500);
+
+		const res = await sendCommand(paths.socketPath, "network");
+		assert(res.ok === true, "network returns ok");
+		if (res.ok) {
+			assert(res.data.includes("[404]"), "contains 404 response");
+			assert(res.data.includes("[500]"), "contains 500 response");
+			assert(res.data.includes("/api/missing"), "contains 404 URL");
+			assert(res.data.includes("/api/error"), "contains 500 URL");
+			assert(!res.data.includes("[200]"), "excludes 200 responses");
+		}
+
+		// Second call should be empty (drained)
+		const res2 = await sendCommand(paths.socketPath, "network");
+		assert(res2.ok === true, "second network call ok");
+		if (res2.ok) {
+			assertEqual(res2.data, "No failed requests.", "buffer was drained");
+		}
+	} finally {
+		await daemon.shutdown();
+		httpServer.close();
+	}
+}
+
+async function testNetworkAll() {
+	console.log("\nnetwork --all:");
+	const { server: httpServer, port } = await startTestHttpServer();
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [
+			`http://127.0.0.1:${port}/console-test`,
+		]);
+		await Bun.sleep(500);
+
+		const res = await sendCommand(paths.socketPath, "network", ["--all"]);
+		assert(res.ok === true, "network --all returns ok");
+		if (res.ok) {
+			assert(res.data.includes("[200]"), "includes 200 responses");
+			assert(res.data.includes("[404]"), "includes 404 responses");
+			assert(res.data.includes("[500]"), "includes 500 responses");
+		}
+	} finally {
+		await daemon.shutdown();
+		httpServer.close();
+	}
+}
+
+async function testNetworkKeep() {
+	console.log("\nnetwork --keep:");
+	const { server: httpServer, port } = await startTestHttpServer();
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [
+			`http://127.0.0.1:${port}/console-test`,
+		]);
+		await Bun.sleep(500);
+
+		const res1 = await sendCommand(paths.socketPath, "network", ["--keep"]);
+		assert(res1.ok === true, "network --keep returns ok");
+		if (res1.ok) {
+			assert(res1.data.includes("[404]"), "contains failed requests");
+		}
+
+		// Buffer should still have entries
+		const res2 = await sendCommand(paths.socketPath, "network");
+		assert(res2.ok === true, "second network call ok");
+		if (res2.ok) {
+			assert(res2.data.includes("[404]"), "entries still present after --keep");
+		}
+	} finally {
+		await daemon.shutdown();
+		httpServer.close();
+	}
+}
+
 // ─── Run all ──────────────────────────────────────────────────────
 
 async function main() {
@@ -535,6 +930,19 @@ async function main() {
 		await testStaleRefsAfterNavigation();
 		await testDuplicateElements();
 		await testSnapshotRefreshAfterNavigation();
+
+		// Phase 2
+		await testScreenshotFullPage();
+		await testScreenshotExplicitPath();
+		await testScreenshotViewport();
+		await testScreenshotSelector();
+		await testScreenshotSelectorMissing();
+		await testConsoleDrain();
+		await testConsoleFilter();
+		await testConsoleKeep();
+		await testNetworkFailures();
+		await testNetworkAll();
+		await testNetworkKeep();
 	} finally {
 		rmSync(TEST_DIR, { recursive: true, force: true });
 	}

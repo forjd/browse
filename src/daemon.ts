@@ -3,10 +3,14 @@ import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
+import { RingBuffer } from "./buffers.ts";
 import { handleClick } from "./commands/click.ts";
+import { type ConsoleEntry, handleConsole } from "./commands/console.ts";
 import { handleFill } from "./commands/fill.ts";
 import { handleGoto } from "./commands/goto.ts";
+import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handleQuit } from "./commands/quit.ts";
+import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleSelect } from "./commands/select.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleText } from "./commands/text.ts";
@@ -67,6 +71,28 @@ export async function startServer(
 		}
 	});
 
+	// Console and network buffers
+	const consoleBuffer = new RingBuffer<ConsoleEntry>(500);
+	const networkBuffer = new RingBuffer<NetworkEntry>(500);
+
+	page.on("console", (msg) => {
+		consoleBuffer.push({
+			level: msg.type(),
+			text: msg.text(),
+			location: msg.location(),
+			timestamp: Date.now(),
+		});
+	});
+
+	page.on("response", (response) => {
+		networkBuffer.push({
+			status: response.status(),
+			method: response.request().method(),
+			url: response.url(),
+			timestamp: Date.now(),
+		});
+	});
+
 	async function handleConnection(data: string): Promise<string> {
 		idleTimer.reset();
 
@@ -92,6 +118,15 @@ export async function startServer(
 					break;
 				case "select":
 					response = await handleSelect(page, request.args);
+					break;
+				case "screenshot":
+					response = await handleScreenshot(page, request.args);
+					break;
+				case "console":
+					response = handleConsole(consoleBuffer, request.args);
+					break;
+				case "network":
+					response = handleNetwork(networkBuffer, request.args);
 					break;
 				case "quit":
 					response = await handleQuit();

@@ -161,6 +161,53 @@ describe("daemon server", () => {
 		}
 	});
 
+	test("handles screenshot command", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			screenshot: mock(() => Promise.resolve()),
+			evaluate: mock(() => Promise.resolve(500)),
+		});
+		const { shutdown } = await startServer(page, config, async () => {});
+
+		try {
+			const response = await sendCommand(config.socketPath, "screenshot", [
+				join(config.dir, "test-shot.png"),
+			]);
+			expect(response.ok).toBe(true);
+			if (response.ok) {
+				expect(response.data).toContain("test-shot.png");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles console command with empty buffer", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(page, config, async () => {});
+
+		try {
+			const response = await sendCommand(config.socketPath, "console");
+			expect(response).toEqual({ ok: true, data: "No console messages." });
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles network command with empty buffer", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(page, config, async () => {});
+
+		try {
+			const response = await sendCommand(config.socketPath, "network");
+			expect(response).toEqual({ ok: true, data: "No failed requests." });
+		} finally {
+			await shutdown();
+		}
+	});
+
 	test("handles Playwright errors without crashing", async () => {
 		const config = testPaths();
 		const page = mockPage({

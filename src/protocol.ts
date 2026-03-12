@@ -6,6 +6,9 @@ const VALID_COMMANDS = [
 	"click",
 	"fill",
 	"select",
+	"screenshot",
+	"console",
+	"network",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
