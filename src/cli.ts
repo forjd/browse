@@ -1,7 +1,8 @@
 import { connect } from "node:net";
 import { startDaemon } from "./daemon.ts";
-import { DEFAULT_CONFIG } from "./lifecycle.ts";
+import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
 import type { Response } from "./protocol.ts";
+import { sendWithRetry } from "./retry.ts";
 
 const USAGE = `Usage: browse <command> [args...]
 
@@ -26,18 +27,41 @@ Commands:
   flow <name> [--var k=v] Execute a named flow
   assert <type> <args>    Assert a condition (PASS/FAIL)
   healthcheck [--var k=v] Run healthcheck across configured pages
+  wipe                    Clear all session data
+  benchmark [--iterations N] Measure command latency
   quit                    Shut down the daemon`;
 
 export type ParsedArgs =
-	| { cmd: string; args: string[] }
+	| { cmd: string; args: string[]; timeout?: number }
 	| { daemon: true }
 	| null;
 
+/**
+ * Parse CLI arguments, extracting --timeout flag from args.
+ */
 export function parseArgs(argv: string[]): ParsedArgs {
 	if (argv.length === 0) return null;
 	if (argv[0] === "--daemon") return { daemon: true };
-	const [cmd, ...args] = argv;
-	return { cmd: cmd as string, args };
+
+	const [cmd, ...rawArgs] = argv;
+
+	// Extract --timeout flag
+	let timeout: number | undefined;
+	const args: string[] = [];
+
+	for (let i = 0; i < rawArgs.length; i++) {
+		if (rawArgs[i] === "--timeout" && i + 1 < rawArgs.length) {
+			const val = Number.parseInt(rawArgs[i + 1], 10);
+			if (!Number.isNaN(val) && val > 0) {
+				timeout = val;
+			}
+			i++; // skip the value
+		} else {
+			args.push(rawArgs[i]);
+		}
+	}
+
+	return { cmd: cmd as string, args, timeout };
 }
 
 export function formatOutput(response: Response): {
@@ -54,10 +78,14 @@ function sendRequest(
 	socketPath: string,
 	cmd: string,
 	args: string[],
+	timeout?: number,
 ): Promise<Response> {
 	return new Promise((resolve, reject) => {
+		const payload: Record<string, unknown> = { cmd, args };
+		if (timeout) payload.timeout = timeout;
+
 		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify({ cmd, args })}\n`);
+			client.write(`${JSON.stringify(payload)}\n`);
 		});
 
 		let data = "";
@@ -137,31 +165,25 @@ async function runCli(): Promise<void> {
 		return;
 	}
 
-	const { cmd, args } = parsed;
+	const { cmd, args, timeout } = parsed;
 
 	let response: Response;
 	try {
-		response = await sendRequest(DEFAULT_CONFIG.socketPath, cmd, args);
+		response = await sendWithRetry(
+			{
+				sendRequest: (c, a) =>
+					sendRequest(DEFAULT_CONFIG.socketPath, c, a, timeout),
+				spawnDaemon,
+				cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
+			},
+			cmd,
+			args,
+		);
 	} catch (err) {
-		if (err instanceof Error && err.message === "DAEMON_NOT_RUNNING") {
-			try {
-				await spawnDaemon();
-			} catch {
-				process.stderr.write("Error: Failed to start daemon.\n");
-				process.exit(1);
-			}
-			try {
-				response = await sendRequest(DEFAULT_CONFIG.socketPath, cmd, args);
-			} catch {
-				process.stderr.write("Error: Daemon connection lost.\n");
-				process.exit(1);
-			}
-		} else {
-			process.stderr.write(
-				`Error: ${err instanceof Error ? err.message : String(err)}\n`,
-			);
-			process.exit(1);
-		}
+		process.stderr.write(
+			`Error: ${err instanceof Error ? err.message : String(err)}\n`,
+		);
+		process.exit(1);
 	}
 
 	const { output, isError } = formatOutput(response);

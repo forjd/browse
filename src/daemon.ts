@@ -1,4 +1,4 @@
-import { chmodSync } from "node:fs";
+import { chmodSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +6,7 @@ import { type BrowserContext, chromium, type Page } from "playwright";
 import { RingBuffer } from "./buffers.ts";
 import { handleAssert } from "./commands/assert.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
+import { handleBenchmark } from "./commands/benchmark.ts";
 import { handleClick } from "./commands/click.ts";
 import { type ConsoleEntry, handleConsole } from "./commands/console.ts";
 import { handleFill } from "./commands/fill.ts";
@@ -20,6 +21,7 @@ import { handleSelect } from "./commands/select.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleText } from "./commands/text.ts";
+import { handleWipe } from "./commands/wipe.ts";
 import type { BrowseConfig } from "./config.ts";
 import { loadConfig } from "./config.ts";
 import {
@@ -32,6 +34,7 @@ import {
 import type { Response } from "./protocol.ts";
 import { parseRequest, serialiseResponse } from "./protocol.ts";
 import { clearRefs, markStale } from "./refs.ts";
+import { resolveTimeout, withTimeout } from "./timeout.ts";
 
 export type DaemonOptions = {
 	socketPath: string;
@@ -144,73 +147,79 @@ export async function startServer(
 		shutdown();
 	});
 
+	// Commands exempt from timeout
+	const TIMEOUT_EXEMPT = new Set(["quit", "benchmark"]);
+
 	async function handleConnection(data: string): Promise<string> {
 		idleTimer.reset();
 
 		try {
 			const request = parseRequest(data);
-			let response: Response;
 			const page = getActivePage();
 
-			switch (request.cmd) {
-				case "goto":
-					response = await handleGoto(page, request.args);
-					break;
-				case "text":
-					response = await handleText(page);
-					break;
-				case "snapshot":
-					response = await handleSnapshot(page, request.args);
-					break;
-				case "click":
-					response = await handleClick(page, request.args);
-					break;
-				case "fill":
-					response = await handleFill(page, request.args);
-					break;
-				case "select":
-					response = await handleSelect(page, request.args);
-					break;
-				case "screenshot":
-					response = await handleScreenshot(page, request.args);
-					break;
-				case "console":
-					response = handleConsole(getActiveConsoleBuffer(), request.args);
-					break;
-				case "network":
-					response = handleNetwork(getActiveNetworkBuffer(), request.args);
-					break;
-				case "auth-state":
-					response = await handleAuthState(context, page, request.args);
-					break;
-				case "login":
-					response = await handleLogin(config, page, request.args);
-					break;
-				case "tab":
-					response = await handleTab(tabRegistry, request.args, {
-						clearRefs,
-						createTab,
-					});
-					break;
-				case "flow":
-					response = await handleFlow(config, page, request.args, {
-						consoleBuffer: getActiveConsoleBuffer(),
-						networkBuffer: getActiveNetworkBuffer(),
-					});
-					break;
-				case "assert":
-					response = await handleAssert(config, page, request.args);
-					break;
-				case "healthcheck":
-					response = await handleHealthcheck(config, page, request.args, {
-						consoleBuffer: getActiveConsoleBuffer(),
-						networkBuffer: getActiveNetworkBuffer(),
-					});
-					break;
-				case "quit":
-					response = await handleQuit();
-					setTimeout(() => shutdown(), 50);
-					break;
+			async function executeCommand(): Promise<Response> {
+				switch (request.cmd) {
+					case "goto":
+						return handleGoto(page, request.args);
+					case "text":
+						return handleText(page);
+					case "snapshot":
+						return handleSnapshot(page, request.args);
+					case "click":
+						return handleClick(page, request.args);
+					case "fill":
+						return handleFill(page, request.args);
+					case "select":
+						return handleSelect(page, request.args);
+					case "screenshot":
+						return handleScreenshot(page, request.args);
+					case "console":
+						return handleConsole(getActiveConsoleBuffer(), request.args);
+					case "network":
+						return handleNetwork(getActiveNetworkBuffer(), request.args);
+					case "auth-state":
+						return handleAuthState(context, page, request.args);
+					case "login":
+						return handleLogin(config, page, request.args);
+					case "tab":
+						return handleTab(tabRegistry, request.args, {
+							clearRefs,
+							createTab,
+						});
+					case "flow":
+						return handleFlow(config, page, request.args, {
+							consoleBuffer: getActiveConsoleBuffer(),
+							networkBuffer: getActiveNetworkBuffer(),
+						});
+					case "assert":
+						return handleAssert(config, page, request.args);
+					case "healthcheck":
+						return handleHealthcheck(config, page, request.args, {
+							consoleBuffer: getActiveConsoleBuffer(),
+							networkBuffer: getActiveNetworkBuffer(),
+						});
+					case "wipe":
+						return handleWipe({
+							context,
+							tabRegistry,
+							clearRefs,
+						});
+					case "benchmark":
+						return handleBenchmark({ page }, request.args);
+					case "quit": {
+						const response = await handleQuit();
+						setTimeout(() => shutdown(), 50);
+						return response;
+					}
+				}
+			}
+
+			let response: Response;
+			if (TIMEOUT_EXEMPT.has(request.cmd)) {
+				response = await executeCommand();
+			} else {
+				const timeoutMs = resolveTimeout(request.timeout, config?.timeout);
+				response = await withTimeout(executeCommand, timeoutMs);
 			}
 
 			return serialiseResponse(response);
@@ -255,6 +264,16 @@ export async function startServer(
 		});
 	});
 
+	// Verify socket permissions on startup
+	try {
+		const stats = statSync(lifecycleConfig.socketPath);
+		if ((stats.mode & 0o777) !== 0o600) {
+			chmodSync(lifecycleConfig.socketPath, 0o600);
+		}
+	} catch {
+		// Socket file may not be accessible — continue
+	}
+
 	return { server, idleTimer, shutdown };
 }
 
@@ -279,6 +298,13 @@ export async function startDaemon(
 	);
 
 	const page: Page = context.pages()[0] ?? (await context.newPage());
+
+	// Browser crash detection — clean exit so CLI cold-starts a fresh daemon
+	context.browser()?.on("disconnected", () => {
+		process.stderr.write("Browser disconnected — daemon exiting.\n");
+		cleanupFiles(lifecycleConfig);
+		process.exit(1);
+	});
 
 	// Load config from cwd
 	const configPath = join(process.cwd(), "browse.config.json");

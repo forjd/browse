@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install Playwright browsers
+        run: bunx playwright install chromium --with-deps
+
+      - name: Run unit tests
+        run: bun test test/unit/
+
+      - name: Run integration tests
+        run: bun test test/integration/
+
+      - name: Run existing tests
+        run: bun test test/*.test.ts
+
+      - name: Compile binary
+        run: bun build --compile ./src/cli.ts --outfile dist/browse --external playwright --external playwright-core
+
+      - name: Smoke test binary
+        run: |
+          output=$(./dist/browse goto 'data:text/html,<h1>CI</h1>' 2>&1 || true)
+          echo "$output"
+          echo "$output" | grep -q "CI" || { echo "Smoke test failed: expected 'CI' in output"; exit 1; }

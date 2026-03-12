@@ -25,7 +25,19 @@ First useful sequence: `browse goto <url>` → `browse snapshot` → `browse scr
 browse goto <url>                          Navigate to URL, return page title
 browse text                                Return visible text content of the page
 browse quit                                Shut down the daemon
+browse wipe                                Clear all session data (cookies, storage, buffers, refs)
+browse benchmark [--iterations N]          Measure command latency (p50/p95/p99)
 ```
+
+### Timeout control
+
+Any command accepts `--timeout <ms>` to override the default 30s timeout:
+
+```
+browse goto https://slow-page.example.com --timeout 60000
+```
+
+Timeout precedence: `--timeout` flag > config file `timeout` > 30s default. Commands `quit` and `benchmark` are exempt from timeout.
 
 ### Snapshot and interaction (ref system)
 
@@ -80,6 +92,7 @@ browse assert element-count <sel> <n>      Assert element count equals n
 browse assert permission <name> granted    Check permission via config (navigates to page)
 browse assert permission <name> denied     Check permission denial via config
 browse healthcheck --var base_url=<url>    Run healthcheck across configured pages
+browse wipe                                Clear cookies, storage, buffers, refs, close extra tabs
 ```
 
 ## The ref system
@@ -145,14 +158,23 @@ browse auth-state load /tmp/auth.json      # in a future session
 
 Save auth state after a successful login. Load it in future sessions to skip re-authentication.
 
+**Session cleanup:**
+
+Use `browse wipe` to clear all session data without restarting the daemon:
+
+- After testing with production-like credentials.
+- Before switching between user roles/accounts.
+- At the end of a QA session.
+
 ## Common failure patterns and recovery
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `"Refs are stale"` | Page changed since last snapshot | Run `browse snapshot` |
 | `"Unknown ref: @e7"` | Ref doesn't exist in current snapshot | Run `browse snapshot` to see available refs |
-| `"Daemon connection lost"` | Daemon crashed or was killed | Just run the command again — CLI auto-restarts the daemon |
-| `"Command timed out"` | Page is slow or unresponsive | Check URL is correct, check network connectivity |
+| `"Daemon connection lost"` | Daemon crashed or was killed | Just run the command again — CLI auto-restarts the daemon and retries once |
+| `"Command timed out after Nms"` | Page is slow or unresponsive | Use `--timeout 60000` for slow pages, or check URL/network |
+| `"Daemon crashed and recovery failed"` | Daemon restart also failed | Check system resources, try `browse quit` then retry |
 | `"No element matching selector"` | CSS selector is wrong | Check the selector, use `browse snapshot -f` for full tree |
 | Login fails | Credentials missing or wrong | Check env vars, verify login URL, use `browse screenshot` to see the page |
 
@@ -199,7 +221,8 @@ The tool is configured via `browse.config.json` in the project root. All section
       { "url": "{{base_url}}/dashboard", "screenshot": true, "console": "error" },
       { "url": "{{base_url}}/settings", "assertions": [{ "visible": ".settings-form" }] }
     ]
-  }
+  },
+  "timeout": 45000
 }
 ```
 

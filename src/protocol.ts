@@ -15,6 +15,8 @@ const VALID_COMMANDS = [
 	"flow",
 	"assert",
 	"healthcheck",
+	"wipe",
+	"benchmark",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
@@ -22,6 +24,7 @@ export type Command = (typeof VALID_COMMANDS)[number];
 export type Request = {
 	cmd: Command;
 	args: string[];
+	timeout?: number;
 };
 
 export type Response =
@@ -55,7 +58,12 @@ export function parseRequest(raw: string): Request {
 		throw new Error(`Unknown command: ${cmd}`);
 	}
 
-	return { cmd: cmd as Command, args: obj.args as string[] };
+	const timeout =
+		typeof obj.timeout === "number" && obj.timeout > 0
+			? obj.timeout
+			: undefined;
+
+	return { cmd: cmd as Command, args: obj.args as string[], timeout };
 }
 
 export function serialiseResponse(response: Response): string {

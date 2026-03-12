@@ -76,6 +76,7 @@ export type BrowseConfig = {
 	flows?: Record<string, FlowConfig>;
 	permissions?: Record<string, PermissionConfig>;
 	healthcheck?: HealthcheckConfig;
+	timeout?: number;
 };
 
 export function loadConfig(path: string): {
