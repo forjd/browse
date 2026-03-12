@@ -1,15 +1,175 @@
-# bun-browser
+# browse
 
-To install dependencies:
+A fast CLI for browser automation. Wraps Playwright behind a persistent daemon on a Unix socket — first call cold-starts in ~3s, every call after that runs in under 30ms.
 
-```bash
-bun install
+Built for AI agents doing QA, but works just as well by hand.
+
+## Install
+
+Requires [Bun](https://bun.sh) >= 1.0.
+
+```sh
+git clone https://github.com/user/bun-browser.git
+cd bun-browser
+./setup.sh
 ```
 
-To run:
+This installs dependencies, downloads Chromium, compiles a self-contained binary to `dist/browse`, and symlinks it to `~/.local/bin/browse`.
 
-```bash
-bun run index.ts
+## Usage
+
+```sh
+browse goto https://example.com     # navigate — daemon starts automatically
+browse snapshot                     # list interactive elements with refs
+browse click @e1                    # click an element by ref
+browse fill @e2 "hello"            # type into an input
+browse screenshot                   # capture the page
+browse quit                         # shut down the daemon
 ```
 
-This project was created using `bun init` in bun v1.3.10. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+### How refs work
+
+Refs (`@e1`, `@e2`, ...) are how you target elements. Run `browse snapshot` to assign them, then use them with `click`, `fill`, and `select`. Refs go stale after navigation — just snapshot again.
+
+```sh
+browse snapshot                     # assigns @e1, @e2, @e3, ...
+browse fill @e3 "search term"
+browse click @e4
+browse snapshot                     # re-assign after the page changes
+```
+
+### Screenshots and debugging
+
+```sh
+browse screenshot [path]            # full-page (auto-names if no path given)
+browse screenshot --viewport        # viewport only
+browse console                      # console messages since last call
+browse console --level error        # filter by level
+browse network                      # failed requests (4xx/5xx)
+browse network --all                # all requests
+```
+
+### Tabs
+
+```sh
+browse tab list
+browse tab new https://other.com
+browse tab switch 2
+browse tab close
+```
+
+### Auth and sessions
+
+```sh
+browse login --env staging                  # configured login via browse.config.json
+browse auth-state save /tmp/session.json    # export cookies + localStorage
+browse auth-state load /tmp/session.json    # restore a saved session
+browse wipe                                 # clear all session data
+```
+
+### Flows and assertions
+
+Define reusable flows in `browse.config.json`, then run them:
+
+```sh
+browse flow list
+browse flow signup --var base_url=https://staging.example.com
+browse assert text-contains "Welcome"
+browse assert visible ".dashboard"
+browse healthcheck --var base_url=https://staging.example.com
+```
+
+### Timeouts
+
+Any command accepts `--timeout <ms>` (default: 30s):
+
+```sh
+browse goto https://slow-page.com --timeout 60000
+```
+
+## Configuration
+
+Optional. Create `browse.config.json` in your project root to configure login environments, reusable flows, permission checks, and health checks.
+
+```json
+{
+  "environments": {
+    "staging": {
+      "loginUrl": "https://staging.example.com/login",
+      "userEnvVar": "STAGING_USER",
+      "passEnvVar": "STAGING_PASS",
+      "usernameField": "input[name=email]",
+      "passwordField": "input[name=password]",
+      "submitButton": "button[type=submit]",
+      "successCondition": { "urlContains": "/dashboard" }
+    }
+  },
+  "flows": {
+    "signup": {
+      "description": "Test the signup flow",
+      "variables": ["base_url", "test_email"],
+      "steps": [
+        { "goto": "{{base_url}}/register" },
+        { "fill": { "input[name=email]": "{{test_email}}" } },
+        { "click": "button[type=submit]" },
+        { "wait": { "urlContains": "/welcome" } },
+        { "assert": { "textContains": "Welcome" } }
+      ]
+    }
+  },
+  "healthcheck": {
+    "pages": [
+      { "url": "{{base_url}}/dashboard", "screenshot": true, "console": "error" },
+      { "url": "{{base_url}}/settings", "assertions": [{ "visible": ".settings-form" }] }
+    ]
+  },
+  "timeout": 45000
+}
+```
+
+## Architecture
+
+The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses.
+
+```
+CLI ──JSON──▶ Unix socket ──▶ Daemon ──▶ Playwright ──▶ Chromium
+```
+
+## Performance
+
+Measured with `browse benchmark`:
+
+| Command    | p50  | p95  |
+|------------|------|------|
+| goto       | 27ms | 32ms |
+| snapshot   | 1ms  | 11ms |
+| screenshot | 24ms | 25ms |
+| click      | 17ms | 18ms |
+| fill       | 1ms  | 26ms |
+
+## All commands
+
+| Command | Description |
+|---------|-------------|
+| `goto <url>` | Navigate to URL |
+| `text` | Return visible page text |
+| `snapshot` | List elements with refs (`-i` structural, `-f` full tree) |
+| `click @eN` | Click element |
+| `fill @eN "value"` | Fill input (clears first) |
+| `select @eN "option"` | Select dropdown option |
+| `screenshot [path]` | Capture page (`--viewport`, `--selector`) |
+| `console` | Console log (`--level`, `--keep`) |
+| `network` | Failed requests (`--all`, `--keep`) |
+| `tab list\|new\|switch\|close` | Tab management |
+| `login --env <name>` | Configured login |
+| `auth-state save\|load <path>` | Session import/export |
+| `flow list\|<name>` | Run configured flows |
+| `assert <type> <args>` | Assertions (visible, text, url, element, permission) |
+| `healthcheck` | Multi-page health check |
+| `wipe` | Clear all session data |
+| `benchmark` | Measure latency |
+| `quit` | Stop the daemon |
+
+## License
+
+MIT

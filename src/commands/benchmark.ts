@@ -96,7 +96,7 @@ export async function handleBenchmark(
 
 		// snapshot
 		const snapshotDurations = await measureOp(async () => {
-			const snapshot = await page.ariaSnapshot();
+			const snapshot = await page.locator("body").ariaSnapshot();
 			const tree = parseAriaSnapshot(snapshot);
 			assignRefs(tree, "default");
 		}, iterations);

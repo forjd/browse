@@ -1125,8 +1125,8 @@ async function testFlowMissingVariables() {
 	const paths = testPaths();
 
 	// Write a config file to the temp dir so the daemon picks it up
-	const configPath = join(TEST_DIR, `run-${testIndex}`, "browse.config.json");
-	const config = {
+	const _configPath = join(TEST_DIR, `run-${testIndex}`, "browse.config.json");
+	const _config = {
 		environments: {},
 		flows: {
 			signup: {
