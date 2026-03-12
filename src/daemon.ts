@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
+import UserAgent from "user-agents";
 import { RingBuffer } from "./buffers.ts";
 import { handleAssert } from "./commands/assert.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
@@ -299,8 +300,10 @@ export async function startDaemon(
 			channel: "chromium",
 			ignoreDefaultArgs: ["--enable-automation"],
 			viewport: { width: 1440, height: 900 },
-			userAgent:
-				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+			userAgent: new UserAgent({
+				deviceCategory: "desktop",
+				userAgent: /Chrome/,
+			}).toString(),
 		},
 	);
 
