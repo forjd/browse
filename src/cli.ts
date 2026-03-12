@@ -6,13 +6,23 @@ import type { Response } from "./protocol.ts";
 const USAGE = `Usage: browse <command> [args...]
 
 Commands:
-  goto <url>          Navigate to URL, return page title
-  text                Return visible text content
-  snapshot [-i|-f]    Show page elements with refs
-  click <@ref>        Click an element by ref
-  fill <@ref> <val>   Fill an input by ref
-  select <@ref> <opt> Select a dropdown option by ref
-  quit                Shut down the daemon`;
+  goto <url>              Navigate to URL, return page title
+  text                    Return visible text content
+  snapshot [-i|-f]        Show page elements with refs
+  click <@ref>            Click an element by ref
+  fill <@ref> <val>       Fill an input by ref
+  select <@ref> <opt>     Select a dropdown option by ref
+  screenshot [path]       Take a screenshot
+  console [--level <lvl>] Show console messages
+  network [--all]         Show network requests
+  auth-state save <path>  Save auth state to file
+  auth-state load <path>  Load auth state from file
+  login --env <name>      Log in using configured environment
+  tab list                List open tabs
+  tab new [url]           Open new tab
+  tab switch <index>      Switch to tab by index
+  tab close [index]       Close a tab
+  quit                    Shut down the daemon`;
 
 export type ParsedArgs =
 	| { cmd: string; args: string[] }

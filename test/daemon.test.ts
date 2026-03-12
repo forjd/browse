@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
+import type { ServerDeps } from "../src/daemon.ts";
 import { startServer } from "../src/daemon.ts";
 import type { LifecycleConfig } from "../src/lifecycle.ts";
 import type { Response } from "../src/protocol.ts";
@@ -30,8 +31,30 @@ function mockPage(overrides: Record<string, unknown> = {}) {
 		innerText: mock(() => Promise.resolve("Mock body text")),
 		on: mock(() => {}),
 		mainFrame: mock(() => mainFrameSentinel),
+		url: mock(() => "https://example.com"),
 		...overrides,
 	} as never;
+}
+
+function mockContext(overrides: Record<string, unknown> = {}) {
+	return {
+		storageState: mock(() => Promise.resolve({ cookies: [], origins: [] })),
+		addCookies: mock(() => Promise.resolve()),
+		newPage: mock(() => Promise.resolve(mockPage())),
+		...overrides,
+	} as never;
+}
+
+function mockDeps(
+	page: ReturnType<typeof mockPage>,
+	overrides: Partial<ServerDeps> = {},
+): ServerDeps {
+	return {
+		page,
+		context: mockContext(),
+		config: null,
+		...overrides,
+	};
 }
 
 beforeEach(() => {
@@ -72,7 +95,7 @@ describe("daemon server", () => {
 		const config = testPaths();
 		const page = mockPage();
 		const shutdownFn = mock(() => Promise.resolve());
-		const { shutdown } = await startServer(page, config, shutdownFn);
+		const { shutdown } = await startServer(mockDeps(page), config, shutdownFn);
 
 		try {
 			const response = await sendCommand(config.socketPath, "dance");
@@ -88,7 +111,11 @@ describe("daemon server", () => {
 	test("handles goto command", async () => {
 		const config = testPaths();
 		const page = mockPage();
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		try {
 			const response = await sendCommand(config.socketPath, "goto", [
@@ -107,7 +134,11 @@ describe("daemon server", () => {
 	test("handles text command", async () => {
 		const config = testPaths();
 		const page = mockPage();
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		try {
 			const response = await sendCommand(config.socketPath, "text");
@@ -123,7 +154,7 @@ describe("daemon server", () => {
 		writeFileSync(config.pidPath, "12345");
 		const page = mockPage();
 		const shutdownCb = mock(() => Promise.resolve());
-		await startServer(page, config, shutdownCb);
+		await startServer(mockDeps(page), config, shutdownCb);
 
 		const response = await sendCommand(config.socketPath, "quit");
 		expect(response).toEqual({ ok: true, data: "Daemon stopped." });
@@ -137,7 +168,11 @@ describe("daemon server", () => {
 	test("cleans up socket and pid on shutdown", async () => {
 		const config = testPaths();
 		const page = mockPage();
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		// Files exist while running
 		expect(existsSync(config.socketPath)).toBe(true);
@@ -150,7 +185,11 @@ describe("daemon server", () => {
 	test("handles malformed JSON gracefully", async () => {
 		const config = testPaths();
 		const page = mockPage();
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		try {
 			const response = await sendCommand(config.socketPath, "" as never);
@@ -167,7 +206,11 @@ describe("daemon server", () => {
 			screenshot: mock(() => Promise.resolve()),
 			evaluate: mock(() => Promise.resolve(500)),
 		});
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		try {
 			const response = await sendCommand(config.socketPath, "screenshot", [
@@ -185,7 +228,11 @@ describe("daemon server", () => {
 	test("handles console command with empty buffer", async () => {
 		const config = testPaths();
 		const page = mockPage();
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		try {
 			const response = await sendCommand(config.socketPath, "console");
@@ -198,7 +245,11 @@ describe("daemon server", () => {
 	test("handles network command with empty buffer", async () => {
 		const config = testPaths();
 		const page = mockPage();
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		try {
 			const response = await sendCommand(config.socketPath, "network");
@@ -216,7 +267,11 @@ describe("daemon server", () => {
 			),
 			title: mock(() => Promise.resolve("")),
 		});
-		const { shutdown } = await startServer(page, config, async () => {});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
 
 		try {
 			const response = await sendCommand(config.socketPath, "goto", [
@@ -230,6 +285,75 @@ describe("daemon server", () => {
 			// Server should still be alive — send another command
 			const response2 = await sendCommand(config.socketPath, "text");
 			expect(response2.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles tab list command", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "tab", ["list"]);
+			expect(response.ok).toBe(true);
+			if (response.ok) {
+				expect(response.data).toContain("[active]");
+				expect(response.data).toContain("1.");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles auth-state save command", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const ctx = mockContext();
+		const { shutdown } = await startServer(
+			mockDeps(page, { context: ctx }),
+			config,
+			async () => {},
+		);
+
+		try {
+			const savePath = join(config.dir, "auth.json");
+			const response = await sendCommand(config.socketPath, "auth-state", [
+				"save",
+				savePath,
+			]);
+			expect(response.ok).toBe(true);
+			if (response.ok) {
+				expect(response.data).toContain(savePath);
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles login command without config", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "login", [
+				"--env",
+				"staging",
+			]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("browse.config.json");
+			}
 		} finally {
 			await shutdown();
 		}

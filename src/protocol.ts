@@ -9,6 +9,9 @@ const VALID_COMMANDS = [
 	"screenshot",
 	"console",
 	"network",
+	"auth-state",
+	"login",
+	"tab",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

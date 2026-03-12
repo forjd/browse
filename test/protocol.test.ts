@@ -40,6 +40,26 @@ describe("parseRequest", () => {
 		expect(result).toEqual({ cmd: "select", args: ["@e5", "Admin"] });
 	});
 
+	test("parses auth-state command with subcommand and path", () => {
+		const result = parseRequest(
+			'{"cmd":"auth-state","args":["save","/tmp/auth.json"]}',
+		);
+		expect(result).toEqual({
+			cmd: "auth-state",
+			args: ["save", "/tmp/auth.json"],
+		});
+	});
+
+	test("parses login command with --env flag", () => {
+		const result = parseRequest('{"cmd":"login","args":["--env","staging"]}');
+		expect(result).toEqual({ cmd: "login", args: ["--env", "staging"] });
+	});
+
+	test("parses tab command with subcommand", () => {
+		const result = parseRequest('{"cmd":"tab","args":["list"]}');
+		expect(result).toEqual({ cmd: "tab", args: ["list"] });
+	});
+
 	test("throws on malformed JSON", () => {
 		expect(() => parseRequest("not json")).toThrow("Invalid JSON");
 	});
