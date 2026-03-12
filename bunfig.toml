@@ -1,2 +1,2 @@
 [test]
-exclude = ["opensrc"]
+root = "./test"
