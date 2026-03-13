@@ -1,5 +1,11 @@
 import { describe, expect, mock, test } from "bun:test";
 import { handleWait } from "../src/commands/wait.ts";
+import {
+	type AccessibilityNode,
+	assignRefs,
+	clearRefs,
+	markStale,
+} from "../src/refs.ts";
 
 function createMockPage(opts: {
 	url?: string;
@@ -275,5 +281,92 @@ describe("handleWait", () => {
 
 		expect(result.ok).toBe(true);
 		expect(callCount).toBeGreaterThanOrEqual(3);
+	});
+
+	// --- ref support ---
+
+	test("visible — succeeds with ref when element is visible", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = {
+			getByRole: mock(() => ({
+				nth: mock(() => ({
+					first: () => ({
+						isVisible: mock(async () => true),
+					}),
+				})),
+				first: () => ({
+					isVisible: mock(async () => true),
+				}),
+			})),
+			locator: mock(() => ({
+				first: () => ({
+					isVisible: mock(async () => false),
+				}),
+			})),
+		} as never;
+
+		const result = await handleWait(page, ["visible", "@e1"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("@e1");
+		}
+	});
+
+	test("hidden — succeeds with ref when element is not visible", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = {
+			getByRole: mock(() => ({
+				nth: mock(() => ({
+					first: () => ({
+						isVisible: mock(async () => false),
+					}),
+				})),
+				first: () => ({
+					isVisible: mock(async () => false),
+				}),
+			})),
+			locator: mock(() => ({
+				first: () => ({
+					isVisible: mock(async () => true),
+				}),
+			})),
+		} as never;
+
+		const result = await handleWait(page, ["hidden", "@e1"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("@e1");
+		}
+	});
+
+	test("visible — returns error for stale ref", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		markStale();
+		const page = createMockPage({});
+
+		const result = await handleWait(page, ["visible", "@e1"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("stale");
+		}
+	});
+
+	test("visible — returns error for unknown ref", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = createMockPage({});
+
+		const result = await handleWait(page, ["visible", "@e99"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Unknown ref");
+		}
 	});
 });

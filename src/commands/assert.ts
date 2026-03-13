@@ -2,6 +2,7 @@ import type { Page } from "playwright";
 import type { AssertCondition, BrowseConfig } from "../config.ts";
 import { interpolateVars, parseVars } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
+import { resolveLocator } from "../refs.ts";
 
 export type AssertResult = {
 	passed: boolean;
@@ -28,12 +29,13 @@ export function parseAssertArgs(args: string[]): ParsedAssert {
 
 	switch (subcommand) {
 		case "visible":
-			if (!args[1]) return { error: "Usage: browse assert visible <selector>" };
+			if (!args[1])
+				return { error: "Usage: browse assert visible <selector|@ref>" };
 			return { condition: { visible: args[1] } };
 
 		case "not-visible":
 			if (!args[1])
-				return { error: "Usage: browse assert not-visible <selector>" };
+				return { error: "Usage: browse assert not-visible <selector|@ref>" };
 			return { condition: { notVisible: args[1] } };
 
 		case "text-contains":
@@ -59,7 +61,7 @@ export function parseAssertArgs(args: string[]): ParsedAssert {
 		case "element-text":
 			if (!args[1] || !args[2])
 				return {
-					error: "Usage: browse assert element-text <selector> <text>",
+					error: "Usage: browse assert element-text <selector|@ref> <text>",
 				};
 			return {
 				condition: { elementText: { selector: args[1], contains: args[2] } },
@@ -68,7 +70,7 @@ export function parseAssertArgs(args: string[]): ParsedAssert {
 		case "element-count": {
 			if (!args[1] || !args[2])
 				return {
-					error: "Usage: browse assert element-count <selector> <count>",
+					error: "Usage: browse assert element-count <selector|@ref> <count>",
 				};
 			const count = Number.parseInt(args[2], 10);
 			if (Number.isNaN(count))
@@ -108,8 +110,12 @@ export async function evaluateAssertCondition(
 	condition: AssertCondition,
 ): Promise<AssertResult> {
 	if ("visible" in condition) {
+		const resolved = resolveLocator(page, condition.visible);
+		if ("error" in resolved) {
+			return { passed: false, reason: resolved.error };
+		}
 		try {
-			const visible = await page.locator(condition.visible).first().isVisible();
+			const visible = await resolved.locator.first().isVisible();
 			if (visible) {
 				return { passed: true, reason: "" };
 			}
@@ -126,11 +132,12 @@ export async function evaluateAssertCondition(
 	}
 
 	if ("notVisible" in condition) {
+		const resolved = resolveLocator(page, condition.notVisible);
+		if ("error" in resolved) {
+			return { passed: false, reason: resolved.error };
+		}
 		try {
-			const visible = await page
-				.locator(condition.notVisible)
-				.first()
-				.isVisible();
+			const visible = await resolved.locator.first().isVisible();
 			if (!visible) {
 				return { passed: true, reason: "" };
 			}
@@ -191,11 +198,12 @@ export async function evaluateAssertCondition(
 	}
 
 	if ("elementText" in condition) {
+		const resolved = resolveLocator(page, condition.elementText.selector);
+		if ("error" in resolved) {
+			return { passed: false, reason: resolved.error };
+		}
 		try {
-			const text = await page
-				.locator(condition.elementText.selector)
-				.first()
-				.innerText();
+			const text = await resolved.locator.first().innerText();
 			if (text.includes(condition.elementText.contains)) {
 				return { passed: true, reason: "" };
 			}
@@ -212,19 +220,24 @@ export async function evaluateAssertCondition(
 	}
 
 	if ("elementCount" in condition) {
+		const selector = condition.elementCount.selector;
+		const resolved = resolveLocator(page, selector);
+		if ("error" in resolved) {
+			return { passed: false, reason: resolved.error };
+		}
 		try {
-			const count = await page.locator(condition.elementCount.selector).count();
+			const count = await resolved.locator.count();
 			if (count === condition.elementCount.count) {
 				return { passed: true, reason: "" };
 			}
 			return {
 				passed: false,
-				reason: `Element "${condition.elementCount.selector}" count is ${count}, expected ${condition.elementCount.count}.`,
+				reason: `Element "${selector}" count is ${count}, expected ${condition.elementCount.count}.`,
 			};
 		} catch {
 			return {
 				passed: false,
-				reason: `Element "${condition.elementCount.selector}" not found.`,
+				reason: `Element "${selector}" not found.`,
 			};
 		}
 	}

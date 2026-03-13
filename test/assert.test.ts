@@ -3,6 +3,7 @@ import {
 	evaluateAssertCondition,
 	parseAssertArgs,
 } from "../src/commands/assert.ts";
+import { type AccessibilityNode, assignRefs, clearRefs } from "../src/refs.ts";
 
 describe("parseAssertArgs", () => {
 	test("parses visible subcommand", () => {
@@ -114,22 +115,46 @@ function createMockPage(opts: {
 	visibleSelectors?: Set<string>;
 	elementTexts?: Record<string, string>;
 	elementCounts?: Record<string, number>;
+	/** Roles that are visible/have text for getByRole-based lookups (ref resolution) */
+	visibleRoles?: Set<string>;
+	roleTexts?: Record<string, string>;
+	roleCounts?: Record<string, number>;
 }) {
+	const makeLocator = (visible: boolean, text: string, count: number) => ({
+		first: () => ({
+			isVisible: mock(async () => visible),
+			innerText: mock(async () => text),
+		}),
+		nth: (_n: number) => ({
+			first: () => ({
+				isVisible: mock(async () => visible),
+				innerText: mock(async () => text),
+			}),
+			count: mock(async () => count),
+		}),
+		count: mock(async () => count),
+	});
+
 	return {
 		url: () => opts.url ?? "https://example.com/dashboard",
 		innerText: mock(async (selector: string) => {
 			if (selector === "body") return opts.bodyText ?? "";
 			return "";
 		}),
-		locator: (selector: string) => ({
-			first: () => ({
-				isVisible: mock(
-					async () => opts.visibleSelectors?.has(selector) ?? false,
-				),
-				innerText: mock(async () => opts.elementTexts?.[selector] ?? ""),
-			}),
-			count: mock(async () => opts.elementCounts?.[selector] ?? 0),
-		}),
+		locator: (selector: string) =>
+			makeLocator(
+				opts.visibleSelectors?.has(selector) ?? false,
+				opts.elementTexts?.[selector] ?? "",
+				opts.elementCounts?.[selector] ?? 0,
+			),
+		getByRole: (_role: string, roleOpts?: { name: string; exact: boolean }) => {
+			const key = roleOpts?.name ?? _role;
+			return makeLocator(
+				opts.visibleRoles?.has(key) ?? false,
+				opts.roleTexts?.[key] ?? "",
+				opts.roleCounts?.[key] ?? 0,
+			);
+		},
 	} as any;
 }
 
@@ -265,5 +290,85 @@ describe("evaluateAssertCondition", () => {
 		expect(result.passed).toBe(false);
 		expect(result.reason).toContain("5");
 		expect(result.reason).toContain("3");
+	});
+
+	// --- ref support ---
+
+	test("visible — passes when ref element is visible", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = createMockPage({ visibleRoles: new Set(["Submit"]) });
+		const result = await evaluateAssertCondition(page, { visible: "@e1" });
+		expect(result.passed).toBe(true);
+	});
+
+	test("visible — fails when ref element is not visible", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = createMockPage({ visibleRoles: new Set() });
+		const result = await evaluateAssertCondition(page, { visible: "@e1" });
+		expect(result.passed).toBe(false);
+	});
+
+	test("notVisible — passes when ref element is not visible", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = createMockPage({ visibleRoles: new Set() });
+		const result = await evaluateAssertCondition(page, { notVisible: "@e1" });
+		expect(result.passed).toBe(true);
+	});
+
+	test("notVisible — fails when ref element is visible", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = createMockPage({ visibleRoles: new Set(["Submit"]) });
+		const result = await evaluateAssertCondition(page, { notVisible: "@e1" });
+		expect(result.passed).toBe(false);
+	});
+
+	test("elementText — passes with ref", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = createMockPage({ roleTexts: { Submit: "Submit Form" } });
+		const result = await evaluateAssertCondition(page, {
+			elementText: { selector: "@e1", contains: "Submit" },
+		});
+		expect(result.passed).toBe(true);
+	});
+
+	test("elementCount — passes with ref", async () => {
+		clearRefs();
+		assignRefs(
+			[
+				{ role: "button", name: "Delete" },
+				{ role: "button", name: "Delete" },
+			],
+			"default",
+		);
+		const page = createMockPage({ roleCounts: { Delete: 2 } });
+		const result = await evaluateAssertCondition(page, {
+			elementCount: { selector: "@e1", count: 2 },
+		});
+		expect(result.passed).toBe(true);
+	});
+
+	test("visible — returns error for stale ref", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const { markStale } = await import("../src/refs.ts");
+		markStale();
+		const page = createMockPage({});
+		const result = await evaluateAssertCondition(page, { visible: "@e1" });
+		expect(result.passed).toBe(false);
+		expect(result.reason).toContain("stale");
+	});
+
+	test("visible — returns error for unknown ref", async () => {
+		clearRefs();
+		assignRefs([{ role: "button", name: "Submit" }], "default");
+		const page = createMockPage({});
+		const result = await evaluateAssertCondition(page, { visible: "@e99" });
+		expect(result.passed).toBe(false);
+		expect(result.reason).toContain("Unknown ref");
 	});
 });

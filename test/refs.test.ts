@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import {
 	type AccessibilityNode,
 	assignRefs,
@@ -8,6 +8,7 @@ import {
 	isStale,
 	markStale,
 	parseAriaSnapshot,
+	resolveLocator,
 	resolveRef,
 } from "../src/refs.ts";
 
@@ -238,5 +239,66 @@ describe("markStale", () => {
 		expect(isStale()).toBe(false);
 		markStale();
 		expect(isStale()).toBe(true);
+	});
+});
+
+describe("resolveLocator", () => {
+	function mockPage() {
+		const locatorResult = { _type: "css-locator" };
+		const roleResult = {
+			_type: "role-locator",
+			nth: mock(() => ({ _type: "role-locator-nth" })),
+		};
+		return {
+			locator: mock((_sel: string) => ({ first: () => locatorResult })),
+			getByRole: mock(
+				(_role: string, _opts?: Record<string, unknown>) => roleResult,
+			),
+			_locatorResult: locatorResult,
+			_roleResult: roleResult,
+		};
+	}
+
+	test("returns CSS locator for non-ref string", () => {
+		const page = mockPage();
+		const result = resolveLocator(page as any, ".btn");
+		expect("locator" in result).toBe(true);
+		if ("locator" in result) {
+			expect(page.locator).toHaveBeenCalledWith(".btn");
+		}
+	});
+
+	test("returns role-based locator for ref string", () => {
+		clearRefs();
+		assignRefs([makeNode("button", "Submit")], "default");
+		const page = mockPage();
+
+		const result = resolveLocator(page as any, "@e1");
+		expect("locator" in result).toBe(true);
+		if ("locator" in result) {
+			expect(page.getByRole).toHaveBeenCalled();
+		}
+	});
+
+	test("returns error for unknown ref", () => {
+		clearRefs();
+		assignRefs([makeNode("button", "Submit")], "default");
+		const page = mockPage();
+
+		const result = resolveLocator(page as any, "@e99");
+		expect("error" in result).toBe(true);
+	});
+
+	test("returns error for stale ref", () => {
+		clearRefs();
+		assignRefs([makeNode("button", "Submit")], "default");
+		markStale();
+		const page = mockPage();
+
+		const result = resolveLocator(page as any, "@e1");
+		expect("error" in result).toBe(true);
+		if ("error" in result) {
+			expect(result.error).toContain("stale");
+		}
 	});
 });

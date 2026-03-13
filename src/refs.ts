@@ -258,6 +258,44 @@ export function markStale(): void {
 	stale = true;
 }
 
+/**
+ * Resolve a selector-or-ref string to a Playwright Locator.
+ * If the string starts with @, resolve via the ref registry.
+ * Otherwise, treat it as a CSS selector via page.locator().
+ */
+export function resolveLocator(
+	page: import("playwright").Page,
+	selectorOrRef: string,
+): { locator: import("playwright").Locator } | { error: string } {
+	if (!selectorOrRef.startsWith("@")) {
+		return { locator: page.locator(selectorOrRef) };
+	}
+
+	const resolved = resolveRef(selectorOrRef);
+	if ("error" in resolved) {
+		return resolved;
+	}
+
+	const locator =
+		resolved.totalMatches > 1
+			? page
+					.getByRole(
+						resolved.role as Parameters<
+							import("playwright").Page["getByRole"]
+						>[0],
+						{ name: resolved.name, exact: true },
+					)
+					.nth(resolved.nthMatch)
+			: page.getByRole(
+					resolved.role as Parameters<
+						import("playwright").Page["getByRole"]
+					>[0],
+					{ name: resolved.name, exact: true },
+				);
+
+	return { locator };
+}
+
 export function clearRefs(): void {
 	currentRefs = new Map();
 	stale = false;

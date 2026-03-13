@@ -140,14 +140,14 @@ Flows are defined in browse.config.json.`,
 		usage: `browse assert <type> <args...>
 
 Types:
-  visible <selector>              Element is visible
-  not-visible <selector>          Element is not visible
-  text-contains <text>            Page contains text
-  text-not-contains <text>        Page does not contain text
-  url-contains <substring>        URL contains substring
-  url-pattern <regex>             URL matches regex
-  element-text <selector> <text>  Element text contains value
-  element-count <selector> <n>    Element count matches
+  visible <selector|@ref>              Element is visible
+  not-visible <selector|@ref>          Element is not visible
+  text-contains <text>                 Page contains text
+  text-not-contains <text>             Page does not contain text
+  url-contains <substring>             URL contains substring
+  url-pattern <regex>                  URL matches regex
+  element-text <selector|@ref> <text>  Element text contains value
+  element-count <selector|@ref> <n>    Element count matches
   permission <name> granted|denied [--var k=v ...]`,
 	},
 	healthcheck: {
@@ -212,8 +212,8 @@ Examples:
 		summary: "Wait for a condition before proceeding",
 		usage: `browse wait url <substring>        Wait until URL contains substring
 browse wait text <string>          Wait until page text contains string
-browse wait visible <selector>     Wait until element is visible
-browse wait hidden <selector>      Wait until element disappears
+browse wait visible <selector|@ref>    Wait until element is visible
+browse wait hidden <selector|@ref>     Wait until element disappears
 browse wait network-idle           Wait until no pending network requests
 browse wait <ms>                   Wait for a fixed delay (last resort)
 

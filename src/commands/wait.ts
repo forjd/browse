@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
+import { resolveLocator } from "../refs.ts";
 
 const POLL_INTERVAL_MS = 100;
 
@@ -19,7 +20,7 @@ export async function handleWait(
 		return {
 			ok: false,
 			error:
-				"Usage: browse wait <url|text|visible|hidden|network-idle|ms>\n\nTypes:\n  url <substring>        Wait until URL contains substring\n  text <string>          Wait until page text contains string\n  visible <selector>     Wait until element is visible\n  hidden <selector>      Wait until element disappears\n  network-idle           Wait until no pending network requests\n  <ms>                   Wait for a fixed delay in milliseconds",
+				"Usage: browse wait <url|text|visible|hidden|network-idle|ms>\n\nTypes:\n  url <substring>            Wait until URL contains substring\n  text <string>              Wait until page text contains string\n  visible <selector|@ref>    Wait until element is visible\n  hidden <selector|@ref>     Wait until element disappears\n  network-idle               Wait until no pending network requests\n  <ms>                       Wait for a fixed delay in milliseconds",
 		};
 	}
 
@@ -92,19 +93,24 @@ async function waitText(page: Page, args: string[]): Promise<Response> {
 }
 
 async function waitVisible(page: Page, args: string[]): Promise<Response> {
-	const selector = args[0];
-	if (!selector) {
+	const target = args[0];
+	if (!target) {
 		return {
 			ok: false,
-			error: "Usage: browse wait visible <selector>",
+			error: "Usage: browse wait visible <selector|@ref>",
 		};
+	}
+
+	const resolved = resolveLocator(page, target);
+	if ("error" in resolved) {
+		return { ok: false, error: resolved.error };
 	}
 
 	while (true) {
 		try {
-			const visible = await page.locator(selector).first().isVisible();
+			const visible = await resolved.locator.first().isVisible();
 			if (visible) {
-				return { ok: true, data: `Element "${selector}" is visible` };
+				return { ok: true, data: `Element "${target}" is visible` };
 			}
 		} catch {
 			// Element not found yet
@@ -114,23 +120,28 @@ async function waitVisible(page: Page, args: string[]): Promise<Response> {
 }
 
 async function waitHidden(page: Page, args: string[]): Promise<Response> {
-	const selector = args[0];
-	if (!selector) {
+	const target = args[0];
+	if (!target) {
 		return {
 			ok: false,
-			error: "Usage: browse wait hidden <selector>",
+			error: "Usage: browse wait hidden <selector|@ref>",
 		};
+	}
+
+	const resolved = resolveLocator(page, target);
+	if ("error" in resolved) {
+		return { ok: false, error: resolved.error };
 	}
 
 	while (true) {
 		try {
-			const visible = await page.locator(selector).first().isVisible();
+			const visible = await resolved.locator.first().isVisible();
 			if (!visible) {
-				return { ok: true, data: `Element "${selector}" is hidden` };
+				return { ok: true, data: `Element "${target}" is hidden` };
 			}
 		} catch {
 			// Element not found = hidden
-			return { ok: true, data: `Element "${selector}" is hidden` };
+			return { ok: true, data: `Element "${target}" is hidden` };
 		}
 		await sleep(POLL_INTERVAL_MS);
 	}
