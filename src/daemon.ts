@@ -31,6 +31,7 @@ import { handleSelect } from "./commands/select.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleText } from "./commands/text.ts";
+import { handleUpload } from "./commands/upload.ts";
 import { handleUrl } from "./commands/url.ts";
 import { handleViewport } from "./commands/viewport.ts";
 import { handleWait } from "./commands/wait.ts";
@@ -80,6 +81,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	forward: [],
 	reload: ["--hard"],
 	attr: [],
+	upload: [],
 	quit: [],
 };
 
@@ -287,6 +289,8 @@ export async function startServer(
 						return handleReload(page, request.args);
 					case "attr":
 						return handleAttr(page, request.args);
+					case "upload":
+						return handleUpload(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "quit": {

@@ -51,6 +51,7 @@ browse attr @e1 href                # read an element's attribute
 browse hover @e3                    # hover over an element by ref
 browse press Tab                    # send a keyboard key press
 browse fill @e2 "hello"             # type into an input
+browse upload @e5 /path/to/file.pdf  # set file on a file input
 browse scroll down                  # scroll down one viewport height
 browse scroll @e3                   # scroll element into view
 browse screenshot                   # capture the page
@@ -259,6 +260,7 @@ Measured with `browse benchmark`:
 | `fill @eN "value"` | Fill input (clears first) |
 | `attr @eN [attribute]` | Read element attributes (single or all) |
 | `select @eN "option"` | Select dropdown option |
+| `upload @eN <file> [file ...]` | Set file(s) on a file input |
 | `press <key> [key ...]` | Send keyboard key presses (`Shift+Tab`, `Escape`, etc.) |
 | `wait <type> <args>` | Wait for condition (`url`, `text`, `visible`, `hidden`, `network-idle`, `<ms>`) |
 | `scroll <direction\|@ref\|x y>` | Scroll page or element into view |

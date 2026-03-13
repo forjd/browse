@@ -248,6 +248,16 @@ Examples:
   browse attr @e1 class             Get class list
   browse attr @e1                   Show all attributes as key=value pairs`,
 	},
+	upload: {
+		summary: "Set file(s) on a file input by ref",
+		usage: `browse upload <@ref> <file> [file ...]
+
+Sets one or more files on an <input type="file"> element using Playwright's setInputFiles().
+
+Examples:
+  browse upload @e5 /path/to/file.pdf
+  browse upload @e5 /path/to/a.jpg /path/to/b.jpg`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",
