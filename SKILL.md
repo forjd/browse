@@ -49,6 +49,8 @@ browse goto https://slow-page.example.com --timeout 60000
 
 Timeout precedence: `--timeout` flag > config file `timeout` > 30s default. Commands `quit` and `benchmark` are exempt from timeout.
 
+Unrecognised flags on any command produce an error with a hint to check `browse help <command>`.
+
 ### Snapshot and interaction (ref system)
 
 ```
@@ -211,7 +213,9 @@ Use `browse wipe` to clear all session data without restarting the daemon:
 | `"Daemon connection lost"` | Daemon crashed or was killed | Just run the command again — CLI auto-restarts the daemon and retries once |
 | `"Command timed out after Nms"` | Page is slow or unresponsive | Use `--timeout 60000` for slow pages, or check URL/network |
 | `"Daemon crashed and recovery failed"` | Daemon restart also failed | Check system resources, try `browse quit` then retry |
+| `"Unknown command"` for a valid command | Stale daemon from an older build | Run `browse quit`, then re-run — the fresh binary will cold-start a new daemon |
 | `"No element matching selector"` | CSS selector is wrong | Check the selector, use `browse snapshot -f` for full tree |
+| `"Unknown flag for '<cmd>'"` | Unrecognised flag passed | Check `browse help <cmd>` for valid flags |
 | Login fails | Credentials missing or wrong | Check env vars, verify login URL, use `browse screenshot` to see the page |
 
 ## Configuration

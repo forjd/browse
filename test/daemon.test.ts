@@ -336,6 +336,124 @@ describe("daemon server", () => {
 		}
 	});
 
+	test("rejects unknown flags on goto", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "goto", [
+				"https://example.com",
+				"--device",
+				"iPhone SE",
+			]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("Unknown flag");
+				expect(response.error).toContain("--device");
+				expect(response.error).toContain("browse help goto");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("rejects unknown flags on screenshot", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "screenshot", [
+				"--verbose",
+			]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("--verbose");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("accepts known flags on screenshot", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			screenshot: mock(() => Promise.resolve()),
+			evaluate: mock(() => Promise.resolve(500)),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "screenshot", [
+				"--viewport",
+			]);
+			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("rejects multiple unknown flags", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "goto", [
+				"https://example.com",
+				"--device",
+				"iPhone",
+				"--headless",
+			]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("Unknown flags");
+				expect(response.error).toContain("--device");
+				expect(response.error).toContain("--headless");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("skips flag validation for eval (freeform args)", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			evaluate: mock(() => Promise.resolve("test")),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "eval", [
+				"document.querySelector('--custom')",
+			]);
+			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
 	test("handles login command without config", async () => {
 		const config = testPaths();
 		const page = mockPage();

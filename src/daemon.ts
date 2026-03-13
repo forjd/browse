@@ -28,6 +28,7 @@ import { handleViewport } from "./commands/viewport.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import type { BrowseConfig } from "./config.ts";
 import { loadConfig } from "./config.ts";
+import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
 import {
 	cleanupFiles,
 	createIdleTimer,
@@ -39,6 +40,30 @@ import type { Response } from "./protocol.ts";
 import { parseRequest, serialiseResponse } from "./protocol.ts";
 import { clearRefs, markStale } from "./refs.ts";
 import { resolveTimeout, withTimeout } from "./timeout.ts";
+
+/**
+ * Known flags per command. Commands not listed here skip flag validation
+ * (e.g. eval/page-eval/fill/select where all args form freeform data).
+ */
+const KNOWN_FLAGS: Record<string, string[]> = {
+	goto: [],
+	text: [],
+	snapshot: [],
+	click: [],
+	screenshot: ["--viewport", "--selector"],
+	console: ["--level", "--keep"],
+	network: ["--all", "--keep"],
+	"auth-state": [],
+	login: ["--env"],
+	tab: [],
+	flow: ["--var", "--continue-on-error"],
+	assert: ["--var"],
+	healthcheck: ["--var", "--no-screenshots"],
+	wipe: [],
+	benchmark: ["--iterations"],
+	viewport: ["--device", "--preset"],
+	quit: [],
+};
 
 export type DaemonOptions = {
 	socketPath: string;
@@ -160,6 +185,18 @@ export async function startServer(
 		try {
 			const request = parseRequest(data);
 			const page = getActivePage();
+
+			// Reject unknown flags before dispatching
+			const knownFlags = KNOWN_FLAGS[request.cmd];
+			if (knownFlags) {
+				const unknown = checkUnknownFlags(request.args, knownFlags);
+				if (unknown.length > 0) {
+					return serialiseResponse({
+						ok: false,
+						error: unknownFlagsError(request.cmd, unknown),
+					});
+				}
+			}
 
 			async function executeCommand(): Promise<Response> {
 				switch (request.cmd) {

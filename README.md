@@ -128,6 +128,8 @@ Any command accepts `--timeout <ms>` (default: 30s):
 browse goto https://slow-page.com --timeout 60000
 ```
 
+Unrecognised flags on any command produce an error with a hint to check `browse help <command>`.
+
 ## Configuration
 
 Optional. Create `browse.config.json` in your project root to configure login environments, reusable flows, permission checks, and health checks.
@@ -171,6 +173,8 @@ Optional. Create `browse.config.json` in your project root to configure login en
 ## Architecture
 
 The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses.
+
+> **Note:** Rebuilding the binary does not restart a running daemon. If you rebuild after adding or changing commands, run `browse quit` first so the next call cold-starts with the new binary.
 
 ```
 CLI ──JSON──▶ Unix socket ──▶ Daemon ──▶ Playwright ──▶ Chromium
