@@ -18,6 +18,8 @@ const VALID_COMMANDS = [
 	"wipe",
 	"benchmark",
 	"viewport",
+	"eval",
+	"page-eval",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

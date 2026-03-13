@@ -143,6 +143,32 @@ Flags:
   --device <name>    Use a Playwright device (e.g. "iPhone SE", "iPad (gen 7)")
   --preset <name>    Use a preset: mobile (375x667), tablet (768x1024), desktop (1440x900)`,
 	},
+	eval: {
+		summary: "Run JavaScript in the page context",
+		usage: `browse eval <expression>
+
+Evaluates a JavaScript expression in the browser page context using page.evaluate().
+Returns the result as a string (objects are JSON-stringified).
+
+Examples:
+  browse eval "document.title"
+  browse eval "document.querySelector('h1').textContent"
+  browse eval "window.innerWidth"
+  browse eval "getComputedStyle(document.body).backgroundColor"`,
+	},
+	"page-eval": {
+		summary: "Run Playwright page-level operations",
+		usage: `browse page-eval <expression>
+
+Evaluates an expression with access to the Playwright \`page\` object.
+Supports async/await. Returns the result as a string.
+
+Examples:
+  browse page-eval "await page.title()"
+  browse page-eval "page.url()"
+  browse page-eval "page.viewportSize()"
+  browse page-eval "await page.evaluate(() => document.title)"`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",

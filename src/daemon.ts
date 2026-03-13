@@ -10,12 +10,14 @@ import { handleAuthState } from "./commands/auth-state.ts";
 import { handleBenchmark } from "./commands/benchmark.ts";
 import { handleClick } from "./commands/click.ts";
 import { type ConsoleEntry, handleConsole } from "./commands/console.ts";
+import { handleEval } from "./commands/eval.ts";
 import { handleFill } from "./commands/fill.ts";
 import { handleFlow } from "./commands/flow.ts";
 import { handleGoto } from "./commands/goto.ts";
 import { handleHealthcheck } from "./commands/healthcheck.ts";
 import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
+import { handlePageEval } from "./commands/page-eval.ts";
 import { handleQuit } from "./commands/quit.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleSelect } from "./commands/select.ts";
@@ -208,6 +210,10 @@ export async function startServer(
 						});
 					case "viewport":
 						return handleViewport(page, request.args);
+					case "eval":
+						return handleEval(page, request.args);
+					case "page-eval":
+						return handlePageEval(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "quit": {
