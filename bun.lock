@@ -19,6 +19,10 @@
       },
     },
   },
+  "patchedDependencies": {
+    "playwright-core@1.58.2": "patches/playwright-core@1.58.2.patch",
+    "playwright@1.58.2": "patches/playwright@1.58.2.patch",
+  },
   "packages": {
     "@axe-core/playwright": ["@axe-core/playwright@4.11.1", "", { "dependencies": { "axe-core": "~4.11.1" }, "peerDependencies": { "playwright-core": ">= 1.0.0" } }, "sha512-mKEfoUIB1MkVTht0BGZFXtSAEKXMJoDkyV5YZ9jbBmZCcWDz71tegNsdTkIN8zc/yMi5Gm2kx7Z5YQ9PfWNAWw=="],
 
