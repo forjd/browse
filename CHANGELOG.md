@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/forjd/browse/compare/browse-v0.4.1...browse-v0.4.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* patch playwright require.resolve for compiled binary compatibility ([935dc67](https://github.com/forjd/browse/commit/935dc67207228d3e2020827dccacff523b329269))
+
 ## [0.4.1](https://github.com/forjd/browse/compare/browse-v0.4.0...browse-v0.4.1) (2026-03-13)
 
 
