@@ -83,8 +83,8 @@ describe("handleBenchmark", () => {
 				locator: mock(() => ({
 					click: mock(() => Promise.resolve()),
 					fill: mock(() => Promise.resolve()),
+					ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
 				})),
-				ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
 			} as never,
 		};
 	}
