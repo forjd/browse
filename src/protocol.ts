@@ -25,6 +25,9 @@ const VALID_COMMANDS = [
 	"press",
 	"wait",
 	"url",
+	"back",
+	"forward",
+	"reload",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

@@ -223,6 +223,21 @@ Respects --timeout flag. Polls at 100ms intervals.`,
 		summary: "Print the current page URL",
 		usage: "browse url",
 	},
+	back: {
+		summary: "Navigate back in history",
+		usage: "browse back",
+	},
+	forward: {
+		summary: "Navigate forward in history",
+		usage: "browse forward",
+	},
+	reload: {
+		summary: "Reload the current page",
+		usage: `browse reload [--hard]
+
+Flags:
+  --hard   Clear browser cache before reloading`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",

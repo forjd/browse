@@ -41,6 +41,10 @@ bunx skills add forjd/browse
 browse goto https://example.com     # navigate — daemon starts automatically
 browse goto https://example.com --preset mobile  # navigate at mobile viewport
 browse url                          # print the current page URL
+browse back                         # navigate back in history
+browse forward                      # navigate forward in history
+browse reload                       # reload current page
+browse reload --hard                # reload bypassing cache
 browse snapshot                     # list interactive elements with refs
 browse click @e1                    # click an element by ref
 browse hover @e3                    # hover over an element by ref
@@ -244,6 +248,9 @@ Measured with `browse benchmark`:
 |---------|-------------|
 | `goto <url>` | Navigate to URL (`--viewport`, `--device`, `--preset`) |
 | `url` | Print current page URL |
+| `back` | Navigate back in history |
+| `forward` | Navigate forward in history |
+| `reload` | Reload current page (`--hard` to bypass cache) |
 | `text` | Return visible page text |
 | `snapshot` | List elements with refs (`-i` structural, `-f` full tree) |
 | `click @eN` | Click element |

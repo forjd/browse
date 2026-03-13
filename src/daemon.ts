@@ -7,12 +7,14 @@ import UserAgent from "user-agents";
 import { RingBuffer } from "./buffers.ts";
 import { handleAssert } from "./commands/assert.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
+import { handleBack } from "./commands/back.ts";
 import { handleBenchmark } from "./commands/benchmark.ts";
 import { handleClick } from "./commands/click.ts";
 import { type ConsoleEntry, handleConsole } from "./commands/console.ts";
 import { handleEval } from "./commands/eval.ts";
 import { handleFill } from "./commands/fill.ts";
 import { handleFlow } from "./commands/flow.ts";
+import { handleForward } from "./commands/forward.ts";
 import { handleGoto } from "./commands/goto.ts";
 import { handleHealthcheck } from "./commands/healthcheck.ts";
 import { handleHover } from "./commands/hover.ts";
@@ -21,6 +23,7 @@ import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handlePageEval } from "./commands/page-eval.ts";
 import { handlePress } from "./commands/press.ts";
 import { handleQuit } from "./commands/quit.ts";
+import { handleReload } from "./commands/reload.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleScroll } from "./commands/scroll.ts";
 import { handleSelect } from "./commands/select.ts";
@@ -72,6 +75,9 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	press: [],
 	wait: [],
 	url: [],
+	back: [],
+	forward: [],
+	reload: ["--hard"],
 	quit: [],
 };
 
@@ -271,6 +277,12 @@ export async function startServer(
 						return handleWait(page, request.args);
 					case "url":
 						return handleUrl(page);
+					case "back":
+						return handleBack(page);
+					case "forward":
+						return handleForward(page);
+					case "reload":
+						return handleReload(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "quit": {
