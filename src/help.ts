@@ -219,6 +219,10 @@ browse wait <ms>                   Wait for a fixed delay (last resort)
 
 Respects --timeout flag. Polls at 100ms intervals.`,
 	},
+	url: {
+		summary: "Print the current page URL",
+		usage: "browse url",
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",
