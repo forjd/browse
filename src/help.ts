@@ -59,6 +59,24 @@ browse scroll bottom             Scroll to bottom of page
 browse scroll <@ref>             Scroll element into view
 browse scroll <x> <y>            Scroll to coordinates`,
 	},
+	press: {
+		summary: "Send keyboard key presses",
+		usage: `browse press <key> [key ...]
+
+Press one or more keys sequentially. Supports single keys, combinations
+with +, and multiple keys in one command.
+
+Examples:
+  browse press Tab                 Single key
+  browse press Tab Tab Tab         Multiple sequential keys
+  browse press Shift+Tab           Key combination
+  browse press Escape              Close modals/popovers
+  browse press Enter               Submit/activate
+  browse press ArrowDown           Navigate within menus
+  browse press Control+a           Select all
+
+Key names follow Playwright conventions (Tab, Enter, Escape, ArrowDown, etc.).`,
+	},
 	screenshot: {
 		summary: "Take a screenshot",
 		usage: `browse screenshot [path] [--viewport] [--selector <css-selector>]

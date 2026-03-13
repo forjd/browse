@@ -19,6 +19,7 @@ import { handleHover } from "./commands/hover.ts";
 import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handlePageEval } from "./commands/page-eval.ts";
+import { handlePress } from "./commands/press.ts";
 import { handleQuit } from "./commands/quit.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleScroll } from "./commands/scroll.ts";
@@ -66,6 +67,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	benchmark: ["--iterations"],
 	viewport: ["--device", "--preset"],
 	scroll: [],
+	press: [],
 	quit: [],
 };
 
@@ -220,6 +222,8 @@ export async function startServer(
 						return handleSelect(page, request.args);
 					case "scroll":
 						return handleScroll(page, request.args);
+					case "press":
+						return handlePress(page, request.args);
 					case "screenshot":
 						return handleScreenshot(page, request.args);
 					case "console":

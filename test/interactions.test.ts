@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import { handleClick } from "../src/commands/click.ts";
 import { handleFill } from "../src/commands/fill.ts";
 import { handleHover } from "../src/commands/hover.ts";
+import { handlePress } from "../src/commands/press.ts";
 import { handleSelect } from "../src/commands/select.ts";
 import {
 	type AccessibilityNode,
@@ -16,6 +17,9 @@ function makeTree(...children: AccessibilityNode[]): AccessibilityNode {
 
 function mockPage() {
 	return {
+		keyboard: {
+			press: mock((_key: string) => Promise.resolve()),
+		},
 		getByRole: mock((_role: string, _opts?: Record<string, unknown>) => ({
 			nth: mock((_n: number) => ({
 				click: mock(() => Promise.resolve()),
@@ -275,6 +279,71 @@ describe("handleSelect", () => {
 		const result = await handleSelect(page, ["@e1", "Item 1"]);
 
 		expect(result.ok).toBe(true);
+	});
+});
+
+describe("handlePress", () => {
+	test("presses a single key and returns confirmation", async () => {
+		const page = mockPage();
+
+		const result = await handlePress(page, ["Tab"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Pressed");
+			expect(result.data).toContain("Tab");
+		}
+		expect(page.keyboard.press).toHaveBeenCalledTimes(1);
+		expect(page.keyboard.press).toHaveBeenCalledWith("Tab");
+	});
+
+	test("presses multiple sequential keys", async () => {
+		const page = mockPage();
+
+		const result = await handlePress(page, ["Tab", "Tab", "Tab"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Tab, Tab, Tab");
+		}
+		expect(page.keyboard.press).toHaveBeenCalledTimes(3);
+	});
+
+	test("presses a key combination", async () => {
+		const page = mockPage();
+
+		const result = await handlePress(page, ["Shift+Tab"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Shift+Tab");
+		}
+		expect(page.keyboard.press).toHaveBeenCalledWith("Shift+Tab");
+	});
+
+	test("returns error when no key is provided", async () => {
+		const page = mockPage();
+
+		const result = await handlePress(page, []);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Usage");
+		}
+	});
+
+	test("propagates Playwright errors", async () => {
+		const page = mockPage();
+		(page.keyboard.press as ReturnType<typeof mock>).mockImplementation(() => {
+			throw new Error("keyboard.press: Unknown key: FooBar");
+		});
+
+		const result = await handlePress(page, ["FooBar"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Unknown key");
+		}
 	});
 });
 

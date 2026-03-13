@@ -43,6 +43,7 @@ browse goto https://example.com --preset mobile  # navigate at mobile viewport
 browse snapshot                     # list interactive elements with refs
 browse click @e1                    # click an element by ref
 browse hover @e3                    # hover over an element by ref
+browse press Tab                    # send a keyboard key press
 browse fill @e2 "hello"             # type into an input
 browse scroll down                  # scroll down one viewport height
 browse scroll @e3                   # scroll element into view
@@ -70,6 +71,18 @@ browse scroll top                # scroll to top of page
 browse scroll bottom             # scroll to bottom of page
 browse scroll @e5                # scroll element into view
 browse scroll 0 500              # scroll to absolute x,y coordinates
+```
+
+### Keyboard
+
+```sh
+browse press Tab                 # single key
+browse press Tab Tab Tab         # multiple sequential keys
+browse press Shift+Tab           # key combination
+browse press Escape              # close modals/popovers
+browse press Enter               # submit/activate
+browse press ArrowDown           # navigate within menus
+browse press Control+a           # select all
 ```
 
 ### Screenshots and debugging
@@ -220,6 +233,7 @@ Measured with `browse benchmark`:
 | `hover @eN` | Hover over element (`--duration <ms>`) |
 | `fill @eN "value"` | Fill input (clears first) |
 | `select @eN "option"` | Select dropdown option |
+| `press <key> [key ...]` | Send keyboard key presses (`Shift+Tab`, `Escape`, etc.) |
 | `scroll <direction\|@ref\|x y>` | Scroll page or element into view |
 | `screenshot [path]` | Capture page (`--viewport`, `--selector`) |
 | `console` | Console log (`--level`, `--keep`) |
