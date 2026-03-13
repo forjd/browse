@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/forjd/browse/compare/browse-v0.2.0...browse-v0.3.0) (2026-03-13)
+
+
+### Features
+
+* add `scroll` command for page scrolling and element visibility ([d565ade](https://github.com/forjd/browse/commit/d565ade0f828e3aec9604e2b7f180fd84e514b81))
+* download precompiled binary in install script instead of building from source ([d605631](https://github.com/forjd/browse/commit/d605631f5f9810eb41c131ad9e4619d7df33525e))
+
 ## [0.2.0](https://github.com/forjd/browse/compare/browse-v0.1.0...browse-v0.2.0) (2026-03-13)
 
 
