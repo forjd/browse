@@ -105,6 +105,61 @@ describe("parseArgs", () => {
 			timeout: undefined,
 		});
 	});
+
+	test("negative --timeout value is ignored", () => {
+		const result = parseArgs([
+			"goto",
+			"https://example.com",
+			"--timeout",
+			"-5",
+		]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com"],
+			timeout: undefined,
+		});
+	});
+
+	test("zero --timeout value is ignored", () => {
+		const result = parseArgs(["goto", "https://example.com", "--timeout", "0"]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com"],
+			timeout: undefined,
+		});
+	});
+
+	test("--timeout at end without value is treated as regular arg", () => {
+		const result = parseArgs(["goto", "https://example.com", "--timeout"]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com", "--timeout"],
+			timeout: undefined,
+		});
+	});
+
+	test("--timeout in middle of args", () => {
+		const result = parseArgs([
+			"screenshot",
+			"--timeout",
+			"10000",
+			"/tmp/shot.png",
+		]);
+		expect(result).toEqual({
+			cmd: "screenshot",
+			args: ["/tmp/shot.png"],
+			timeout: 10000,
+		});
+	});
+
+	test("preserves multiple non-timeout args", () => {
+		const result = parseArgs(["fill", "input.email", "user@test.com"]);
+		expect(result).toEqual({
+			cmd: "fill",
+			args: ["input.email", "user@test.com"],
+			timeout: undefined,
+		});
+	});
 });
 
 describe("formatOutput", () => {

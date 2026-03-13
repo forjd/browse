@@ -134,4 +134,52 @@ describe("login command", () => {
 			expect(res.data).toContain("https://staging.example.com/dashboard");
 		}
 	});
+
+	test("returns error with screenshot path when page.goto fails", async () => {
+		const page = mockPage({
+			goto: mock(() => Promise.reject(new Error("Navigation timeout"))),
+			screenshot: mock(() => Promise.resolve()),
+		});
+
+		const res = await handleLogin(VALID_CONFIG, page, ["--env", "staging"]);
+		expect(res.ok).toBe(false);
+		if (!res.ok) {
+			expect(res.error).toContain("Login failed: Navigation timeout.");
+			expect(res.error).toContain(
+				"Screenshot saved to /tmp/browse-login-failure-",
+			);
+		}
+	});
+
+	test("returns error without screenshot info when screenshot also fails", async () => {
+		const page = mockPage({
+			goto: mock(() => Promise.reject(new Error("Connection refused"))),
+			screenshot: mock(() => Promise.reject(new Error("Page crashed"))),
+		});
+
+		const res = await handleLogin(VALID_CONFIG, page, ["--env", "staging"]);
+		expect(res.ok).toBe(false);
+		if (!res.ok) {
+			expect(res.error).toBe("Login failed: Connection refused.");
+			expect(res.error).not.toContain("Screenshot");
+		}
+	});
+
+	test("returns error when fillField cannot find the field", async () => {
+		// getByRole returns a locator whose fill always rejects, simulating a missing field
+		const page = mockPage({
+			getByRole: mock(() => ({
+				fill: mock(() => Promise.reject(new Error("Element not found"))),
+				click: mock(() => Promise.reject(new Error("Element not found"))),
+			})),
+			screenshot: mock(() => Promise.resolve()),
+		});
+
+		const res = await handleLogin(VALID_CONFIG, page, ["--env", "staging"]);
+		expect(res.ok).toBe(false);
+		if (!res.ok) {
+			expect(res.error).toContain("Login failed");
+			expect(res.error).toContain("Could not find input field");
+		}
+	});
 });

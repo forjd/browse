@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { handleFlow } from "../src/commands/flow.ts";
 import type { BrowseConfig } from "../src/config.ts";
 
@@ -99,6 +99,106 @@ describe("handleFlow — no flow name", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error).toContain("Usage");
+		}
+	});
+});
+
+// --- handleFlow with deps / execution tests ---
+
+function createMockDeps() {
+	return {
+		consoleBuffer: {
+			push: mock(() => {}),
+			drain: mock(() => []),
+			clear: mock(() => {}),
+		},
+		networkBuffer: {
+			push: mock(() => {}),
+			drain: mock(() => []),
+			clear: mock(() => {}),
+		},
+	};
+}
+
+function createMockFlowPage() {
+	return {
+		url: () => "https://example.com",
+		goto: mock(async () => null),
+		innerText: mock(async () => ""),
+		locator: (_sel: string) => ({
+			first: () => ({
+				isVisible: mock(async () => true),
+				innerText: mock(async () => ""),
+			}),
+			count: mock(async () => 0),
+		}),
+		getByRole: (_role: string, _opts?: any) => ({
+			first: () => ({
+				isVisible: mock(async () => true),
+				innerText: mock(async () => ""),
+				click: mock(async () => {}),
+				fill: mock(async () => {}),
+			}),
+			count: mock(async () => 1),
+			click: mock(async () => {}),
+			fill: mock(async () => {}),
+		}),
+	} as any;
+}
+
+describe("handleFlow — no deps", () => {
+	test("returns internal error when deps is undefined", async () => {
+		const page = createMockFlowPage();
+		const result = await handleFlow(BASE_CONFIG, page, ["simple"]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Internal error");
+			expect(result.error).toContain("console and network buffers");
+		}
+	});
+});
+
+describe("handleFlow — running flows", () => {
+	test("runs a simple flow successfully", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(BASE_CONFIG, page, ["simple"], deps as any);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("simple");
+		}
+	});
+
+	test("returns error report when a step fails", async () => {
+		// Use a flow with an assert step that will fail
+		const failConfig: BrowseConfig = {
+			environments: BASE_CONFIG.environments,
+			flows: {
+				"check-banner": {
+					description: "Verify banner is visible",
+					steps: [{ assert: { visible: ".banner" } }],
+				},
+			},
+		};
+		// The mock page has no visible selectors, so visible assertion will fail
+		const page = createMockFlowPage();
+		page.locator = (_sel: string) => ({
+			first: () => ({
+				isVisible: mock(async () => false),
+				innerText: mock(async () => ""),
+			}),
+			count: mock(async () => 0),
+		});
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			failConfig,
+			page,
+			["check-banner"],
+			deps as any,
+		);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("check-banner");
 		}
 	});
 });

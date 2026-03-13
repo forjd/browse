@@ -158,4 +158,74 @@ describe("handleWipe", () => {
 			expect(result.data).toContain("cookie error");
 		}
 	});
+
+	test("reports warning when closing an extra tab throws", async () => {
+		const failingPage = {
+			close: mock(() => Promise.reject(new Error("tab close error"))),
+		};
+		const primaryPage = {
+			goto: mock(() => Promise.resolve()),
+			evaluate: mock(() => Promise.resolve()),
+			close: mock(() => Promise.resolve()),
+		};
+
+		const deps = makeMockDeps({
+			tabRegistry: {
+				tabs: [
+					{
+						page: primaryPage as never,
+						consoleBuffer: { clear: mock(() => {}) },
+						networkBuffer: { clear: mock(() => {}) },
+					},
+					{
+						page: failingPage as never,
+						consoleBuffer: { clear: mock(() => {}) },
+						networkBuffer: { clear: mock(() => {}) },
+					},
+				],
+				activeTabIndex: 1,
+			} as never,
+		});
+
+		const result = await handleWipe(deps);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Session wiped (with warnings)");
+			expect(result.data).toContain("Failed to close tab");
+			expect(result.data).toContain("tab close error");
+		}
+		// Should still continue — only the primary tab remains
+		expect(deps.tabRegistry.tabs.length).toBe(1);
+	});
+
+	test("reports warning when navigating to about:blank throws", async () => {
+		const failingNavPage = {
+			goto: mock(() => Promise.reject(new Error("navigation failed"))),
+			evaluate: mock(() => Promise.resolve()),
+			close: mock(() => Promise.resolve()),
+		};
+
+		const deps = makeMockDeps({
+			tabRegistry: {
+				tabs: [
+					{
+						page: failingNavPage as never,
+						consoleBuffer: { clear: mock(() => {}) },
+						networkBuffer: { clear: mock(() => {}) },
+					},
+				],
+				activeTabIndex: 0,
+			} as never,
+		});
+
+		const result = await handleWipe(deps);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Session wiped (with warnings)");
+			expect(result.data).toContain("Failed to navigate to about:blank");
+			expect(result.data).toContain("navigation failed");
+		}
+	});
 });

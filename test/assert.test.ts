@@ -1,8 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
 import {
 	evaluateAssertCondition,
+	handleAssert,
 	parseAssertArgs,
 } from "../src/commands/assert.ts";
+import type { BrowseConfig } from "../src/config.ts";
 import { assignRefs, clearRefs } from "../src/refs.ts";
 
 describe("parseAssertArgs", () => {
@@ -370,5 +372,190 @@ describe("evaluateAssertCondition", () => {
 		const result = await evaluateAssertCondition(page, { visible: "@e99" });
 		expect(result.passed).toBe(false);
 		expect(result.reason).toContain("Unknown ref");
+	});
+
+	test("unknown condition — returns fallback error", async () => {
+		const page = createMockPage({});
+		// Force an unknown condition by casting an empty object
+		const result = await evaluateAssertCondition(page, {} as any);
+		expect(result.passed).toBe(false);
+		expect(result.reason).toBe("Unknown assert condition.");
+	});
+
+	test("elementText — returns not found error when locator throws", async () => {
+		const page = {
+			...createMockPage({}),
+			locator: (_sel: string) => ({
+				first: () => ({
+					innerText: mock(async () => {
+						throw new Error("Element detached");
+					}),
+				}),
+				count: mock(async () => 0),
+			}),
+		} as any;
+		const result = await evaluateAssertCondition(page, {
+			elementText: { selector: ".missing", contains: "hello" },
+		});
+		expect(result.passed).toBe(false);
+		expect(result.reason).toContain("not found");
+	});
+
+	test("elementCount — returns not found error when locator throws", async () => {
+		const page = {
+			...createMockPage({}),
+			locator: (_sel: string) => ({
+				first: () => ({
+					isVisible: mock(async () => false),
+				}),
+				count: mock(async () => {
+					throw new Error("Element detached");
+				}),
+			}),
+		} as any;
+		const result = await evaluateAssertCondition(page, {
+			elementCount: { selector: ".missing", count: 3 },
+		});
+		expect(result.passed).toBe(false);
+		expect(result.reason).toContain("not found");
+	});
+
+	test("visible — returns not found error when locator throws", async () => {
+		const page = {
+			...createMockPage({}),
+			locator: (_sel: string) => ({
+				first: () => ({
+					isVisible: mock(async () => {
+						throw new Error("Element detached");
+					}),
+				}),
+			}),
+		} as any;
+		const result = await evaluateAssertCondition(page, {
+			visible: ".exploding",
+		});
+		expect(result.passed).toBe(false);
+		expect(result.reason).toContain("not found or not visible");
+	});
+});
+
+// --- handleAssert tests ---
+
+const PERM_CONFIG: BrowseConfig = {
+	environments: {
+		staging: {
+			loginUrl: "https://example.com/login",
+			userEnvVar: "U",
+			passEnvVar: "P",
+			successCondition: { urlContains: "/dashboard" },
+		},
+	},
+	permissions: {
+		"Create User": {
+			page: "{{base_url}}/admin",
+			granted: { visible: ".admin-panel" },
+			denied: { textContains: "Access Denied" },
+		},
+	},
+};
+
+describe("handleAssert", () => {
+	test("returns error for empty args", async () => {
+		const page = createMockPage({});
+		const result = await handleAssert(null, page, []);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Usage");
+		}
+	});
+
+	test("passes for visible assertion when element is visible", async () => {
+		const page = createMockPage({ visibleSelectors: new Set([".btn"]) });
+		const result = await handleAssert(null, page, ["visible", ".btn"]);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("PASS");
+			expect(result.data).toContain("visible");
+		}
+	});
+
+	test("fails for visible assertion with reason in error", async () => {
+		const page = createMockPage({ visibleSelectors: new Set() });
+		const result = await handleAssert(null, page, ["visible", ".btn"]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("FAIL");
+			expect(result.error).toContain("not found or not visible");
+		}
+	});
+
+	test("permission assertion with no config.permissions returns error", async () => {
+		const page = createMockPage({});
+		const configNoPerms: BrowseConfig = {
+			environments: PERM_CONFIG.environments,
+		};
+		const result = await handleAssert(configNoPerms, page, [
+			"permission",
+			"Create User",
+			"granted",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("No permissions defined");
+		}
+	});
+
+	test("permission assertion with unknown permission name returns error", async () => {
+		const page = createMockPage({});
+		const result = await handleAssert(PERM_CONFIG, page, [
+			"permission",
+			"Delete User",
+			"granted",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Unknown permission");
+			expect(result.error).toContain("Create User");
+		}
+	});
+
+	test("permission granted assertion passes", async () => {
+		const page = createMockPage({
+			visibleSelectors: new Set([".admin-panel"]),
+		});
+		// Mock goto for the permission page navigation
+		page.goto = mock(async () => null);
+		const result = await handleAssert(PERM_CONFIG, page, [
+			"permission",
+			"Create User",
+			"granted",
+			"--var",
+			"base_url=https://example.com",
+		]);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("PASS");
+			expect(result.data).toContain("Create User");
+			expect(result.data).toContain("granted");
+		}
+	});
+
+	test("permission denied assertion fails when condition not met", async () => {
+		// "denied" condition is textContains "Access Denied", but the page body has no such text
+		const page = createMockPage({ bodyText: "Welcome to Admin" });
+		page.goto = mock(async () => null);
+		const result = await handleAssert(PERM_CONFIG, page, [
+			"permission",
+			"Create User",
+			"denied",
+			"--var",
+			"base_url=https://example.com",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("FAIL");
+			expect(result.error).toContain("Create User");
+			expect(result.error).toContain("denied");
+		}
 	});
 });

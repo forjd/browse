@@ -609,4 +609,262 @@ describe("daemon server", () => {
 			await shutdown();
 		}
 	});
+
+	test("handles url command", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "url");
+			expect(response.ok).toBe(true);
+			if (response.ok) {
+				expect(response.data).toBe("https://example.com");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles back command", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			goBack: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "back");
+			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles forward command", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			goForward: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "forward");
+			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles reload command", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			reload: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "reload");
+			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles wait command with timeout", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "wait", ["50"]);
+			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles attr command with missing ref", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "attr", [
+				".btn",
+				"class",
+			]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("@");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles flow command without config", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "flow", ["list"]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("browse.config.json");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles healthcheck command without config", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "healthcheck");
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("browse.config.json");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles assert command with missing args", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "assert");
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("Usage");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles wipe command", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			evaluate: mock(() => Promise.resolve()),
+		});
+		const ctx = mockContext({
+			clearCookies: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page, { context: ctx }),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "wipe");
+			expect(response.ok).toBe(true);
+			if (response.ok) {
+				expect(response.data).toContain("Session wiped");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles page-eval command with missing expression", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "page-eval");
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("Missing expression");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles request with custom timeout", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			// Send a command with a timeout field in the payload
+			const response: Response = await new Promise((resolve, reject) => {
+				const client = connect(config.socketPath, () => {
+					client.write(
+						`${JSON.stringify({ cmd: "text", args: [], timeout: 30000 })}\n`,
+					);
+				});
+				let data = "";
+				client.on("data", (chunk) => {
+					data += chunk.toString();
+				});
+				client.on("end", () => {
+					try {
+						resolve(JSON.parse(data.trim()));
+					} catch {
+						reject(new Error(`Failed to parse: ${data}`));
+					}
+				});
+				client.on("error", reject);
+			});
+			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
 });
