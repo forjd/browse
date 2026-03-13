@@ -15,11 +15,14 @@ allowed-tools: Bash(browse:*)
 Just run any command — the daemon cold-starts automatically if it isn't already running.
 
 ```
+browse help                                # list all commands
 browse goto https://staging.example.com    # navigate
 browse snapshot                            # see page structure with refs
 browse screenshot                          # capture the page
 browse quit                                # shut down the daemon
 ```
+
+Run `browse help <command>` for detailed usage of any command.
 
 First useful sequence: `browse goto <url>` → `browse snapshot` → `browse screenshot`.
 
@@ -28,6 +31,7 @@ First useful sequence: `browse goto <url>` → `browse snapshot` → `browse scr
 ### Navigation and content
 
 ```
+browse help [command]                      Show all commands, or detailed usage for one
 browse goto <url>                          Navigate to URL, return page title
 browse text                                Return visible text content of the page
 browse quit                                Shut down the daemon

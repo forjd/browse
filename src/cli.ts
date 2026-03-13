@@ -1,35 +1,9 @@
 import { connect } from "node:net";
 import { startDaemon } from "./daemon.ts";
+import { formatCommandHelp, formatOverview } from "./help.ts";
 import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
 import type { Response } from "./protocol.ts";
 import { sendWithRetry } from "./retry.ts";
-
-const USAGE = `Usage: browse <command> [args...]
-
-Commands:
-  goto <url>              Navigate to URL, return page title
-  text                    Return visible text content
-  snapshot [-i|-f]        Show page elements with refs
-  click <@ref>            Click an element by ref
-  fill <@ref> <val>       Fill an input by ref
-  select <@ref> <opt>     Select a dropdown option by ref
-  screenshot [path]       Take a screenshot
-  console [--level <lvl>] Show console messages
-  network [--all]         Show network requests
-  auth-state save <path>  Save auth state to file
-  auth-state load <path>  Load auth state from file
-  login --env <name>      Log in using configured environment
-  tab list                List open tabs
-  tab new [url]           Open new tab
-  tab switch <index>      Switch to tab by index
-  tab close [index]       Close a tab
-  flow list               List configured flows
-  flow <name> [--var k=v] Execute a named flow
-  assert <type> <args>    Assert a condition (PASS/FAIL)
-  healthcheck [--var k=v] Run healthcheck across configured pages
-  wipe                    Clear all session data
-  benchmark [--iterations N] Measure command latency
-  quit                    Shut down the daemon`;
 
 export type ParsedArgs =
 	| { cmd: string; args: string[]; timeout?: number }
@@ -151,7 +125,7 @@ async function runCli(): Promise<void> {
 	const parsed = parseArgs(rawArgs);
 
 	if (parsed === null) {
-		process.stderr.write(`${USAGE}\n`);
+		process.stderr.write(`${formatOverview()}\n`);
 		process.exit(1);
 	}
 
@@ -166,6 +140,37 @@ async function runCli(): Promise<void> {
 	}
 
 	const { cmd, args, timeout } = parsed;
+
+	// Handle help command and --help / -h flags (client-side, no daemon)
+	if (cmd === "help" || cmd === "--help" || cmd === "-h") {
+		const target = args[0];
+		if (target) {
+			const detail = formatCommandHelp(target);
+			if (detail) {
+				process.stdout.write(`${detail}\n`);
+			} else {
+				process.stderr.write(
+					`Unknown command: ${target}\n\n${formatOverview()}\n`,
+				);
+				process.exit(1);
+			}
+		} else {
+			process.stdout.write(`${formatOverview()}\n`);
+		}
+		return;
+	}
+
+	// Handle `browse <command> --help`
+	if (args.includes("--help")) {
+		const detail = formatCommandHelp(cmd);
+		if (detail) {
+			process.stdout.write(`${detail}\n`);
+		} else {
+			process.stderr.write(`Unknown command: ${cmd}\n\n${formatOverview()}\n`);
+			process.exit(1);
+		}
+		return;
+	}
 
 	let response: Response;
 	try {

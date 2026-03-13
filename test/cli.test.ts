@@ -36,6 +36,35 @@ describe("parseArgs", () => {
 		expect(result).toEqual({ cmd: "unknown", args: [], timeout: undefined });
 	});
 
+	test("parses help with no args", () => {
+		const result = parseArgs(["help"]);
+		expect(result).toEqual({ cmd: "help", args: [], timeout: undefined });
+	});
+
+	test("parses help with command arg", () => {
+		const result = parseArgs(["help", "goto"]);
+		expect(result).toEqual({ cmd: "help", args: ["goto"], timeout: undefined });
+	});
+
+	test("parses --help flag", () => {
+		const result = parseArgs(["--help"]);
+		expect(result).toEqual({ cmd: "--help", args: [], timeout: undefined });
+	});
+
+	test("parses -h flag", () => {
+		const result = parseArgs(["-h"]);
+		expect(result).toEqual({ cmd: "-h", args: [], timeout: undefined });
+	});
+
+	test("parses command with --help flag (interception is in runCli)", () => {
+		const result = parseArgs(["goto", "--help"]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["--help"],
+			timeout: undefined,
+		});
+	});
+
 	test("extracts --timeout flag from args", () => {
 		const result = parseArgs([
 			"goto",
