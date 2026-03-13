@@ -9,7 +9,7 @@
 		"check:fix": "biome check --fix .",
 		"format": "biome format --fix .",
 		"lint": "biome lint .",
-		"build": "bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi",
+		"build": "bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi --external playwright --external playwright-core",
 		"test": "bun test",
 		"test:integration": "bun run test/integration.ts",
 		"prepare": "git rev-parse --git-dir >/dev/null 2>&1 && lefthook install || true"

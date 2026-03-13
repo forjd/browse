@@ -49,7 +49,7 @@ case "$ARCH" in
   *) ARCH_LABEL="$ARCH" ;;
 esac
 
-bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi
+bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi --external playwright --external playwright-core
 
 if [ ! -f dist/browse ]; then
   echo "Error: Compilation failed. Check the output above for details."
