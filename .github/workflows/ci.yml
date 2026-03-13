@@ -27,14 +27,8 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install chromium --with-deps
 
-      - name: Run unit tests
-        run: bun test test/unit/
-
-      - name: Run integration tests
-        run: bun test test/integration/
-
-      - name: Run existing tests
-        run: bun test test/*.test.ts
+      - name: Run tests
+        run: bun test
 
       - name: Compile binary
         run: bun build --compile ./src/cli.ts --outfile dist/browse --external playwright --external playwright-core

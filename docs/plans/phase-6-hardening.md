@@ -334,8 +334,7 @@ strategy:
 2. **Install Bun** — use `oven-sh/setup-bun@v2`.
 3. **Install dependencies** — `bun install`.
 4. **Install Playwright browsers** — `bunx playwright install chromium --with-deps` (the `--with-deps` flag installs system dependencies on Ubuntu, needed for headless Chromium).
-5. **Run unit tests** — `bun test test/unit/`.
-6. **Run integration tests** — `bun test test/integration/`.
+5. **Run tests** — `bun test`.
 7. **Compile binary** — `bun build --compile ./src/cli.ts --outfile dist/browse`.
 8. **Smoke test binary** — `./dist/browse goto data:text/html,<h1>CI</h1>` → verify output contains "CI".
 
