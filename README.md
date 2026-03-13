@@ -98,6 +98,16 @@ browse auth-state load /tmp/session.json    # restore a saved session
 browse wipe                                 # clear all session data
 ```
 
+### JavaScript evaluation
+
+```sh
+browse eval "document.title"                                   # run JS in the page context
+browse eval "getComputedStyle(document.body).backgroundColor"  # inspect computed styles
+browse eval "document.querySelectorAll('a').length"            # count elements
+browse page-eval "await page.title()"                          # run Playwright page-level code
+browse page-eval "page.viewportSize()"                         # access page API directly
+```
+
 ### Flows and assertions
 
 Define reusable flows in `browse.config.json`, then run them:
@@ -191,6 +201,8 @@ Measured with `browse benchmark`:
 | `screenshot [path]` | Capture page (`--viewport`, `--selector`) |
 | `console` | Console log (`--level`, `--keep`) |
 | `network` | Failed requests (`--all`, `--keep`) |
+| `eval <expression>` | Run JavaScript in page context |
+| `page-eval <expression>` | Run Playwright page-level operations |
 | `viewport [W H\|WxH]` | Get or set viewport (`--device`, `--preset`) |
 | `tab list\|new\|switch\|close` | Tab management |
 | `login --env <name>` | Configured login |

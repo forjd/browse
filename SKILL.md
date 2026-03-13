@@ -86,6 +86,20 @@ browse viewport --preset tablet               768x1024
 browse viewport --preset desktop              1440x900
 ```
 
+### JavaScript evaluation
+
+```
+browse eval <expression>                      Run JavaScript in the browser page context
+browse eval "document.title"                  Returns the page title
+browse eval "window.innerWidth"               Check viewport width
+browse eval "getComputedStyle(el).color"      Inspect computed styles
+browse page-eval <expression>                 Run Playwright page-level operations
+browse page-eval "await page.title()"         Access page API with async/await
+browse page-eval "page.viewportSize()"        Call any Playwright Page method
+```
+
+Use `eval` for in-page DOM/JS queries. Use `page-eval` when you need access to the Playwright `page` object directly. Both return results as strings (objects are JSON-stringified).
+
 ### Auth and session
 
 ```
