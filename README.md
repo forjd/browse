@@ -85,6 +85,21 @@ browse press ArrowDown           # navigate within menus
 browse press Control+a           # select all
 ```
 
+### Waiting for conditions
+
+Useful for SPAs where client-side navigation doesn't trigger full page loads:
+
+```sh
+browse wait url /dashboard        # wait until URL contains string
+browse wait text "Welcome"        # wait until text appears on page
+browse wait visible .dashboard    # wait until element is visible
+browse wait hidden .spinner       # wait until element disappears
+browse wait network-idle          # wait until no pending requests
+browse wait 2000                  # simple delay (last resort)
+```
+
+All wait subcommands respect `--timeout` and error if the condition isn't met in time.
+
 ### Screenshots and debugging
 
 ```sh
@@ -234,6 +249,7 @@ Measured with `browse benchmark`:
 | `fill @eN "value"` | Fill input (clears first) |
 | `select @eN "option"` | Select dropdown option |
 | `press <key> [key ...]` | Send keyboard key presses (`Shift+Tab`, `Escape`, etc.) |
+| `wait <type> <args>` | Wait for condition (`url`, `text`, `visible`, `hidden`, `network-idle`, `<ms>`) |
 | `scroll <direction\|@ref\|x y>` | Scroll page or element into view |
 | `screenshot [path]` | Capture page (`--viewport`, `--selector`) |
 | `console` | Console log (`--level`, `--keep`) |

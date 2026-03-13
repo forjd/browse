@@ -23,6 +23,7 @@ const VALID_COMMANDS = [
 	"page-eval",
 	"scroll",
 	"press",
+	"wait",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

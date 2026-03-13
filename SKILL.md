@@ -44,6 +44,7 @@ The standard pattern for any browser task:
 4. **Interact:** `browse fill @eN "value"`, `browse click @eN`, `browse hover @eN`, `browse press Tab`, `browse select @eN "option"`, `browse scroll @eN` (scroll into view).
    - Use `browse press <key>` for keyboard navigation (Tab, Escape, Enter, ArrowDown, Shift+Tab, etc.). Multiple keys: `browse press Tab Tab Tab`.
    - Use `browse scroll down/up` to page through content, `browse scroll top/bottom` to jump to extremes.
+   - After clicks that trigger SPA navigation, use `browse wait url /path`, `browse wait text "Expected"`, or `browse wait visible .selector` before snapshotting.
 5. **Verify:** `browse snapshot` or `browse screenshot` after each interaction to confirm the result.
 6. **Repeat:** Move through pages and flows.
 
@@ -56,6 +57,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Navigate** | `goto <url>`, `text`, `quit`, `wipe` |
 | **Observe** | `snapshot`, `screenshot`, `console`, `network` |
 | **Interact** | `click @eN`, `hover @eN [--duration ms]`, `press <key> [key ...]`, `fill @eN "value"`, `select @eN "option"`, `scroll down/up/top/bottom/@eN/x y` |
+| **Wait** | `wait url <str>`, `wait text <str>`, `wait visible <sel>`, `wait hidden <sel>`, `wait network-idle`, `wait <ms>` |
 | **Viewport** | `viewport`, `goto --viewport/--device/--preset` |
 | **Evaluate** | `eval <expr>` (in-page JS), `page-eval <expr>` (Playwright page API) |
 | **Auth** | `login --env <name>`, `auth-state save/load <path>` |

@@ -28,6 +28,7 @@ import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleText } from "./commands/text.ts";
 import { handleViewport } from "./commands/viewport.ts";
+import { handleWait } from "./commands/wait.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import type { BrowseConfig } from "./config.ts";
 import { loadConfig } from "./config.ts";
@@ -68,6 +69,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	viewport: ["--device", "--preset"],
 	scroll: [],
 	press: [],
+	wait: [],
 	quit: [],
 };
 
@@ -263,6 +265,8 @@ export async function startServer(
 						return handleEval(page, request.args);
 					case "page-eval":
 						return handlePageEval(page, request.args);
+					case "wait":
+						return handleWait(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "quit": {

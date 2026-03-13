@@ -208,6 +208,17 @@ Examples:
   browse page-eval "page.viewportSize()"
   browse page-eval "await page.evaluate(() => document.title)"`,
 	},
+	wait: {
+		summary: "Wait for a condition before proceeding",
+		usage: `browse wait url <substring>        Wait until URL contains substring
+browse wait text <string>          Wait until page text contains string
+browse wait visible <selector>     Wait until element is visible
+browse wait hidden <selector>      Wait until element disappears
+browse wait network-idle           Wait until no pending network requests
+browse wait <ms>                   Wait for a fixed delay (last resort)
+
+Respects --timeout flag. Polls at 100ms intervals.`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",
