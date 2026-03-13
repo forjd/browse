@@ -1,0 +1,18 @@
+diff --git a/lib/server/utils/nodePlatform.js b/lib/server/utils/nodePlatform.js
+index d42f60ce9213306fa97a88471aa7344ee7520b63..76e20d3762ffc1e2422a2bc5f64e5923961114e0 100644
+--- a/lib/server/utils/nodePlatform.js
++++ b/lib/server/utils/nodePlatform.js
+@@ -65,7 +65,12 @@ let boxedStackPrefixes = [];
+ function setBoxedStackPrefixes(prefixes) {
+   boxedStackPrefixes = prefixes;
+ }
+-const coreDir = import_path.default.dirname(require.resolve("../../../package.json"));
++let coreDir;
++try {
++  coreDir = import_path.default.dirname(require.resolve("../../../package.json"));
++} catch {
++  coreDir = undefined;
++}
+ const nodePlatform = {
+   name: "node",
+   boxedStackPrefixes: () => {

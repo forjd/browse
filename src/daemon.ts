@@ -3,7 +3,6 @@ import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
-import UserAgent from "user-agents";
 import { RingBuffer } from "./buffers.ts";
 import { handleA11y } from "./commands/a11y.ts";
 import { handleAssert } from "./commands/assert.ts";
@@ -50,6 +49,11 @@ import {
 import type { Response } from "./protocol.ts";
 import { parseRequest, serialiseResponse } from "./protocol.ts";
 import { clearRefs, markStale } from "./refs.ts";
+import {
+	applyStealthScripts,
+	generateUserAgent,
+	stealthArgs,
+} from "./stealth.ts";
 import { resolveTimeout, withTimeout } from "./timeout.ts";
 
 /**
@@ -383,19 +387,25 @@ export async function startDaemon(
 	const userDataDir =
 		options.userDataDir ?? join(homedir(), ".bun-browse", "user-data");
 
+	const { userAgent, navigatorPlatform, chromeMajor } = generateUserAgent();
+
 	const context: BrowserContext = await chromium.launchPersistentContext(
 		userDataDir,
 		{
 			headless: options.headless ?? true,
-			channel: "chromium",
+			channel: "chrome",
+			args: stealthArgs(),
 			ignoreDefaultArgs: ["--enable-automation"],
 			viewport: { width: 1440, height: 900 },
-			userAgent: new UserAgent({
-				deviceCategory: "desktop",
-				userAgent: /Chrome/,
-			}).toString(),
+			userAgent,
 		},
 	);
+
+	await applyStealthScripts(context, {
+		userAgent,
+		navigatorPlatform,
+		chromeMajor,
+	});
 
 	const page: Page = context.pages()[0] ?? (await context.newPage());
 

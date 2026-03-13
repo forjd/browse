@@ -24,11 +24,12 @@
 	},
 	"dependencies": {
 		"@axe-core/playwright": "^4.11.1",
-		"playwright": "^1.58.2",
+		"playwright": "npm:patchright@1.58.2",
+		"playwright-core": "npm:patchright-core@1.58.2",
 		"user-agents": "^1.1.669"
 	},
 	"patchedDependencies": {
-		"playwright-core@1.58.2": "patches/playwright-core@1.58.2.patch",
-		"playwright@1.58.2": "patches/playwright@1.58.2.patch"
+		"patchright-core@1.58.2": "patches/patchright-core@1.58.2.patch",
+		"patchright@1.58.2": "patches/patchright@1.58.2.patch"
 	}
 }

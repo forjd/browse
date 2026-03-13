@@ -1,0 +1,15 @@
+{
+	"manifest_version": 3,
+	"name": "ScreenXY Fix",
+	"version": "1.0",
+	"description": "Fixes CDP mouse coordinate leak in cross-origin iframes",
+	"content_scripts": [
+		{
+			"matches": ["<all_urls>"],
+			"js": ["fix.js"],
+			"run_at": "document_start",
+			"all_frames": true,
+			"world": "MAIN"
+		}
+	]
+}

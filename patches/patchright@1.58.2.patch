@@ -1,0 +1,34 @@
+diff --git a/lib/index.js b/lib/index.js
+index 2ad11539dd26645385d4278de3924ec7fc52142f..fd79de1d843d30e8efae6de7da18c13a5f98cb8f 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -48,7 +48,10 @@ var import_configLoader = require("./common/configLoader");
+ var import_testType2 = require("./common/testType");
+ var import_expect2 = require("./matchers/expect");
+ const _baseTest = import_testType.rootTestType.test;
+-(0, import_utils.setBoxedStackPrefixes)([import_path.default.dirname(require.resolve("../package.json"))]);
++try {
++  (0, import_utils.setBoxedStackPrefixes)([import_path.default.dirname(require.resolve("../package.json"))]);
++} catch {
++}
+ if (process["__pw_initiator__"]) {
+   const originalStackTraceLimit = Error.stackTraceLimit;
+   Error.stackTraceLimit = 200;
+diff --git a/lib/util.js b/lib/util.js
+index 7bcc1cb8cfa28cdca733485e6e37725e5a289f40..20cde4ca5d7bfee40339cd5febda121e03d201b3 100644
+--- a/lib/util.js
++++ b/lib/util.js
+@@ -68,7 +68,12 @@ var import_utils = require("playwright-core/lib/utils");
+ var import_utilsBundle = require("playwright-core/lib/utilsBundle");
+ var import_utils2 = require("playwright-core/lib/utils");
+ const PLAYWRIGHT_TEST_PATH = import_path.default.join(__dirname, "..");
+-const PLAYWRIGHT_CORE_PATH = import_path.default.dirname(require.resolve("playwright-core/package.json"));
++let PLAYWRIGHT_CORE_PATH;
++try {
++  PLAYWRIGHT_CORE_PATH = import_path.default.dirname(require.resolve("playwright-core/package.json"));
++} catch {
++  PLAYWRIGHT_CORE_PATH = undefined;
++}
+ function filterStackTrace(e) {
+   const name = e.name ? e.name + ": " : "";
+   const cause = e.cause instanceof Error ? filterStackTrace(e.cause) : void 0;

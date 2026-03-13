@@ -31,8 +31,8 @@ echo "  ✓ Dependencies installed"
 # Step 3: Install Playwright browsers
 echo ""
 echo "[3/5] Installing Playwright browsers..."
-bunx playwright install chromium
-echo "  ✓ Chromium installed"
+bunx playwright install chrome
+echo "  ✓ Chrome installed"
 
 # Step 4: Compile binary
 echo ""
@@ -54,6 +54,13 @@ bun build --compile ./src/cli.ts --outfile dist/browse --external electron --ext
 if [ ! -f dist/browse ]; then
   echo "Error: Compilation failed. Check the output above for details."
   exit 1
+fi
+
+# Copy screenxy-fix extension alongside the binary
+if [ -d extensions/screenxy-fix ]; then
+  mkdir -p dist/extensions/screenxy-fix
+  cp extensions/screenxy-fix/* dist/extensions/screenxy-fix/
+  echo "  ✓ dist/extensions/screenxy-fix"
 fi
 
 echo "  ✓ dist/browse ($OS-$ARCH_LABEL)"
