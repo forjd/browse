@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/forjd/browse/compare/browse-v0.5.0...browse-v0.6.0) (2026-03-13)
+
+
+### Features
+
+* add stealth mode to bypass Cloudflare Turnstile and bot detection ([8580256](https://github.com/forjd/browse/commit/8580256fa70cab5d10395dc45ba945a4b80e207b))
+
 ## [0.5.0](https://github.com/forjd/browse/compare/browse-v0.4.3...browse-v0.5.0) (2026-03-13)
 
 
