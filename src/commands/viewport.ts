@@ -1,18 +1,18 @@
 import { devices, type Page } from "playwright";
 import type { Response } from "../protocol.ts";
 
-const PRESETS: Record<string, { width: number; height: number }> = {
+export const PRESETS: Record<string, { width: number; height: number }> = {
 	mobile: { width: 375, height: 667 },
 	tablet: { width: 768, height: 1024 },
 	desktop: { width: 1440, height: 900 },
 };
 
-type ParsedArgs =
+export type ViewportParsedArgs =
 	| { action: "show" }
 	| { action: "set"; width: number; height: number; label?: string }
 	| { error: string };
 
-function parseArgs(args: string[]): ParsedArgs {
+export function parseViewportArgs(args: string[]): ViewportParsedArgs {
 	let device: string | undefined;
 	let preset: string | undefined;
 	const positional: string[] = [];
@@ -101,7 +101,7 @@ export async function handleViewport(
 	page: Page,
 	args: string[],
 ): Promise<Response> {
-	const parsed = parseArgs(args);
+	const parsed = parseViewportArgs(args);
 
 	if ("error" in parsed) {
 		return { ok: false, error: parsed.error };

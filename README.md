@@ -39,9 +39,10 @@ bunx skills add forjd/browse
 
 ```sh
 browse goto https://example.com     # navigate — daemon starts automatically
+browse goto https://example.com --preset mobile  # navigate at mobile viewport
 browse snapshot                     # list interactive elements with refs
 browse click @e1                    # click an element by ref
-browse fill @e2 "hello"            # type into an input
+browse fill @e2 "hello"             # type into an input
 browse screenshot                   # capture the page
 browse quit                         # shut down the daemon
 ```
@@ -78,6 +79,8 @@ browse viewport --device "iPhone SE"         # use a Playwright device profile
 browse viewport --preset mobile              # 375x667
 browse viewport --preset tablet              # 768x1024
 browse viewport --preset desktop             # 1440x900
+browse goto https://example.com --viewport 320x568   # navigate at a specific size
+browse goto https://example.com --device "iPhone SE"  # navigate with device profile
 ```
 
 ### Tabs
@@ -196,7 +199,7 @@ Measured with `browse benchmark`:
 
 | Command | Description |
 |---------|-------------|
-| `goto <url>` | Navigate to URL |
+| `goto <url>` | Navigate to URL (`--viewport`, `--device`, `--preset`) |
 | `text` | Return visible page text |
 | `snapshot` | List elements with refs (`-i` structural, `-f` full tree) |
 | `click @eN` | Click element |

@@ -348,13 +348,12 @@ describe("daemon server", () => {
 		try {
 			const response = await sendCommand(config.socketPath, "goto", [
 				"https://example.com",
-				"--device",
-				"iPhone SE",
+				"--headless",
 			]);
 			expect(response.ok).toBe(false);
 			if (!response.ok) {
 				expect(response.error).toContain("Unknown flag");
-				expect(response.error).toContain("--device");
+				expect(response.error).toContain("--headless");
 				expect(response.error).toContain("browse help goto");
 			}
 		} finally {
@@ -418,15 +417,14 @@ describe("daemon server", () => {
 		try {
 			const response = await sendCommand(config.socketPath, "goto", [
 				"https://example.com",
-				"--device",
-				"iPhone",
 				"--headless",
+				"--verbose",
 			]);
 			expect(response.ok).toBe(false);
 			if (!response.ok) {
 				expect(response.error).toContain("Unknown flags");
-				expect(response.error).toContain("--device");
 				expect(response.error).toContain("--headless");
+				expect(response.error).toContain("--verbose");
 			}
 		} finally {
 			await shutdown();
@@ -449,6 +447,141 @@ describe("daemon server", () => {
 				"document.querySelector('--custom')",
 			]);
 			expect(response.ok).toBe(true);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("goto with --viewport resizes before navigating", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			setViewportSize: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "goto", [
+				"https://example.com",
+				"--viewport",
+				"320x568",
+			]);
+			expect(response.ok).toBe(true);
+			expect(page.setViewportSize).toHaveBeenCalledWith({
+				width: 320,
+				height: 568,
+			});
+			expect(page.goto).toHaveBeenCalledWith("https://example.com", {
+				waitUntil: "domcontentloaded",
+				timeout: 30_000,
+			});
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("goto with --preset resizes before navigating", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			setViewportSize: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "goto", [
+				"https://example.com",
+				"--preset",
+				"mobile",
+			]);
+			expect(response.ok).toBe(true);
+			expect(page.setViewportSize).toHaveBeenCalledWith({
+				width: 375,
+				height: 667,
+			});
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("goto with --device resizes before navigating", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			setViewportSize: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "goto", [
+				"https://example.com",
+				"--device",
+				"iPhone SE",
+			]);
+			expect(response.ok).toBe(true);
+			expect(page.setViewportSize).toHaveBeenCalled();
+			expect(page.goto).toHaveBeenCalled();
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("goto with invalid --viewport returns error", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			setViewportSize: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "goto", [
+				"https://example.com",
+				"--viewport",
+				"notasize",
+			]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("Expected WxH");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("goto includes viewport size in response", async () => {
+		const config = testPaths();
+		const page = mockPage({
+			setViewportSize: mock(() => Promise.resolve()),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "goto", [
+				"https://example.com",
+				"--viewport",
+				"320x568",
+			]);
+			expect(response.ok).toBe(true);
+			if (response.ok) {
+				expect(response.data).toContain("320x568");
+			}
 		} finally {
 			await shutdown();
 		}

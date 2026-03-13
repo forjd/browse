@@ -46,7 +46,7 @@ import { resolveTimeout, withTimeout } from "./timeout.ts";
  * (e.g. eval/page-eval/fill/select where all args form freeform data).
  */
 const KNOWN_FLAGS: Record<string, string[]> = {
-	goto: [],
+	goto: ["--viewport", "--device", "--preset"],
 	text: [],
 	snapshot: [],
 	click: [],

@@ -33,6 +33,9 @@ First useful sequence: `browse goto <url>` → `browse snapshot` → `browse scr
 ```
 browse help [command]                      Show all commands, or detailed usage for one
 browse goto <url>                          Navigate to URL, return page title
+browse goto <url> --viewport <WxH>        Navigate at a specific viewport size
+browse goto <url> --device <name>         Navigate with a Playwright device profile
+browse goto <url> --preset <name>         Navigate with a preset (mobile/tablet/desktop)
 browse text                                Return visible text content of the page
 browse quit                                Shut down the daemon
 browse wipe                                Clear all session data (cookies, storage, buffers, refs)
@@ -86,7 +89,12 @@ browse viewport --device "iPhone SE"          Use a Playwright device profile
 browse viewport --preset mobile               375x667
 browse viewport --preset tablet               768x1024
 browse viewport --preset desktop              1440x900
+browse goto <url> --viewport 320x568         Navigate at a specific viewport size
+browse goto <url> --device "iPhone SE"       Navigate with a device profile
+browse goto <url> --preset mobile            Navigate at mobile viewport
 ```
+
+The `goto` viewport flags combine navigation with viewport resizing — the viewport is set before the page loads, so the page renders at the correct size from the start.
 
 ### JavaScript evaluation
 

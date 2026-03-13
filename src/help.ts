@@ -6,7 +6,12 @@ type CommandHelp = {
 export const COMMANDS: Record<string, CommandHelp> = {
 	goto: {
 		summary: "Navigate to URL, return page title",
-		usage: "browse goto <url>",
+		usage: `browse goto <url> [--viewport <WxH>] [--device <name>] [--preset <name>]
+
+Flags:
+  --viewport <WxH>   Set viewport before navigating (e.g. 320x568)
+  --device <name>    Use a Playwright device (e.g. "iPhone SE")
+  --preset <name>    Use a preset: mobile (375x667), tablet (768x1024), desktop (1440x900)`,
 	},
 	text: {
 		summary: "Return visible text content",
