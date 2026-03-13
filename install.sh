@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-INSTALL_DIR="$HOME/.local/share/browse"
+REPO="forjd/browse"
 BIN_DIR="$HOME/.local/bin"
 
 echo "Installing browse..."
@@ -21,23 +21,66 @@ if [ "$BUN_MAJOR" -lt 1 ]; then
   exit 1
 fi
 
-echo "  ✓ bun $BUN_VERSION"
+echo "  bun $BUN_VERSION"
 
-# Clone or update
-if [ -d "$INSTALL_DIR/.git" ]; then
-  echo ""
-  echo "Updating existing installation..."
-  git -C "$INSTALL_DIR" pull --ff-only
-else
-  rm -rf "$INSTALL_DIR"
-  git clone https://github.com/forjd/browse.git "$INSTALL_DIR"
+# Detect platform
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+
+case "$ARCH" in
+  x86_64)  ARCH_LABEL="x86_64" ;;
+  aarch64) ARCH_LABEL="arm64" ;;
+  arm64)   ARCH_LABEL="arm64" ;;
+  *)
+    echo "Error: unsupported architecture: $ARCH"
+    exit 1
+    ;;
+esac
+
+ARTIFACT="browse-${OS}-${ARCH_LABEL}"
+echo "  platform: ${OS}-${ARCH_LABEL}"
+
+# Fetch latest release tag
+TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+  | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+
+if [ -z "$TAG" ]; then
+  echo "Error: could not determine latest release. Check https://github.com/${REPO}/releases"
+  exit 1
 fi
 
-echo "  ✓ Source at $INSTALL_DIR"
+echo "  release: $TAG"
 
-# Run setup
-cd "$INSTALL_DIR"
-bash setup.sh
+# Download binary
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${ARTIFACT}"
+mkdir -p "$BIN_DIR"
+
+echo ""
+echo "Downloading ${ARTIFACT}..."
+
+if ! curl -fSL --progress-bar -o "${BIN_DIR}/browse" "$DOWNLOAD_URL"; then
+  echo ""
+  echo "Error: failed to download binary."
+  echo "Available binaries for ${TAG}: https://github.com/${REPO}/releases/tag/${TAG}"
+  exit 1
+fi
+
+chmod +x "${BIN_DIR}/browse"
+echo "  binary: ${BIN_DIR}/browse"
+
+# Install Playwright Chromium
+echo ""
+echo "Installing Chromium..."
+bunx playwright install chromium
+echo "  Chromium installed"
+
+# Check PATH
+if ! echo "$PATH" | tr ':' '\n' | grep -q "$BIN_DIR"; then
+  echo ""
+  echo "Note: ~/.local/bin is not on your PATH. Add it with:"
+  echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+  echo "Add this to your shell profile (~/.zshrc or ~/.bashrc) to make it permanent."
+fi
 
 echo ""
 echo "Done. Run 'browse goto https://example.com' to get started."
