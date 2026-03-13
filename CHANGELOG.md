@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/forjd/browse/compare/browse-v0.4.2...browse-v0.4.3) (2026-03-13)
+
+
+### Bug Fixes
+
+* read version from package.json instead of hardcoding ([e1ffe7a](https://github.com/forjd/browse/commit/e1ffe7aa1c11db4699089113df3cba407a3bfed6))
+
 ## [0.4.2](https://github.com/forjd/browse/compare/browse-v0.4.1...browse-v0.4.2) (2026-03-13)
 
 
