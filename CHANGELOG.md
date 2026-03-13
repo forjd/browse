@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/forjd/browse/compare/browse-v0.4.3...browse-v0.5.0) (2026-03-13)
+
+
+### Features
+
+* support element refs ([@e1](https://github.com/e1)) in assert and wait commands ([6bda17e](https://github.com/forjd/browse/commit/6bda17eae9374fe0a734be6c3e4f12a47004900a))
+
 ## [0.4.3](https://github.com/forjd/browse/compare/browse-v0.4.2...browse-v0.4.3) (2026-03-13)
 
 
