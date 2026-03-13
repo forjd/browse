@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/forjd/browse/compare/browse-v0.3.0...browse-v0.4.0) (2026-03-13)
+
+
+### Features
+
+* add `a11y` command for accessibility auditing ([4e5f8b6](https://github.com/forjd/browse/commit/4e5f8b6517254ab635d1e3b85db0a89f01ba5b0d)), closes [#14](https://github.com/forjd/browse/issues/14)
+* add `attr` command to read element attributes ([cc94154](https://github.com/forjd/browse/commit/cc94154672fda8ced852b7daeee23225fc961f31))
+* add `back`, `forward`, and `reload` commands ([d82b3df](https://github.com/forjd/browse/commit/d82b3df00ddee4ce5c42a7bb4e408878f0bd5f46)), closes [#11](https://github.com/forjd/browse/issues/11)
+* add `hover` command for element hover interactions ([6753b1a](https://github.com/forjd/browse/commit/6753b1a08339b6dbb37c687be37dd948be835b5d))
+* add `press` command for keyboard events ([d9beee7](https://github.com/forjd/browse/commit/d9beee7a7f1382a55c88806c207bcc337c83a99d)), closes [#8](https://github.com/forjd/browse/issues/8)
+* add `upload` command for file inputs ([262cce1](https://github.com/forjd/browse/commit/262cce10b7a6b45be12d70f5dbc1bcd68c8ba936)), closes [#13](https://github.com/forjd/browse/issues/13)
+* add `url` command to print current page URL ([8ddb99d](https://github.com/forjd/browse/commit/8ddb99df56888a6c792dfe20c35a923c7f659cf0))
+* add `version` command to print version and platform info ([0b42749](https://github.com/forjd/browse/commit/0b427494c617920d248925abdaf3115355fd2890)), closes [#18](https://github.com/forjd/browse/issues/18)
+* add `wait` command for condition-based waiting ([8fa8501](https://github.com/forjd/browse/commit/8fa8501c16d571abe1325cc6e01119db00f19b08)), closes [#9](https://github.com/forjd/browse/issues/9)
+
 ## [0.3.0](https://github.com/forjd/browse/compare/browse-v0.2.0...browse-v0.3.0) (2026-03-13)
 
 
