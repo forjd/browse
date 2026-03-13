@@ -4,6 +4,7 @@ const VALID_COMMANDS = [
 	"quit",
 	"snapshot",
 	"click",
+	"hover",
 	"fill",
 	"select",
 	"screenshot",

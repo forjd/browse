@@ -15,6 +15,7 @@ import { handleFill } from "./commands/fill.ts";
 import { handleFlow } from "./commands/flow.ts";
 import { handleGoto } from "./commands/goto.ts";
 import { handleHealthcheck } from "./commands/healthcheck.ts";
+import { handleHover } from "./commands/hover.ts";
 import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handlePageEval } from "./commands/page-eval.ts";
@@ -51,6 +52,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	text: [],
 	snapshot: [],
 	click: [],
+	hover: ["--duration"],
 	screenshot: ["--viewport", "--selector"],
 	console: ["--level", "--keep"],
 	network: ["--all", "--keep"],
@@ -210,6 +212,8 @@ export async function startServer(
 						return handleSnapshot(page, request.args);
 					case "click":
 						return handleClick(page, request.args);
+					case "hover":
+						return handleHover(page, request.args);
 					case "fill":
 						return handleFill(page, request.args);
 					case "select":

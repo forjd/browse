@@ -31,6 +31,13 @@ Default mode shows only interactive elements.`,
 		summary: "Click an element by ref",
 		usage: "browse click <@ref>",
 	},
+	hover: {
+		summary: "Hover over an element by ref",
+		usage: `browse hover <@ref> [--duration <ms>]
+
+Flags:
+  --duration <ms>   Hold the hover for the given duration (useful for delayed tooltips)`,
+	},
 	fill: {
 		summary: "Fill an input by ref",
 		usage: `browse fill <@ref> <value>

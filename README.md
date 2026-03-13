@@ -42,6 +42,7 @@ browse goto https://example.com     # navigate — daemon starts automatically
 browse goto https://example.com --preset mobile  # navigate at mobile viewport
 browse snapshot                     # list interactive elements with refs
 browse click @e1                    # click an element by ref
+browse hover @e3                    # hover over an element by ref
 browse fill @e2 "hello"             # type into an input
 browse scroll down                  # scroll down one viewport height
 browse scroll @e3                   # scroll element into view
@@ -216,6 +217,7 @@ Measured with `browse benchmark`:
 | `text` | Return visible page text |
 | `snapshot` | List elements with refs (`-i` structural, `-f` full tree) |
 | `click @eN` | Click element |
+| `hover @eN` | Hover over element (`--duration <ms>`) |
 | `fill @eN "value"` | Fill input (clears first) |
 | `select @eN "option"` | Select dropdown option |
 | `scroll <direction\|@ref\|x y>` | Scroll page or element into view |

@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { handleClick } from "../src/commands/click.ts";
 import { handleFill } from "../src/commands/fill.ts";
+import { handleHover } from "../src/commands/hover.ts";
 import { handleSelect } from "../src/commands/select.ts";
 import {
 	type AccessibilityNode,
@@ -19,10 +20,12 @@ function mockPage() {
 			nth: mock((_n: number) => ({
 				click: mock(() => Promise.resolve()),
 				fill: mock(() => Promise.resolve()),
+				hover: mock(() => Promise.resolve()),
 				selectOption: mock(() => Promise.resolve()),
 			})),
 			click: mock(() => Promise.resolve()),
 			fill: mock(() => Promise.resolve()),
+			hover: mock(() => Promise.resolve()),
 			selectOption: mock(() => Promise.resolve()),
 		})),
 	} as never;
@@ -272,5 +275,115 @@ describe("handleSelect", () => {
 		const result = await handleSelect(page, ["@e1", "Item 1"]);
 
 		expect(result.ok).toBe(true);
+	});
+});
+
+describe("handleHover", () => {
+	test("hovers a resolved ref and returns confirmation", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "button", name: "Menu", children: [] }),
+			"default",
+		);
+		const page = mockPage();
+
+		const result = await handleHover(page, ["@e1"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Hovered");
+			expect(result.data).toContain("@e1");
+			expect(result.data).toContain("Menu");
+		}
+	});
+
+	test("returns error when ref arg is missing", async () => {
+		clearRefs();
+		const page = mockPage();
+
+		const result = await handleHover(page, []);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Usage");
+		}
+	});
+
+	test("returns error when ref does not start with @", async () => {
+		clearRefs();
+		const page = mockPage();
+
+		const result = await handleHover(page, ["e1"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("@");
+		}
+	});
+
+	test("returns error for unknown ref", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "button", name: "OK", children: [] }),
+			"default",
+		);
+		const page = mockPage();
+
+		const result = await handleHover(page, ["@e99"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Unknown ref");
+		}
+	});
+
+	test("returns stale error after navigation", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "button", name: "OK", children: [] }),
+			"default",
+		);
+		markStale();
+		const page = mockPage();
+
+		const result = await handleHover(page, ["@e1"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("stale");
+		}
+	});
+
+	test("passes duration option when --duration flag is provided", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "link", name: "Info", children: [] }),
+			"default",
+		);
+		const page = mockPage();
+
+		const result = await handleHover(page, ["@e1", "--duration", "2000"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Hovered");
+			expect(result.data).toContain("2000ms");
+		}
+	});
+
+	test("returns error for invalid duration value", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "button", name: "OK", children: [] }),
+			"default",
+		);
+		const page = mockPage();
+
+		const result = await handleHover(page, ["@e1", "--duration", "abc"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("duration");
+		}
 	});
 });
