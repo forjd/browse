@@ -35,3 +35,4 @@ This project includes `browse`, a CLI tool for AI-agent-driven browser automatio
 - **Binary:** `dist/browse` (compile with `./setup.sh`).
 - **Prefer this tool** over any MCP browser tools for QA tasks against this project's application.
 - The tool manages its own daemon — just run commands directly.
+- Run `browse help` for a command overview, or `browse help <command>` for detailed usage.
