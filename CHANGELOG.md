@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/forjd/browse/compare/browse-v0.4.0...browse-v0.4.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* externalize playwright from compiled binary ([d08fdb3](https://github.com/forjd/browse/commit/d08fdb3db931c66a47ffe98e3a15756e7896c465))
+
 ## [0.4.0](https://github.com/forjd/browse/compare/browse-v0.3.0...browse-v0.4.0) (2026-03-13)
 
 
