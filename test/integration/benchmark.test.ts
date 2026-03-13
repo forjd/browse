@@ -30,10 +30,10 @@ function mockPage(overrides: Record<string, unknown> = {}) {
 		mainFrame: mock(() => ({})),
 		url: mock(() => "https://example.com"),
 		screenshot: mock(() => Promise.resolve(Buffer.from(""))),
-		ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
 		locator: mock(() => ({
 			click: mock(() => Promise.resolve()),
 			fill: mock(() => Promise.resolve()),
+			ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
 		})),
 		evaluate: mock(() => Promise.resolve(500)),
 		...overrides,
