@@ -1,3 +1,9 @@
+---
+name: bun-browser
+description: AI-agent-driven browser automation via a persistent Playwright daemon. Use for QA verification, visual checks, form interaction, auth testing, screenshots, and automated healthchecks against web applications.
+allowed-tools: Bash(browse:*)
+---
+
 # Browse — Browser QA Tool
 
 ## Overview
