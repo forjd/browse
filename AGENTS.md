@@ -27,6 +27,12 @@ bunx opensrc <owner>/<repo>      # GitHub repo (e.g., bunx opensrc vercel/ai)
 
 <!-- opensrc:end -->
 
+## Development
+
+- **Lint and format:** Run `bun run check:fix` before committing to auto-fix lint and formatting issues.
+- **Tests:** `bun test`
+- **Build binary:** `./setup.sh`
+
 ## Browse — Browser QA Tool
 
 This project includes `browse`, a CLI tool for AI-agent-driven browser automation.
