@@ -1,6 +1,7 @@
 import { arch, platform } from "node:os";
+import pkg from "../package.json";
 
-const VERSION = "0.3.0";
+const VERSION = pkg.version;
 
 export function formatVersion(): string {
 	return `browse ${VERSION} (${platform()}-${arch()})`;

@@ -4,9 +4,10 @@ import { COMMANDS } from "../src/help.ts";
 import { formatVersion } from "../src/version.ts";
 
 describe("formatVersion", () => {
-	test("includes version from package.json", () => {
+	test("includes version from package.json", async () => {
+		const pkg = await import("../package.json");
 		const output = formatVersion();
-		expect(output).toMatch(/^browse \d+\.\d+\.\d+/);
+		expect(output).toContain(`browse ${pkg.default.version}`);
 	});
 
 	test("includes platform and architecture", () => {
