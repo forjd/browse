@@ -6,6 +6,7 @@ import { type BrowserContext, chromium, type Page } from "playwright";
 import UserAgent from "user-agents";
 import { RingBuffer } from "./buffers.ts";
 import { handleAssert } from "./commands/assert.ts";
+import { handleAttr } from "./commands/attr.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
 import { handleBack } from "./commands/back.ts";
 import { handleBenchmark } from "./commands/benchmark.ts";
@@ -78,6 +79,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	back: [],
 	forward: [],
 	reload: ["--hard"],
+	attr: [],
 	quit: [],
 };
 
@@ -283,6 +285,8 @@ export async function startServer(
 						return handleForward(page);
 					case "reload":
 						return handleReload(page, request.args);
+					case "attr":
+						return handleAttr(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "quit": {

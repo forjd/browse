@@ -47,6 +47,7 @@ browse reload                       # reload current page
 browse reload --hard                # reload bypassing cache
 browse snapshot                     # list interactive elements with refs
 browse click @e1                    # click an element by ref
+browse attr @e1 href                # read an element's attribute
 browse hover @e3                    # hover over an element by ref
 browse press Tab                    # send a keyboard key press
 browse fill @e2 "hello"             # type into an input
@@ -256,6 +257,7 @@ Measured with `browse benchmark`:
 | `click @eN` | Click element |
 | `hover @eN` | Hover over element (`--duration <ms>`) |
 | `fill @eN "value"` | Fill input (clears first) |
+| `attr @eN [attribute]` | Read element attributes (single or all) |
 | `select @eN "option"` | Select dropdown option |
 | `press <key> [key ...]` | Send keyboard key presses (`Shift+Tab`, `Escape`, etc.) |
 | `wait <type> <args>` | Wait for condition (`url`, `text`, `visible`, `hidden`, `network-idle`, `<ms>`) |

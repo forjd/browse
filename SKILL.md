@@ -56,7 +56,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 |----------|----------|
 | **Navigate** | `goto <url>`, `url`, `back`, `forward`, `reload [--hard]`, `text`, `quit`, `wipe` |
 | **Observe** | `snapshot`, `screenshot`, `console`, `network` |
-| **Interact** | `click @eN`, `hover @eN [--duration ms]`, `press <key> [key ...]`, `fill @eN "value"`, `select @eN "option"`, `scroll down/up/top/bottom/@eN/x y` |
+| **Interact** | `click @eN`, `hover @eN [--duration ms]`, `press <key> [key ...]`, `fill @eN "value"`, `select @eN "option"`, `attr @eN [attribute]`, `scroll down/up/top/bottom/@eN/x y` |
 | **Wait** | `wait url <str>`, `wait text <str>`, `wait visible <sel>`, `wait hidden <sel>`, `wait network-idle`, `wait <ms>` |
 | **Viewport** | `viewport`, `goto --viewport/--device/--preset` |
 | **Evaluate** | `eval <expr>` (in-page JS), `page-eval <expr>` (Playwright page API) |

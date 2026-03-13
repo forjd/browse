@@ -28,6 +28,7 @@ const VALID_COMMANDS = [
 	"back",
 	"forward",
 	"reload",
+	"attr",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

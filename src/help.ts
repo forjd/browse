@@ -238,6 +238,16 @@ Respects --timeout flag. Polls at 100ms intervals.`,
 Flags:
   --hard   Clear browser cache before reloading`,
 	},
+	attr: {
+		summary: "Read element attributes by ref",
+		usage: `browse attr <@ref> [attribute]
+
+Examples:
+  browse attr @e1 href              Get a single attribute value
+  browse attr @e1 aria-current      Check ARIA attributes
+  browse attr @e1 class             Get class list
+  browse attr @e1                   Show all attributes as key=value pairs`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",
