@@ -3,7 +3,7 @@ import {
 	evaluateAssertCondition,
 	parseAssertArgs,
 } from "../src/commands/assert.ts";
-import { type AccessibilityNode, assignRefs, clearRefs } from "../src/refs.ts";
+import { assignRefs, clearRefs } from "../src/refs.ts";
 
 describe("parseAssertArgs", () => {
 	test("parses visible subcommand", () => {

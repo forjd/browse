@@ -1,11 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import { handleWait } from "../src/commands/wait.ts";
-import {
-	type AccessibilityNode,
-	assignRefs,
-	clearRefs,
-	markStale,
-} from "../src/refs.ts";
+import { assignRefs, clearRefs, markStale } from "../src/refs.ts";
 
 function createMockPage(opts: {
 	url?: string;
