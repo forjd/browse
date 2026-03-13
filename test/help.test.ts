@@ -28,6 +28,7 @@ describe("COMMANDS registry", () => {
 			"healthcheck",
 			"wipe",
 			"benchmark",
+			"viewport",
 			"quit",
 		];
 		for (const cmd of expected) {

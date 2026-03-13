@@ -133,6 +133,16 @@ Pages are defined in browse.config.json.`,
 Flags:
   --iterations N   Number of iterations (default: 10)`,
 	},
+	viewport: {
+		summary: "Get or set browser viewport size",
+		usage: `browse viewport                  Show current viewport size
+browse viewport <width> <height>  Set viewport (e.g. 320 568)
+browse viewport <WxH>            Set viewport (e.g. 320x568)
+
+Flags:
+  --device <name>    Use a Playwright device (e.g. "iPhone SE", "iPad (gen 7)")
+  --preset <name>    Use a preset: mobile (375x667), tablet (768x1024), desktop (1440x900)`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",

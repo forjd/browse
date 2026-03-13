@@ -17,6 +17,7 @@ const VALID_COMMANDS = [
 	"healthcheck",
 	"wipe",
 	"benchmark",
+	"viewport",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

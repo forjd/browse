@@ -74,6 +74,18 @@ browse network --all                       All requests including successful one
 browse network --keep                      Return requests without clearing the buffer
 ```
 
+### Responsive testing
+
+```
+browse viewport                               Show current viewport size (e.g. 1440x900)
+browse viewport 320 568                       Set exact width and height
+browse viewport 320x568                       Set exact width and height (alternative format)
+browse viewport --device "iPhone SE"          Use a Playwright device profile
+browse viewport --preset mobile               375x667
+browse viewport --preset tablet               768x1024
+browse viewport --preset desktop              1440x900
+```
+
 ### Auth and session
 
 ```

@@ -22,6 +22,7 @@ import { handleSelect } from "./commands/select.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleText } from "./commands/text.ts";
+import { handleViewport } from "./commands/viewport.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import type { BrowseConfig } from "./config.ts";
 import { loadConfig } from "./config.ts";
@@ -205,6 +206,8 @@ export async function startServer(
 							tabRegistry,
 							clearRefs,
 						});
+					case "viewport":
+						return handleViewport(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "quit": {

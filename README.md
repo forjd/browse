@@ -63,6 +63,18 @@ browse network                      # failed requests (4xx/5xx)
 browse network --all                # all requests
 ```
 
+### Responsive testing
+
+```sh
+browse viewport                              # show current viewport size
+browse viewport 320 568                      # set exact width x height
+browse viewport 320x568                      # alternative format
+browse viewport --device "iPhone SE"         # use a Playwright device profile
+browse viewport --preset mobile              # 375x667
+browse viewport --preset tablet              # 768x1024
+browse viewport --preset desktop             # 1440x900
+```
+
 ### Tabs
 
 ```sh
@@ -174,6 +186,7 @@ Measured with `browse benchmark`:
 | `screenshot [path]` | Capture page (`--viewport`, `--selector`) |
 | `console` | Console log (`--level`, `--keep`) |
 | `network` | Failed requests (`--all`, `--keep`) |
+| `viewport [W H\|WxH]` | Get or set viewport (`--device`, `--preset`) |
 | `tab list\|new\|switch\|close` | Tab management |
 | `login --env <name>` | Configured login |
 | `auth-state save\|load <path>` | Session import/export |
