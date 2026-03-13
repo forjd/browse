@@ -1,5 +1,10 @@
 # browse
 
+[![CI](https://github.com/forjd/browse/actions/workflows/ci.yml/badge.svg)](https://github.com/forjd/browse/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+[![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1.svg)](https://bun.sh)
+[![Playwright](https://img.shields.io/badge/browser-Playwright-2ead33.svg)](https://playwright.dev)
+
 A fast CLI for browser automation. Wraps Playwright behind a persistent daemon on a Unix socket — first call cold-starts in ~3s, every call after that runs in under 30ms.
 
 Built for AI agents doing QA, but works just as well by hand.
