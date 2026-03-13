@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "bun-browser",
+      "name": "browse",
       "dependencies": {
         "playwright": "^1.58.2",
         "user-agents": "^1.1.669",
@@ -77,6 +77,6 @@
 
     "undici-types": ["undici-types@7.18.2", "", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
 
-    "user-agents": ["user-agents@1.1.669", "", { "dependencies": { "lodash.clonedeep": "^4.5.0" } }, "sha512-pbIzG+AOqCaIpySKJ4IAm1l0VyE4jMnK4y1thV8lm8PYxI+7X5uWcppOK7zY79TCKKTAnJH3/4gaVIZHsjrmJA=="],
+    "user-agents": ["user-agents@1.1.671", "", { "dependencies": { "lodash.clonedeep": "^4.5.0" } }, "sha512-f6nnYA/kvDbJsEYRnsCJZqDC6PUZmcBW5wd42jWi24o31XUEZ6QGfPs4CpzXGCWKeL6bLdKmM+5czx+GxNvX5A=="],
   }
 }

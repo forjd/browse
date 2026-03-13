@@ -233,7 +233,7 @@ An idempotent shell script that prepares the tool for use. Safe to run repeatedl
   ✓ dist/browse (darwin-arm64)
 
 [5/5] Creating symlink...
-  ✓ ~/.local/bin/browse → /Users/dan/Projects/bun-browser/dist/browse
+  ✓ ~/.local/bin/browse → /Users/dan/Projects/browse/dist/browse
 
 Setup complete. Run 'browse goto https://example.com' to get started.
 ```
