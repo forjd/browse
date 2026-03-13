@@ -54,7 +54,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 
 | Category | Commands |
 |----------|----------|
-| **Navigate** | `goto <url>`, `url`, `back`, `forward`, `reload [--hard]`, `text`, `quit`, `wipe` |
+| **Navigate** | `goto <url>`, `url`, `back`, `forward`, `reload [--hard]`, `text`, `version`, `quit`, `wipe` |
 | **Observe** | `snapshot`, `screenshot`, `console`, `network` |
 | **Interact** | `click @eN`, `hover @eN [--duration ms]`, `press <key> [key ...]`, `fill @eN "value"`, `select @eN "option"`, `upload @eN <file> [file ...]`, `attr @eN [attribute]`, `scroll down/up/top/bottom/@eN/x y` |
 | **Wait** | `wait url <str>`, `wait text <str>`, `wait visible <sel>`, `wait hidden <sel>`, `wait network-idle`, `wait <ms>` |

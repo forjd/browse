@@ -283,6 +283,10 @@ Examples:
 		summary: "Shut down the daemon",
 		usage: "browse quit",
 	},
+	version: {
+		summary: "Print version and platform info",
+		usage: "browse version",
+	},
 };
 
 export function formatOverview(): string {

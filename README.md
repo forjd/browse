@@ -55,6 +55,7 @@ browse upload @e5 /path/to/file.pdf  # set file on a file input
 browse scroll down                  # scroll down one viewport height
 browse scroll @e3                   # scroll element into view
 browse screenshot                   # capture the page
+browse version                       # print version and platform
 browse quit                         # shut down the daemon
 ```
 
@@ -293,6 +294,7 @@ Measured with `browse benchmark`:
 | `a11y [@eN]` | Accessibility audit (`--standard`, `--json`, `--include`, `--exclude`) |
 | `wipe` | Clear all session data |
 | `benchmark` | Measure latency |
+| `version` | Print version and platform info |
 | `quit` | Stop the daemon |
 
 ## License

@@ -4,6 +4,7 @@ import { formatCommandHelp, formatOverview } from "./help.ts";
 import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
 import type { Response } from "./protocol.ts";
 import { sendWithRetry } from "./retry.ts";
+import { formatVersion } from "./version.ts";
 
 export type ParsedArgs =
 	| { cmd: string; args: string[]; timeout?: number }
@@ -140,6 +141,12 @@ async function runCli(): Promise<void> {
 	}
 
 	const { cmd, args, timeout } = parsed;
+
+	// Handle version command (client-side, no daemon)
+	if (cmd === "version" || cmd === "--version") {
+		process.stdout.write(`${formatVersion()}\n`);
+		return;
+	}
 
 	// Handle help command and --help / -h flags (client-side, no daemon)
 	if (cmd === "help" || cmd === "--help" || cmd === "-h") {
