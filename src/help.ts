@@ -43,6 +43,15 @@ Fills a text input field. Supported roles: textbox, searchbox, spinbutton, combo
 
 Selects an option in a dropdown. Supported roles: combobox, listbox.`,
 	},
+	scroll: {
+		summary: "Scroll the page or an element into view",
+		usage: `browse scroll down               Scroll down one viewport height
+browse scroll up                 Scroll up one viewport height
+browse scroll top                Scroll to top of page
+browse scroll bottom             Scroll to bottom of page
+browse scroll <@ref>             Scroll element into view
+browse scroll <x> <y>            Scroll to coordinates`,
+	},
 	screenshot: {
 		summary: "Take a screenshot",
 		usage: `browse screenshot [path] [--viewport] [--selector <css-selector>]

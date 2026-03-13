@@ -20,6 +20,7 @@ import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handlePageEval } from "./commands/page-eval.ts";
 import { handleQuit } from "./commands/quit.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
+import { handleScroll } from "./commands/scroll.ts";
 import { handleSelect } from "./commands/select.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
@@ -62,6 +63,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	wipe: [],
 	benchmark: ["--iterations"],
 	viewport: ["--device", "--preset"],
+	scroll: [],
 	quit: [],
 };
 
@@ -212,6 +214,8 @@ export async function startServer(
 						return handleFill(page, request.args);
 					case "select":
 						return handleSelect(page, request.args);
+					case "scroll":
+						return handleScroll(page, request.args);
 					case "screenshot":
 						return handleScreenshot(page, request.args);
 					case "console":

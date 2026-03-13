@@ -43,6 +43,8 @@ browse goto https://example.com --preset mobile  # navigate at mobile viewport
 browse snapshot                     # list interactive elements with refs
 browse click @e1                    # click an element by ref
 browse fill @e2 "hello"             # type into an input
+browse scroll down                  # scroll down one viewport height
+browse scroll @e3                   # scroll element into view
 browse screenshot                   # capture the page
 browse quit                         # shut down the daemon
 ```
@@ -56,6 +58,17 @@ browse snapshot                     # assigns @e1, @e2, @e3, ...
 browse fill @e3 "search term"
 browse click @e4
 browse snapshot                     # re-assign after the page changes
+```
+
+### Scrolling
+
+```sh
+browse scroll down               # scroll down one viewport height
+browse scroll up                 # scroll up one viewport height
+browse scroll top                # scroll to top of page
+browse scroll bottom             # scroll to bottom of page
+browse scroll @e5                # scroll element into view
+browse scroll 0 500              # scroll to absolute x,y coordinates
 ```
 
 ### Screenshots and debugging
@@ -205,6 +218,7 @@ Measured with `browse benchmark`:
 | `click @eN` | Click element |
 | `fill @eN "value"` | Fill input (clears first) |
 | `select @eN "option"` | Select dropdown option |
+| `scroll <direction\|@ref\|x y>` | Scroll page or element into view |
 | `screenshot [path]` | Capture page (`--viewport`, `--selector`) |
 | `console` | Console log (`--level`, `--keep`) |
 | `network` | Failed requests (`--all`, `--keep`) |

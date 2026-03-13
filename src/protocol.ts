@@ -20,6 +20,7 @@ const VALID_COMMANDS = [
 	"viewport",
 	"eval",
 	"page-eval",
+	"scroll",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
