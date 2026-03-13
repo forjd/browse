@@ -30,6 +30,7 @@ const VALID_COMMANDS = [
 	"reload",
 	"attr",
 	"upload",
+	"a11y",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

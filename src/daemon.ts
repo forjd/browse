@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
 import UserAgent from "user-agents";
 import { RingBuffer } from "./buffers.ts";
+import { handleA11y } from "./commands/a11y.ts";
 import { handleAssert } from "./commands/assert.ts";
 import { handleAttr } from "./commands/attr.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
@@ -82,6 +83,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	reload: ["--hard"],
 	attr: [],
 	upload: [],
+	a11y: ["--standard", "--json", "--include", "--exclude"],
 	quit: [],
 };
 
@@ -291,6 +293,8 @@ export async function startServer(
 						return handleAttr(page, request.args);
 					case "upload":
 						return handleUpload(page, request.args);
+					case "a11y":
+						return handleA11y(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "quit": {

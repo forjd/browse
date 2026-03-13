@@ -118,6 +118,20 @@ browse network                      # failed requests (4xx/5xx)
 browse network --all                # all requests
 ```
 
+### Accessibility audit
+
+```sh
+browse a11y                       # full page audit, human-readable output
+browse a11y --standard wcag2aa    # WCAG 2.0 AA rules only
+browse a11y --standard wcag21aa   # WCAG 2.1 AA rules
+browse a11y @e5                   # audit a specific element by ref
+browse a11y --json                # machine-readable output for CI
+browse a11y --include ".main"     # scope to CSS selector
+browse a11y --exclude ".ads"      # exclude regions
+```
+
+Output lists violations grouped by severity (critical, serious, moderate, minor) with the failing rule, affected elements, and a link to the fix guidance. Powered by [axe-core](https://github.com/dequelabs/axe-core).
+
 ### Responsive testing
 
 ```sh
@@ -276,6 +290,7 @@ Measured with `browse benchmark`:
 | `flow list\|<name>` | Run configured flows |
 | `assert <type> <args>` | Assertions (visible, text, url, element, permission) |
 | `healthcheck` | Multi-page health check |
+| `a11y [@eN]` | Accessibility audit (`--standard`, `--json`, `--include`, `--exclude`) |
 | `wipe` | Clear all session data |
 | `benchmark` | Measure latency |
 | `quit` | Stop the daemon |

@@ -258,6 +258,27 @@ Examples:
   browse upload @e5 /path/to/file.pdf
   browse upload @e5 /path/to/a.jpg /path/to/b.jpg`,
 	},
+	a11y: {
+		summary: "Run accessibility audit (axe-core)",
+		usage: `browse a11y [options] [@ref]
+
+Flags:
+  --standard <std>   WCAG standard: wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa, best-practice
+  --json             Output results as JSON (for CI)
+  --include <sel>    Scope audit to a CSS selector
+  --exclude <sel>    Exclude a CSS selector from audit
+
+Scoping:
+  browse a11y @e5                    Audit a specific element by ref
+  browse a11y --include ".main"      Audit a CSS selector region
+  browse a11y --exclude ".ads"       Exclude a region
+
+Examples:
+  browse a11y                        Full page audit
+  browse a11y --standard wcag2aa     WCAG 2.0 AA only
+  browse a11y --standard wcag21aa    WCAG 2.1 AA
+  browse a11y --json                 Machine-readable output`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",
