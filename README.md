@@ -9,6 +9,12 @@ Built for AI agents doing QA, but works just as well by hand.
 Requires [Bun](https://bun.sh) >= 1.0.
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/forjd/browse/main/install.sh | bash
+```
+
+Or manually:
+
+```sh
 git clone https://github.com/forjd/browse.git
 cd browse
 ./setup.sh
