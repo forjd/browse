@@ -2,6 +2,8 @@
 
 Instructions for AI coding agents working with this codebase.
 
+**Repository:** https://github.com/forjd/browse
+
 <!-- opensrc:start -->
 
 ## Source Code Reference
@@ -17,10 +19,10 @@ Use this source code when you need to understand how a package works internally,
 To fetch source code for a package or repository you need to understand, run:
 
 ```bash
-npx opensrc <package>           # npm package (e.g., npx opensrc zod)
-npx opensrc pypi:<package>      # Python package (e.g., npx opensrc pypi:requests)
-npx opensrc crates:<package>    # Rust crate (e.g., npx opensrc crates:serde)
-npx opensrc <owner>/<repo>      # GitHub repo (e.g., npx opensrc vercel/ai)
+bunx opensrc <package>           # npm package (e.g., bunx opensrc zod)
+bunx opensrc pypi:<package>      # Python package (e.g., bunx opensrc pypi:requests)
+bunx opensrc crates:<package>    # Rust crate (e.g., bunx opensrc crates:serde)
+bunx opensrc <owner>/<repo>      # GitHub repo (e.g., bunx opensrc vercel/ai)
 ```
 
 <!-- opensrc:end -->
