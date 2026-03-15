@@ -1,8 +1,5 @@
-import type { BrowserContext, Page } from "playwright";
-import type { RingBuffer } from "../buffers.ts";
+import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
-import type { ConsoleEntry } from "./console.ts";
-import type { NetworkEntry } from "./network.ts";
 import type { TabRegistry, TabState } from "./tab.ts";
 
 export type Session = {

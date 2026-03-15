@@ -12,16 +12,33 @@ import { handleBack } from "./commands/back.ts";
 import { handleBenchmark } from "./commands/benchmark.ts";
 import { handleClick } from "./commands/click.ts";
 import { type ConsoleEntry, handleConsole } from "./commands/console.ts";
+import { handleCookies } from "./commands/cookies.ts";
+import {
+	attachDialogListener,
+	createDialogState,
+	type DialogState,
+	handleDialog,
+} from "./commands/dialog.ts";
+import { handleDownload } from "./commands/download.ts";
+import { handleElementCount } from "./commands/element-count.ts";
 import { handleEval } from "./commands/eval.ts";
 import { handleFill } from "./commands/fill.ts";
 import { handleFlow } from "./commands/flow.ts";
 import { handleForward } from "./commands/forward.ts";
+import { handleFrame } from "./commands/frame.ts";
 import { handleGoto } from "./commands/goto.ts";
 import { handleHealthcheck } from "./commands/healthcheck.ts";
 import { handleHover } from "./commands/hover.ts";
+import { handleHtml } from "./commands/html.ts";
+import {
+	createInterceptState,
+	handleIntercept,
+	type InterceptState,
+} from "./commands/intercept.ts";
 import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handlePageEval } from "./commands/page-eval.ts";
+import { handlePdf } from "./commands/pdf.ts";
 import { handlePress } from "./commands/press.ts";
 import { handleQuit } from "./commands/quit.ts";
 import { handleReload } from "./commands/reload.ts";
@@ -34,8 +51,10 @@ import {
 	type SessionRegistry,
 } from "./commands/session.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
+import { handleStorage } from "./commands/storage.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleText } from "./commands/text.ts";
+import { handleTitle } from "./commands/title.ts";
 import { handleUpload } from "./commands/upload.ts";
 import { handleUrl } from "./commands/url.ts";
 import { handleViewport } from "./commands/viewport.ts";
@@ -186,6 +205,13 @@ export async function startServer(
 
 	// Attach listeners to the initial page
 	attachPageListeners(deps.page, initialTabState);
+
+	// Dialog handling state
+	const dialogState = createDialogState();
+	attachDialogListener(deps.page, dialogState);
+
+	// Request interception state
+	const interceptState = createInterceptState();
 
 	// Session registry — default session is always present
 	const sessionRegistry: SessionRegistry = {
@@ -399,6 +425,26 @@ export async function startServer(
 						return handleA11y(page, request.args);
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
+					case "dialog":
+						return handleDialog(dialogState, request.args);
+					case "download":
+						return handleDownload(page, request.args);
+					case "frame":
+						return handleFrame(page, request.args);
+					case "intercept":
+						return handleIntercept(page, request.args, interceptState);
+					case "cookies":
+						return handleCookies(context, request.args);
+					case "storage":
+						return handleStorage(page, request.args);
+					case "html":
+						return handleHtml(page, request.args);
+					case "title":
+						return handleTitle(page);
+					case "pdf":
+						return handlePdf(page, request.args);
+					case "element-count":
+						return handleElementCount(page, request.args);
 					case "quit": {
 						const response = await handleQuit();
 						setTimeout(() => shutdown(), 50);
