@@ -110,7 +110,7 @@ browse snapshot --json
 ### screenshot
 
 ```
-browse screenshot [path] [--viewport] [--selector <css-selector>]
+browse screenshot [path] [--viewport] [--selector <css-selector>] [--diff <baseline>] [--threshold <n>]
 ```
 
 Capture a screenshot of the page. If no path is given, the file is automatically named and saved to `~/.bun-browse/screenshots/`.
@@ -119,6 +119,8 @@ Capture a screenshot of the page. If no path is given, the file is automatically
 |------|-------------|
 | `--viewport` | Capture viewport only (not the full page) |
 | `--selector <css-selector>` | Screenshot a specific element |
+| `--diff <baseline.png>` | Compare against a baseline image and produce a diff image + similarity score |
+| `--threshold <n>` | Per-channel diff threshold (0-255, default: 10). Pixels with all channel diffs below this are considered identical |
 
 **Examples:**
 
@@ -127,7 +129,11 @@ browse screenshot
 browse screenshot /tmp/page.png
 browse screenshot --viewport
 browse screenshot --selector ".hero-banner"
+browse screenshot /tmp/current.png --diff /tmp/baseline.png
+browse screenshot /tmp/current.png --diff /tmp/baseline.png --threshold 5
 ```
+
+With `--diff`, output includes the similarity percentage, diff pixel count, and path to the generated diff image. Changed pixels are highlighted in red; unchanged regions are dimmed grayscale.
 
 ### console
 
@@ -712,7 +718,7 @@ List all defined flows.
 ### flow
 
 ```
-browse flow <name> [--var k=v ...] [--continue-on-error]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit]
 ```
 
 Execute a named flow defined in `browse.config.json`.
@@ -721,18 +727,20 @@ Execute a named flow defined in `browse.config.json`.
 |------|-------------|
 | `--var k=v` | Pass variables (repeatable) |
 | `--continue-on-error` | Continue executing steps after a failure |
+| `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
 
 **Examples:**
 
 ```bash
 browse flow login --var user=admin --var pass=secret
 browse flow checkout --continue-on-error
+browse flow smoke-test --reporter junit > results.xml
 ```
 
 ### healthcheck
 
 ```
-browse healthcheck [--var k=v ...] [--no-screenshots]
+browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit]
 ```
 
 Run a healthcheck across configured pages defined in `browse.config.json`.
@@ -741,6 +749,7 @@ Run a healthcheck across configured pages defined in `browse.config.json`.
 |------|-------------|
 | `--var k=v` | Pass variables (repeatable) |
 | `--no-screenshots` | Skip screenshots during the healthcheck |
+| `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
 
 **Examples:**
 
@@ -748,6 +757,7 @@ Run a healthcheck across configured pages defined in `browse.config.json`.
 browse healthcheck
 browse healthcheck --var env=staging
 browse healthcheck --no-screenshots
+browse healthcheck --reporter junit > results.xml
 ```
 
 ---
@@ -1098,12 +1108,21 @@ These flags work with any command.
 | `--timeout <ms>` | Override the default timeout (30s) |
 | `--session <name>` | Route the command to a named session |
 | `--json` | Request JSON output (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`) |
+| `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
 | `--help` | Show help for any command |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `BROWSE_HEADED=1` | Launch browser in headed (visible) mode for debugging |
 
 **Examples:**
 
 ```bash
 browse goto https://example.com --timeout 60000
 browse snapshot --session admin --json
+browse --config /path/to/browse.config.json flow smoke-test
+BROWSE_HEADED=1 browse goto https://example.com
 browse help goto
 ```

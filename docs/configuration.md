@@ -4,10 +4,23 @@ The `browse` CLI tool uses an optional `browse.config.json` file for environment
 
 ## File Location
 
-Place `browse.config.json` in your project root (the current working directory when the daemon starts).
+The config file is resolved in the following order:
+
+1. **Explicit path** — `--config <path>` flag on any command
+2. **Upward directory search** — walks from the current working directory towards the filesystem root looking for `browse.config.json`
+3. **Global fallback** — `~/.browse/config.json`
+
+If no config file is found at any location, browse runs without configuration (login, flows, healthcheck, and permissions are unavailable).
 
 - The file is loaded once at daemon startup.
 - Changes require stopping and restarting the daemon: run `browse quit`, then issue any command to start a fresh daemon.
+
+**Examples:**
+
+```bash
+browse goto https://example.com                              # uses auto-discovered config
+browse --config /path/to/browse.config.json flow smoke-test  # explicit config path
+```
 
 ## Top-Level Schema
 

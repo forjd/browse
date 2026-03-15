@@ -37,6 +37,7 @@ Reusable browser automation sequences defined in `browse.config.json`. Run them 
 browse flow list                          # list all defined flows
 browse flow signup --var base_url=https://staging.example.com --var test_email=test@example.com
 browse flow signup --var base_url=https://staging.example.com --continue-on-error
+browse flow signup --reporter junit > results.xml   # JUnit XML output for CI
 ```
 
 ### Variables
@@ -112,6 +113,16 @@ Screenshots:
   Step 6: ~/.bun-browse/screenshots/flow-signup-step6-20260315-142030-123.png
 ```
 
+### JUnit Output
+
+Use `--reporter junit` to output flow results as JUnit XML, suitable for CI systems (GitHub Actions, Jenkins, GitLab CI):
+
+```sh
+browse flow smoke-test --reporter junit > test-results.xml
+```
+
+The XML includes a `<testsuite>` with one `<testcase>` per step, including `<failure>` elements for failed steps with error messages.
+
 ### Error Handling
 
 - By default, a flow stops on the first failure
@@ -159,6 +170,7 @@ A quick pass/fail check across multiple pages. Defined in `browse.config.json`, 
 ```sh
 browse healthcheck --var base_url=https://staging.example.com
 browse healthcheck --var base_url=https://staging.example.com --no-screenshots
+browse healthcheck --reporter junit > healthcheck-results.xml   # JUnit XML for CI
 ```
 
 ### Per-Page Options
@@ -175,6 +187,7 @@ browse healthcheck --var base_url=https://staging.example.com --no-screenshots
 
 - `--var key=value` -- Pass variables for URL interpolation (repeatable)
 - `--no-screenshots` -- Skip screenshot capture
+- `--reporter junit` -- Output results as JUnit XML for CI integration
 
 ## See Also
 

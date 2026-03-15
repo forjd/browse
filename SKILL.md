@@ -55,7 +55,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | Category | Commands |
 |----------|----------|
 | **Navigate** | `goto <url>`, `url`, `back`, `forward`, `reload [--hard]`, `text`, `version`, `quit`, `wipe` |
-| **Observe** | `snapshot`, `screenshot`, `console`, `network` |
+| **Observe** | `snapshot`, `screenshot` (`--diff`, `--threshold`), `console`, `network` |
 | **Interact** | `click @eN`, `hover @eN [--duration ms]`, `press <key> [key ...]`, `fill @eN "value"`, `select @eN "option"`, `upload @eN <file> [file ...]`, `attr @eN [attribute]`, `scroll down/up/top/bottom/@eN/x y` |
 | **Wait** | `wait url <str>`, `wait text <str>`, `wait visible <sel>`, `wait hidden <sel>`, `wait network-idle`, `wait <ms>` |
 | **Viewport** | `viewport`, `goto --viewport/--device/--preset` |
@@ -64,7 +64,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Tabs** | `tab list/new/switch/close` |
 | **Assert** | `assert visible/text-contains/url-contains/...` |
 | **Accessibility** | `a11y` (full page), `a11y @eN` (element), `a11y --standard wcag2aa`, `a11y --json` |
-| **Flows** | `flow list`, `flow <name> --var key=value`, `healthcheck` |
+| **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit`), `healthcheck` (`--reporter junit`) |
 | **Sessions** | `session list/create/close`, `--session <name>` on any command |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.
@@ -111,6 +111,25 @@ browse auth-state load /tmp/auth.json
 ```
 
 Use `browse wipe` to clear all session data before switching accounts or at the end of a session.
+
+## Visual diff
+
+Compare screenshots against a baseline to detect visual regressions:
+
+```
+browse screenshot current.png --diff baseline.png
+browse screenshot current.png --diff baseline.png --threshold 5
+```
+
+Output includes similarity percentage, diff pixel count, and a path to the diff image (changed pixels highlighted in red).
+
+## Headed mode
+
+Launch the browser visibly for debugging (set before the daemon starts):
+
+```
+BROWSE_HEADED=1 browse goto https://example.com
+```
 
 ## Timeout control
 
