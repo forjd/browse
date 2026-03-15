@@ -19,11 +19,12 @@ Flags:
 	},
 	snapshot: {
 		summary: "Show page elements with refs",
-		usage: `browse snapshot [-i] [-f]
+		usage: `browse snapshot [-i] [-f] [--json]
 
 Flags:
-  -i    Include structural nodes with names (inclusive mode)
-  -f    Include all nodes in tree (full mode)
+  -i       Include structural nodes with names (inclusive mode)
+  -f       Include all nodes in tree (full mode)
+  --json   Output as JSON
 
 Default mode shows only interactive elements.`,
 	},
@@ -89,19 +90,21 @@ If no path is given, saves to ~/.bun-browse/screenshots/ with a timestamp.`,
 	},
 	console: {
 		summary: "Show console messages",
-		usage: `browse console [--level <level>] [--keep]
+		usage: `browse console [--level <level>] [--keep] [--json]
 
 Flags:
   --level <level>   Filter by level: log, info, warning, error, debug
-  --keep            Peek at messages without draining buffer`,
+  --keep            Peek at messages without draining buffer
+  --json            Output as JSON`,
 	},
 	network: {
 		summary: "Show network requests",
-		usage: `browse network [--all] [--keep]
+		usage: `browse network [--all] [--keep] [--json]
 
 Flags:
   --all    Show all requests (default: status >= 400 only)
-  --keep   Peek at requests without draining buffer`,
+  --keep   Peek at requests without draining buffer
+  --json   Output as JSON`,
 	},
 	"auth-state": {
 		summary: "Save or load auth state",
@@ -137,7 +140,7 @@ Flows are defined in browse.config.json.`,
 	},
 	assert: {
 		summary: "Assert a condition (PASS/FAIL)",
-		usage: `browse assert <type> <args...>
+		usage: `browse assert <type> <args...> [--json]
 
 Types:
   visible <selector|@ref>              Element is visible
@@ -148,7 +151,10 @@ Types:
   url-pattern <regex>                  URL matches regex
   element-text <selector|@ref> <text>  Element text contains value
   element-count <selector|@ref> <n>    Element count matches
-  permission <name> granted|denied [--var k=v ...]`,
+  permission <name> granted|denied [--var k=v ...]
+
+Flags:
+  --json   Output as JSON`,
 	},
 	healthcheck: {
 		summary: "Run healthcheck across configured pages",
@@ -352,15 +358,19 @@ Examples:
 	},
 	cookies: {
 		summary: "Inspect browser cookies",
-		usage: `browse cookies [--domain <domain>]
+		usage: `browse cookies [--domain <domain>] [--json]
 
 Flags:
-  --domain <domain>   Filter cookies by domain substring`,
+  --domain <domain>   Filter cookies by domain substring
+  --json              Output as JSON`,
 	},
 	storage: {
 		summary: "Inspect localStorage or sessionStorage",
-		usage: `browse storage local              Show localStorage entries
-browse storage session            Show sessionStorage entries`,
+		usage: `browse storage local [--json]      Show localStorage entries
+browse storage session [--json]  Show sessionStorage entries
+
+Flags:
+  --json   Output as JSON`,
 	},
 	html: {
 		summary: "Get page or element HTML",
