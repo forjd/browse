@@ -25,7 +25,13 @@ describe("formatVersion", () => {
 describe("version in CLI", () => {
 	test("parseArgs handles 'version' command", () => {
 		const result = parseArgs(["version"]);
-		expect(result).toEqual({ cmd: "version", args: [], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "version",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("parseArgs handles '--version' flag", () => {
@@ -34,6 +40,8 @@ describe("version in CLI", () => {
 			cmd: "--version",
 			args: [],
 			timeout: undefined,
+			session: undefined,
+			json: false,
 		});
 	});
 });

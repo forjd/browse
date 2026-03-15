@@ -7,12 +7,18 @@ import { sendWithRetry } from "./retry.ts";
 import { formatVersion } from "./version.ts";
 
 export type ParsedArgs =
-	| { cmd: string; args: string[]; timeout?: number }
+	| {
+			cmd: string;
+			args: string[];
+			timeout?: number;
+			session?: string;
+			json?: boolean;
+	  }
 	| { daemon: true }
 	| null;
 
 /**
- * Parse CLI arguments, extracting --timeout flag from args.
+ * Parse CLI arguments, extracting global flags (--timeout, --session, --json) from args.
  */
 export function parseArgs(argv: string[]): ParsedArgs {
 	if (argv.length === 0) return null;
@@ -20,8 +26,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
 	const [cmd, ...rawArgs] = argv;
 
-	// Extract --timeout flag
+	// Extract global flags
 	let timeout: number | undefined;
+	let session: string | undefined;
+	let json = false;
 	const args: string[] = [];
 
 	for (let i = 0; i < rawArgs.length; i++) {
@@ -31,12 +39,17 @@ export function parseArgs(argv: string[]): ParsedArgs {
 				timeout = val;
 			}
 			i++; // skip the value
+		} else if (rawArgs[i] === "--session" && i + 1 < rawArgs.length) {
+			session = rawArgs[i + 1];
+			i++; // skip the value
+		} else if (rawArgs[i] === "--json") {
+			json = true;
 		} else {
 			args.push(rawArgs[i]);
 		}
 	}
 
-	return { cmd: cmd as string, args, timeout };
+	return { cmd: cmd as string, args, timeout, session, json };
 }
 
 export function formatOutput(response: Response): {
@@ -54,10 +67,14 @@ function sendRequest(
 	cmd: string,
 	args: string[],
 	timeout?: number,
+	session?: string,
+	json?: boolean,
 ): Promise<Response> {
 	return new Promise((resolve, reject) => {
 		const payload: Record<string, unknown> = { cmd, args };
 		if (timeout) payload.timeout = timeout;
+		if (session) payload.session = session;
+		if (json) payload.json = json;
 
 		const client = connect(socketPath, () => {
 			client.write(`${JSON.stringify(payload)}\n`);
@@ -140,7 +157,7 @@ async function runCli(): Promise<void> {
 		return;
 	}
 
-	const { cmd, args, timeout } = parsed;
+	const { cmd, args, timeout, session, json } = parsed;
 
 	// Handle version command (client-side, no daemon)
 	if (cmd === "version" || cmd === "--version") {
@@ -184,7 +201,7 @@ async function runCli(): Promise<void> {
 		response = await sendWithRetry(
 			{
 				sendRequest: (c, a) =>
-					sendRequest(DEFAULT_CONFIG.socketPath, c, a, timeout),
+					sendRequest(DEFAULT_CONFIG.socketPath, c, a, timeout, session, json),
 				spawnDaemon,
 				cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
 			},

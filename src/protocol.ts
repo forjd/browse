@@ -31,6 +31,19 @@ const VALID_COMMANDS = [
 	"attr",
 	"upload",
 	"a11y",
+	"session",
+	"ping",
+	"status",
+	"dialog",
+	"download",
+	"frame",
+	"intercept",
+	"cookies",
+	"storage",
+	"html",
+	"title",
+	"pdf",
+	"element-count",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
@@ -39,6 +52,10 @@ export type Request = {
 	cmd: Command;
 	args: string[];
 	timeout?: number;
+	/** Optional session name for multi-session routing */
+	session?: string;
+	/** Request JSON output format */
+	json?: boolean;
 };
 
 export type Response =
@@ -77,7 +94,17 @@ export function parseRequest(raw: string): Request {
 			? obj.timeout
 			: undefined;
 
-	return { cmd: cmd as Command, args: obj.args as string[], timeout };
+	const session = typeof obj.session === "string" ? obj.session : undefined;
+
+	const json = obj.json === true;
+
+	return {
+		cmd: cmd as Command,
+		args: obj.args as string[],
+		timeout,
+		session,
+		json,
+	};
 }
 
 export function serialiseResponse(response: Response): string {

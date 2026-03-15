@@ -28,6 +28,11 @@ import { handleReload } from "./commands/reload.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleScroll } from "./commands/scroll.ts";
 import { handleSelect } from "./commands/select.ts";
+import {
+	handleSession,
+	type Session,
+	type SessionRegistry,
+} from "./commands/session.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleText } from "./commands/text.ts";
@@ -63,17 +68,17 @@ import { resolveTimeout, withTimeout } from "./timeout.ts";
 const KNOWN_FLAGS: Record<string, string[]> = {
 	goto: ["--viewport", "--device", "--preset"],
 	text: [],
-	snapshot: [],
+	snapshot: ["--json"],
 	click: [],
 	hover: ["--duration"],
 	screenshot: ["--viewport", "--selector"],
-	console: ["--level", "--keep"],
-	network: ["--all", "--keep"],
+	console: ["--level", "--keep", "--json"],
+	network: ["--all", "--keep", "--json"],
 	"auth-state": [],
 	login: ["--env"],
 	tab: [],
 	flow: ["--var", "--continue-on-error"],
-	assert: ["--var"],
+	assert: ["--var", "--json"],
 	healthcheck: ["--var", "--no-screenshots"],
 	wipe: [],
 	benchmark: ["--iterations"],
@@ -89,6 +94,19 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	upload: [],
 	a11y: ["--standard", "--json", "--include", "--exclude"],
 	quit: [],
+	session: [],
+	ping: [],
+	status: [],
+	dialog: [],
+	download: ["--save-to", "--timeout"],
+	frame: [],
+	intercept: ["--status", "--body", "--content-type"],
+	cookies: ["--domain", "--json"],
+	storage: ["--origin", "--json"],
+	html: [],
+	title: [],
+	pdf: [],
+	"element-count": [],
 };
 
 export type DaemonOptions = {
@@ -152,15 +170,16 @@ export async function startServer(
 	let idleTimer: IdleTimer;
 
 	const { context, config } = deps;
+	const startTime = Date.now();
 
-	// Tab registry
+	// Tab registry for default session
 	const initialTabState: TabState = {
 		page: deps.page,
 		consoleBuffer: new RingBuffer<ConsoleEntry>(500),
 		networkBuffer: new RingBuffer<NetworkEntry>(500),
 	};
 
-	const tabRegistry: TabRegistry = {
+	const defaultTabRegistry: TabRegistry = {
 		tabs: [initialTabState],
 		activeTabIndex: 0,
 	};
@@ -168,16 +187,40 @@ export async function startServer(
 	// Attach listeners to the initial page
 	attachPageListeners(deps.page, initialTabState);
 
-	function getActivePage(): Page {
-		return tabRegistry.tabs[tabRegistry.activeTabIndex].page;
+	// Session registry — default session is always present
+	const sessionRegistry: SessionRegistry = {
+		sessions: new Map<string, Session>(),
+	};
+
+	const defaultSession: Session = {
+		name: "default",
+		tabRegistry: defaultTabRegistry,
+		attachListeners: attachPageListeners,
+	};
+	sessionRegistry.sessions.set("default", defaultSession);
+
+	/** Resolve which session to use for a request */
+	function resolveSession(sessionName?: string): Session | { error: string } {
+		const name = sessionName ?? "default";
+		const session = sessionRegistry.sessions.get(name);
+		if (!session) {
+			return { error: `Session '${name}' not found.` };
+		}
+		return session;
 	}
 
-	function getActiveConsoleBuffer(): RingBuffer<ConsoleEntry> {
-		return tabRegistry.tabs[tabRegistry.activeTabIndex].consoleBuffer;
+	function getActivePage(session: Session): Page {
+		return session.tabRegistry.tabs[session.tabRegistry.activeTabIndex].page;
 	}
 
-	function getActiveNetworkBuffer(): RingBuffer<NetworkEntry> {
-		return tabRegistry.tabs[tabRegistry.activeTabIndex].networkBuffer;
+	function getActiveConsoleBuffer(session: Session): RingBuffer<ConsoleEntry> {
+		return session.tabRegistry.tabs[session.tabRegistry.activeTabIndex]
+			.consoleBuffer;
+	}
+
+	function getActiveNetworkBuffer(session: Session): RingBuffer<NetworkEntry> {
+		return session.tabRegistry.tabs[session.tabRegistry.activeTabIndex]
+			.networkBuffer;
 	}
 
 	async function createTab(): Promise<TabState> {
@@ -203,14 +246,69 @@ export async function startServer(
 	});
 
 	// Commands exempt from timeout
-	const TIMEOUT_EXEMPT = new Set(["quit", "benchmark"]);
+	const TIMEOUT_EXEMPT = new Set([
+		"quit",
+		"benchmark",
+		"session",
+		"ping",
+		"status",
+	]);
 
 	async function handleConnection(data: string): Promise<string> {
 		idleTimer.reset();
 
 		try {
 			const request = parseRequest(data);
-			const page = getActivePage();
+
+			// Session management commands are handled globally
+			if (request.cmd === "session") {
+				const response = await handleSession(sessionRegistry, request.args, {
+					createSessionTab: createTab,
+					attachListeners: attachPageListeners,
+				});
+				return serialiseResponse(response);
+			}
+
+			// Ping/status don't need session routing
+			if (request.cmd === "ping") {
+				return serialiseResponse({ ok: true, data: "pong" });
+			}
+
+			if (request.cmd === "status") {
+				const sessions: Record<string, number> = {};
+				for (const [name, session] of sessionRegistry.sessions) {
+					sessions[name] = session.tabRegistry.tabs.length;
+				}
+				const uptimeMs = Date.now() - startTime;
+				const uptimeSec = Math.floor(uptimeMs / 1000);
+				const defaultPage = getActivePage(defaultSession);
+				const statusData = [
+					`url: ${defaultPage.url()}`,
+					`sessions: ${sessionRegistry.sessions.size}`,
+					`uptime: ${uptimeSec}s`,
+				];
+				for (const [name, tabCount] of Object.entries(sessions)) {
+					statusData.push(
+						`  ${name}: ${tabCount} tab${tabCount !== 1 ? "s" : ""}`,
+					);
+				}
+				return serialiseResponse({
+					ok: true,
+					data: statusData.join("\n"),
+				});
+			}
+
+			// Resolve session for this request
+			const session = resolveSession(request.session);
+			if ("error" in session) {
+				return serialiseResponse({
+					ok: false,
+					error: session.error,
+				});
+			}
+
+			const page = getActivePage(session);
+			const tabRegistry = session.tabRegistry;
 
 			// Reject unknown flags before dispatching
 			const knownFlags = KNOWN_FLAGS[request.cmd];
@@ -247,9 +345,9 @@ export async function startServer(
 					case "screenshot":
 						return handleScreenshot(page, request.args);
 					case "console":
-						return handleConsole(getActiveConsoleBuffer(), request.args);
+						return handleConsole(getActiveConsoleBuffer(session), request.args);
 					case "network":
-						return handleNetwork(getActiveNetworkBuffer(), request.args);
+						return handleNetwork(getActiveNetworkBuffer(session), request.args);
 					case "auth-state":
 						return handleAuthState(context, page, request.args);
 					case "login":
@@ -261,15 +359,15 @@ export async function startServer(
 						});
 					case "flow":
 						return handleFlow(config, page, request.args, {
-							consoleBuffer: getActiveConsoleBuffer(),
-							networkBuffer: getActiveNetworkBuffer(),
+							consoleBuffer: getActiveConsoleBuffer(session),
+							networkBuffer: getActiveNetworkBuffer(session),
 						});
 					case "assert":
 						return handleAssert(config, page, request.args);
 					case "healthcheck":
 						return handleHealthcheck(config, page, request.args, {
-							consoleBuffer: getActiveConsoleBuffer(),
-							networkBuffer: getActiveNetworkBuffer(),
+							consoleBuffer: getActiveConsoleBuffer(session),
+							networkBuffer: getActiveNetworkBuffer(session),
 						});
 					case "wipe":
 						return handleWipe({
@@ -306,6 +404,11 @@ export async function startServer(
 						setTimeout(() => shutdown(), 50);
 						return response;
 					}
+					default:
+						return {
+							ok: false,
+							error: `Command '${request.cmd}' is not yet implemented.`,
+						};
 				}
 			}
 
