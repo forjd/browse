@@ -265,6 +265,35 @@ describe("parseArgs", () => {
 			json: true,
 		});
 	});
+
+	test("--session as last arg results in undefined session", () => {
+		const result = parseArgs(["goto", "https://example.com", "--session"]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com"],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
+	});
+
+	test("duplicate --session flags uses the last value", () => {
+		const result = parseArgs([
+			"goto",
+			"https://example.com",
+			"--session",
+			"first",
+			"--session",
+			"second",
+		]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com"],
+			timeout: undefined,
+			session: "second",
+			json: false,
+		});
+	});
 });
 
 describe("formatOutput", () => {

@@ -288,10 +288,14 @@ Examples:
 		usage: "browse version",
 	},
 	session: {
-		summary: "Manage isolated browser sessions",
+		summary: "Manage browser sessions",
 		usage: `browse session list              List all sessions
-browse session create <name>     Create a new isolated session
+browse session create <name>     Create a new session (shared context)
+browse session create <name> --isolated   Create with isolated browser context
 browse session close <name>      Close a session and its pages
+
+Flags:
+  --isolated    Create a fully isolated browser context (separate cookies, storage)
 
 Use --session <name> on any command to route it to a named session:
   browse --session worker-1 goto https://example.com

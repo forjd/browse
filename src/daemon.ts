@@ -108,15 +108,15 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	upload: [],
 	a11y: ["--standard", "--json", "--include", "--exclude"],
 	quit: [],
-	session: [],
+	session: ["--isolated"],
 	ping: [],
 	status: [],
 	dialog: [],
-	download: ["--save-to", "--timeout"],
+	download: ["--save-to"],
 	frame: [],
 	intercept: ["--status", "--body", "--content-type"],
 	cookies: ["--domain", "--json"],
-	storage: ["--origin", "--json"],
+	storage: ["--json"],
 	html: [],
 	title: [],
 	pdf: [],
@@ -135,10 +135,17 @@ export type DaemonHandle = {
 	shutdown: () => Promise<void>;
 };
 
+export type StealthOpts = {
+	userAgent: string;
+	navigatorPlatform: string;
+	chromeMajor: string;
+};
+
 export type ServerDeps = {
 	page: Page;
 	context: BrowserContext;
 	config: BrowseConfig | null;
+	stealthOpts?: StealthOpts;
 };
 
 function attachPageListeners(page: Page, tabState: TabState): void {
@@ -183,7 +190,7 @@ export async function startServer(
 	let server: Server;
 	let idleTimer: IdleTimer;
 
-	const { context, config } = deps;
+	const { context, config, stealthOpts } = deps;
 	const startTime = Date.now();
 
 	// Tab registry for default session
@@ -215,6 +222,8 @@ export async function startServer(
 
 	const defaultSession: Session = {
 		name: "default",
+		context,
+		isolated: false,
 		tabRegistry: defaultTabRegistry,
 		attachListeners: attachPageListeners,
 	};
@@ -234,6 +243,10 @@ export async function startServer(
 		return session.tabRegistry.tabs[session.tabRegistry.activeTabIndex].page;
 	}
 
+	function getActiveTabState(session: Session): TabState {
+		return session.tabRegistry.tabs[session.tabRegistry.activeTabIndex];
+	}
+
 	function getActiveConsoleBuffer(session: Session): RingBuffer<ConsoleEntry> {
 		return session.tabRegistry.tabs[session.tabRegistry.activeTabIndex]
 			.consoleBuffer;
@@ -244,8 +257,8 @@ export async function startServer(
 			.networkBuffer;
 	}
 
-	async function createTab(): Promise<TabState> {
-		const newPage = await context.newPage();
+	async function createTab(targetContext?: BrowserContext): Promise<TabState> {
+		const newPage = await (targetContext ?? context).newPage();
 		const tabState: TabState = {
 			page: newPage,
 			consoleBuffer: new RingBuffer<ConsoleEntry>(500),
@@ -284,7 +297,25 @@ export async function startServer(
 			// Session management commands are handled globally
 			if (request.cmd === "session") {
 				const response = await handleSession(sessionRegistry, request.args, {
-					createSessionTab: createTab,
+					createSessionTab: (targetContext) => createTab(targetContext),
+					createIsolatedContext: async () => {
+						const browser = context.browser();
+						if (!browser) {
+							throw new Error("Browser not available for isolated context");
+						}
+						const contextOpts: Record<string, unknown> = {
+							viewport: { width: 1440, height: 900 },
+						};
+						if (stealthOpts) {
+							contextOpts.userAgent = stealthOpts.userAgent;
+						}
+						const isolatedContext = await browser.newContext(contextOpts);
+						if (stealthOpts) {
+							await applyStealthScripts(isolatedContext, stealthOpts);
+						}
+						return isolatedContext;
+					},
+					defaultContext: context,
 					attachListeners: attachPageListeners,
 				});
 				return serialiseResponse(response);
@@ -296,21 +327,18 @@ export async function startServer(
 			}
 
 			if (request.cmd === "status") {
-				const sessions: Record<string, number> = {};
-				for (const [name, session] of sessionRegistry.sessions) {
-					sessions[name] = session.tabRegistry.tabs.length;
-				}
 				const uptimeMs = Date.now() - startTime;
 				const uptimeSec = Math.floor(uptimeMs / 1000);
-				const defaultPage = getActivePage(defaultSession);
 				const statusData = [
-					`url: ${defaultPage.url()}`,
 					`sessions: ${sessionRegistry.sessions.size}`,
 					`uptime: ${uptimeSec}s`,
 				];
-				for (const [name, tabCount] of Object.entries(sessions)) {
+				for (const [name, session] of sessionRegistry.sessions) {
+					const tabCount = session.tabRegistry.tabs.length;
+					const page = getActivePage(session);
+					const url = page?.url() ?? "<no page>";
 					statusData.push(
-						`  ${name}: ${tabCount} tab${tabCount !== 1 ? "s" : ""}`,
+						`  ${name}: ${url} (${tabCount} tab${tabCount !== 1 ? "s" : ""})`,
 					);
 				}
 				return serialiseResponse({
@@ -329,7 +357,9 @@ export async function startServer(
 			}
 
 			const page = getActivePage(session);
+			const activeTabState = getActiveTabState(session);
 			const tabRegistry = session.tabRegistry;
+			const sessionContext = session.context;
 
 			// Reject unknown flags before dispatching
 			const knownFlags = KNOWN_FLAGS[request.cmd];
@@ -370,7 +400,7 @@ export async function startServer(
 					case "network":
 						return handleNetwork(getActiveNetworkBuffer(session), request.args);
 					case "auth-state":
-						return handleAuthState(context, page, request.args);
+						return handleAuthState(sessionContext, page, request.args);
 					case "login":
 						return handleLogin(config, page, request.args);
 					case "tab":
@@ -392,7 +422,7 @@ export async function startServer(
 						});
 					case "wipe":
 						return handleWipe({
-							context,
+							context: sessionContext,
 							tabRegistry,
 							clearRefs,
 						});
@@ -423,13 +453,13 @@ export async function startServer(
 					case "dialog":
 						return handleDialog(dialogState, request.args);
 					case "download":
-						return handleDownload(page, request.args);
+						return handleDownload(page, request.args, request.timeout);
 					case "frame":
-						return handleFrame(page, request.args);
+						return handleFrame(page, request.args, activeTabState);
 					case "intercept":
 						return handleIntercept(page, request.args, interceptState);
 					case "cookies":
-						return handleCookies(context, request.args);
+						return handleCookies(sessionContext, request.args);
 					case "storage":
 						return handleStorage(page, request.args);
 					case "html":
@@ -570,7 +600,12 @@ export async function startDaemon(
 	writePidFile(lifecycleConfig);
 
 	const { shutdown } = await startServer(
-		{ page, context, config },
+		{
+			page,
+			context,
+			config,
+			stealthOpts: { userAgent, navigatorPlatform, chromeMajor },
+		},
 		lifecycleConfig,
 		async () => {
 			try {

@@ -158,16 +158,19 @@ browse tab close
 
 ### Named sessions
 
-Isolate work across multiple browser contexts sharing one Chromium process:
+Run multiple named sessions within a shared Chromium process:
 
 ```sh
-browse session create worker-1              # create an isolated session
-browse session create worker-2
+browse session create worker-1              # create a session (shared context)
+browse session create worker-2 --isolated   # create with isolated browser context
 browse --session worker-1 goto https://a.com  # route commands to a session
 browse --session worker-2 goto https://b.com
 browse session list                         # list all sessions
 browse session close worker-1               # close a session
 ```
+
+By default, sessions share the browser context (cookies, storage). Use `--isolated` to
+create a fully separate browser context with its own cookies, storage, and permissions.
 
 ### Pool (library)
 
@@ -329,7 +332,7 @@ Optional. Create `browse.config.json` in your project root to configure login en
 
 ## Architecture
 
-The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses. Named sessions allow multiple isolated browser contexts to share one Chromium process — each with its own tabs, cookies, storage, and event buffers.
+The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses. Named sessions allow multiple page groups to share one Chromium process. By default sessions share the browser context; pass `--isolated` to `session create` for a fully separate context with its own cookies, storage, and permissions.
 
 > **Note:** Rebuilding the binary does not restart a running daemon. If you rebuild after adding or changing commands, run `browse quit` first so the next call cold-starts with the new binary.
 

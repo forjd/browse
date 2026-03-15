@@ -10,7 +10,7 @@ export async function handleStorage(
 	if (!subcommand || (subcommand !== "local" && subcommand !== "session")) {
 		return {
 			ok: false,
-			error: "Usage: browse storage <local|session> [--origin <url>]",
+			error: "Usage: browse storage <local|session>",
 		};
 	}
 

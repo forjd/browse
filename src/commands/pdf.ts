@@ -1,5 +1,6 @@
+import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 
@@ -10,9 +11,8 @@ export async function handlePdf(page: Page, args: string[]): Promise<Response> {
 			join(homedir(), ".bun-browse", "exports", `page-${Date.now()}.pdf`);
 
 		// Ensure directory exists
-		const dir = outputPath.substring(0, outputPath.lastIndexOf("/"));
+		const dir = dirname(outputPath);
 		if (dir) {
-			const { mkdirSync } = await import("node:fs");
 			mkdirSync(dir, { recursive: true });
 		}
 
