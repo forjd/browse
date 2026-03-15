@@ -80,13 +80,16 @@ Key names follow Playwright conventions (Tab, Enter, Escape, ArrowDown, etc.).`,
 	},
 	screenshot: {
 		summary: "Take a screenshot",
-		usage: `browse screenshot [path] [--viewport] [--selector <css-selector>]
+		usage: `browse screenshot [path] [--viewport] [--selector <css-selector>] [--diff <baseline>] [--threshold <n>]
 
 Flags:
   --viewport              Screenshot only the viewport (not full page)
   --selector <selector>   Screenshot only the element matching the selector
+  --diff <baseline.png>   Compare against a baseline image and produce a diff image + similarity score
+  --threshold <n>         Per-channel diff threshold (0-255, default: 10). Pixels with all channel diffs below this are considered identical.
 
-If no path is given, saves to ~/.bun-browse/screenshots/ with a timestamp.`,
+If no path is given, saves to ~/.bun-browse/screenshots/ with a timestamp.
+With --diff, outputs similarity percentage, diff pixel count, and path to the diff image.`,
 	},
 	console: {
 		summary: "Show console messages",
@@ -130,11 +133,12 @@ browse tab close [index]     Close tab (closes active tab if no index)`,
 	flow: {
 		summary: "Execute a named flow",
 		usage: `browse flow list                          List defined flows
-browse flow <name> [--var k=v ...] [--continue-on-error]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit]
 
 Flags:
   --var key=value       Pass variables to flow (repeatable)
   --continue-on-error   Continue running steps even if one fails
+  --reporter <format>   Output format: junit (JUnit XML for CI integration)
 
 Flows are defined in browse.config.json.`,
 	},
@@ -158,11 +162,12 @@ Flags:
 	},
 	healthcheck: {
 		summary: "Run healthcheck across configured pages",
-		usage: `browse healthcheck [--var k=v ...] [--no-screenshots]
+		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit]
 
 Flags:
-  --var key=value     Pass variables for URL interpolation (repeatable)
-  --no-screenshots    Skip screenshot capture
+  --var key=value       Pass variables for URL interpolation (repeatable)
+  --no-screenshots      Skip screenshot capture
+  --reporter <format>   Output format: junit (JUnit XML for CI integration)
 
 Pages are defined in browse.config.json.`,
 	},
@@ -413,6 +418,10 @@ export function formatOverview(): string {
 		"  --timeout <ms>       Set command timeout",
 		"  --session <name>     Route command to a named session",
 		"  --json               Request JSON output (where supported)",
+		"  --config <path>      Path to browse.config.json (default: search upward from cwd, then ~/.browse/config.json)",
+		"",
+		"Environment variables:",
+		"  BROWSE_HEADED=1      Launch browser in headed (visible) mode",
 		"",
 		'Run "browse help <command>" for detailed usage of a specific command.',
 	);

@@ -1,4 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 
 export type SuccessCondition =
 	| { urlContains: string }
@@ -78,6 +80,41 @@ export type BrowseConfig = {
 	healthcheck?: HealthcheckConfig;
 	timeout?: number;
 };
+
+/**
+ * Resolve the config file path using the following precedence:
+ * 1. Explicit path (from --config flag)
+ * 2. Walk upward from cwd looking for browse.config.json
+ * 3. Global fallback at ~/.browse/config.json
+ * Returns null if no config file is found.
+ */
+export function resolveConfigPath(explicitPath?: string): string | null {
+	if (explicitPath) {
+		const resolved = resolve(explicitPath);
+		return existsSync(resolved) ? resolved : resolved; // return even if missing — loadConfig will report the error
+	}
+
+	// Walk upward from cwd
+	let dir = process.cwd();
+	const root = dirname(dir) === dir ? dir : undefined; // handle root
+	while (true) {
+		const candidate = join(dir, "browse.config.json");
+		if (existsSync(candidate)) {
+			return candidate;
+		}
+		const parent = dirname(dir);
+		if (parent === dir) break; // reached filesystem root
+		dir = parent;
+	}
+
+	// Global fallback
+	const globalConfig = join(homedir(), ".browse", "config.json");
+	if (existsSync(globalConfig)) {
+		return globalConfig;
+	}
+
+	return null;
+}
 
 export function loadConfig(path: string): {
 	config: BrowseConfig | null;

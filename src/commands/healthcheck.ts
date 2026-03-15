@@ -6,6 +6,7 @@ import type { RingBuffer } from "../buffers.ts";
 import type { AssertCondition, BrowseConfig } from "../config.ts";
 import { interpolateVars, parseVars } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
+import { formatHealthcheckJUnit } from "../reporters.ts";
 import { evaluateAssertCondition } from "./assert.ts";
 import { type ConsoleEntry, formatConsoleEntries } from "./console.ts";
 import type { NetworkEntry } from "./network.ts";
@@ -18,10 +19,18 @@ export type HealthcheckDeps = {
 export function parseHealthcheckArgs(args: string[]): {
 	vars: Record<string, string>;
 	noScreenshots: boolean;
+	reporter?: string;
 } {
 	const vars = parseVars(args);
 	const noScreenshots = args.includes("--no-screenshots");
-	return { vars, noScreenshots };
+	let reporter: string | undefined;
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === "--reporter" && i + 1 < args.length) {
+			reporter = args[i + 1];
+			break;
+		}
+	}
+	return { vars, noScreenshots, reporter };
 }
 
 function slugify(name: string): string {
@@ -87,8 +96,9 @@ export async function handleHealthcheck(
 		};
 	}
 
-	const { vars, noScreenshots } = parseHealthcheckArgs(args);
+	const { vars, noScreenshots, reporter } = parseHealthcheckArgs(args);
 	const pages = config.healthcheck.pages;
+	const startTime = Date.now();
 	const results: PageResult[] = [];
 	const allScreenshots: string[] = [];
 
@@ -172,6 +182,15 @@ export async function handleHealthcheck(
 	const passedCount = results.filter((r) => r.passed).length;
 	const totalCount = results.length;
 	const allPassed = passedCount === totalCount;
+	const durationMs = Date.now() - startTime;
+
+	if (reporter === "junit") {
+		const junit = formatHealthcheckJUnit(results, durationMs);
+		if (allPassed) {
+			return { ok: true, data: junit };
+		}
+		return { ok: false, error: junit };
+	}
 
 	const report = formatHealthcheckReport(results, allScreenshots);
 

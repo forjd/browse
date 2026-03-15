@@ -3,6 +3,7 @@ import type { RingBuffer } from "../buffers.ts";
 import type { BrowseConfig } from "../config.ts";
 import { formatFlowReport, parseVars, runFlow } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
+import { formatFlowJUnit } from "../reporters.ts";
 import type { ConsoleEntry } from "./console.ts";
 import type { NetworkEntry } from "./network.ts";
 
@@ -69,6 +70,15 @@ export async function handleFlow(
 	const vars = parseVars(args.slice(1));
 	const continueOnError = args.includes("--continue-on-error");
 
+	// Parse reporter flag
+	let reporter: string | undefined;
+	for (let i = 1; i < args.length; i++) {
+		if (args[i] === "--reporter" && i + 1 < args.length) {
+			reporter = args[i + 1];
+			break;
+		}
+	}
+
 	// Validate required variables
 	if (flow.variables && flow.variables.length > 0) {
 		const missing = flow.variables.filter((v) => !(v in vars));
@@ -89,6 +99,7 @@ export async function handleFlow(
 		};
 	}
 
+	const startTime = Date.now();
 	const { results, screenshots } = await runFlow(
 		flowName,
 		flow,
@@ -101,6 +112,17 @@ export async function handleFlow(
 		},
 		continueOnError,
 	);
+	const durationMs = Date.now() - startTime;
+
+	const allPassed = results.every((r) => r.passed);
+
+	if (reporter === "junit") {
+		const junit = formatFlowJUnit(flowName, results, durationMs);
+		if (allPassed) {
+			return { ok: true, data: junit };
+		}
+		return { ok: false, error: junit };
+	}
 
 	const report = formatFlowReport(
 		flowName,
@@ -109,7 +131,6 @@ export async function handleFlow(
 		screenshots,
 	);
 
-	const allPassed = results.every((r) => r.passed);
 	if (allPassed) {
 		return { ok: true, data: report };
 	}
