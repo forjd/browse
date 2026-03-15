@@ -1,4 +1,5 @@
 import { connect } from "node:net";
+import { readToken } from "./auth.ts";
 import { startDaemon } from "./daemon.ts";
 import { formatCommandHelp, formatOverview } from "./help.ts";
 import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
@@ -13,8 +14,9 @@ export type ParsedArgs =
 			timeout?: number;
 			session?: string;
 			json?: boolean;
+			config?: string;
 	  }
-	| { daemon: true }
+	| { daemon: true; config?: string }
 	| null;
 
 /**
@@ -22,9 +24,22 @@ export type ParsedArgs =
  */
 export function parseArgs(argv: string[]): ParsedArgs {
 	if (argv.length === 0) return null;
-	if (argv[0] === "--daemon") return { daemon: true };
 
-	const [cmd, ...rawArgs] = argv;
+	// Extract --config from anywhere in argv (it's a global flag)
+	let config: string | undefined;
+	const filteredArgv: string[] = [];
+	for (let i = 0; i < argv.length; i++) {
+		if (argv[i] === "--config" && i + 1 < argv.length) {
+			config = argv[i + 1];
+			i++;
+		} else {
+			filteredArgv.push(argv[i]);
+		}
+	}
+
+	if (filteredArgv[0] === "--daemon") return { daemon: true, config };
+
+	const [cmd, ...rawArgs] = filteredArgv;
 
 	// Extract global flags
 	let timeout: number | undefined;
@@ -52,7 +67,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 	}
 
-	return { cmd: cmd as string, args, timeout, session, json };
+	return { cmd: cmd as string, args, timeout, session, json, config };
 }
 
 export function formatOutput(response: Response): {
@@ -72,12 +87,14 @@ function sendRequest(
 	timeout?: number,
 	session?: string,
 	json?: boolean,
+	token?: string | null,
 ): Promise<Response> {
 	return new Promise((resolve, reject) => {
 		const payload: Record<string, unknown> = { cmd, args };
 		if (timeout) payload.timeout = timeout;
 		if (session) payload.session = session;
 		if (json) payload.json = json;
+		if (token) payload.token = token;
 
 		const client = connect(socketPath, () => {
 			client.write(`${JSON.stringify(payload)}\n`);
@@ -132,8 +149,12 @@ async function waitForSocket(
 	throw new Error("Timed out waiting for daemon to start.");
 }
 
-async function spawnDaemon(): Promise<void> {
-	const proc = Bun.spawn([process.execPath, "--daemon"], {
+async function spawnDaemon(configPath?: string): Promise<void> {
+	const args = [process.execPath, "--daemon"];
+	if (configPath) {
+		args.push("--config", configPath);
+	}
+	const proc = Bun.spawn(args, {
 		stdio: ["ignore", "ignore", "ignore"],
 	});
 	proc.unref();
@@ -151,16 +172,19 @@ async function runCli(): Promise<void> {
 	}
 
 	if ("daemon" in parsed) {
+		const headed =
+			process.env.BROWSE_HEADED === "1" || process.env.BROWSE_HEADED === "true";
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
 			idleTimeoutMs: DEFAULT_CONFIG.idleTimeoutMs,
-			headless: true,
+			headless: !headed,
+			configPath: parsed.config,
 		});
 		return;
 	}
 
-	const { cmd, args, timeout, session, json } = parsed;
+	const { cmd, args, timeout, session, json, config: configPath } = parsed;
 
 	// Handle version command (client-side, no daemon)
 	if (cmd === "version" || cmd === "--version") {
@@ -201,11 +225,20 @@ async function runCli(): Promise<void> {
 
 	let response: Response;
 	try {
+		const token = readToken();
 		response = await sendWithRetry(
 			{
 				sendRequest: (c, a) =>
-					sendRequest(DEFAULT_CONFIG.socketPath, c, a, timeout, session, json),
-				spawnDaemon,
+					sendRequest(
+						DEFAULT_CONFIG.socketPath,
+						c,
+						a,
+						timeout,
+						session,
+						json,
+						token,
+					),
+				spawnDaemon: () => spawnDaemon(configPath),
 				cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
 			},
 			cmd,
@@ -234,11 +267,14 @@ if (import.meta.main) {
 	const parsed = parseArgs(rawArgs);
 
 	if (parsed !== null && "daemon" in parsed) {
+		const headed =
+			process.env.BROWSE_HEADED === "1" || process.env.BROWSE_HEADED === "true";
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
 			idleTimeoutMs: DEFAULT_CONFIG.idleTimeoutMs,
-			headless: true,
+			headless: !headed,
+			configPath: parsed.config,
 		});
 	} else {
 		await runCli();

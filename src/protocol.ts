@@ -56,6 +56,8 @@ export type Request = {
 	session?: string;
 	/** Request JSON output format */
 	json?: boolean;
+	/** Authentication token for socket security */
+	token?: string;
 };
 
 export type Response =
@@ -100,12 +102,16 @@ export function parseRequest(raw: string): Request {
 
 	const json = obj.json === true;
 
+	const rawToken = typeof obj.token === "string" ? obj.token.trim() : undefined;
+	const tokenVal = rawToken && rawToken.length > 0 ? rawToken : undefined;
+
 	return {
 		cmd: cmd as Command,
 		args: obj.args as string[],
 		timeout,
 		session,
 		json,
+		token: tokenVal,
 	};
 }
 

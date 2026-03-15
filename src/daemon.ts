@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
+import { cleanupToken, generateToken } from "./auth.ts";
 import { RingBuffer } from "./buffers.ts";
 import { handleA11y } from "./commands/a11y.ts";
 import { handleAssert } from "./commands/assert.ts";
@@ -56,7 +57,7 @@ import { handleViewport } from "./commands/viewport.ts";
 import { handleWait } from "./commands/wait.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import type { BrowseConfig } from "./config.ts";
-import { loadConfig } from "./config.ts";
+import { loadConfig, resolveConfigPath } from "./config.ts";
 import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
 import {
 	cleanupFiles,
@@ -85,15 +86,15 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	snapshot: ["--json", "-i", "-f"],
 	click: [],
 	hover: ["--duration"],
-	screenshot: ["--viewport", "--selector"],
+	screenshot: ["--viewport", "--selector", "--diff", "--threshold"],
 	console: ["--level", "--keep", "--json"],
 	network: ["--all", "--keep", "--json"],
 	"auth-state": [],
 	login: ["--env"],
 	tab: [],
-	flow: ["--var", "--continue-on-error"],
+	flow: ["--var", "--continue-on-error", "--reporter"],
 	assert: ["--var", "--json"],
-	healthcheck: ["--var", "--no-screenshots"],
+	healthcheck: ["--var", "--no-screenshots", "--reporter"],
 	wipe: [],
 	benchmark: ["--iterations"],
 	viewport: ["--device", "--preset"],
@@ -129,6 +130,7 @@ export type DaemonOptions = {
 	idleTimeoutMs: number;
 	headless?: boolean;
 	userDataDir?: string;
+	configPath?: string;
 };
 
 export type DaemonHandle = {
@@ -146,6 +148,7 @@ export type ServerDeps = {
 	context: BrowserContext;
 	config: BrowseConfig | null;
 	stealthOpts?: StealthOpts;
+	token?: string;
 };
 
 function attachPageListeners(page: Page, tabState: TabState): void {
@@ -190,7 +193,7 @@ export async function startServer(
 	let server: Server;
 	let idleTimer: IdleTimer;
 
-	const { context, config, stealthOpts } = deps;
+	const { context, config, stealthOpts, token } = deps;
 	const startTime = Date.now();
 
 	// Tab registry for default session
@@ -295,6 +298,14 @@ export async function startServer(
 
 		try {
 			const request = parseRequest(data);
+
+			// Validate auth token if the daemon has one
+			if (token && request.token !== token) {
+				return serialiseResponse({
+					ok: false,
+					error: "Authentication failed: invalid or missing token.",
+				});
+			}
 
 			// Session management commands are handled globally
 			if (request.cmd === "session") {
@@ -589,17 +600,26 @@ export async function startDaemon(
 	context.browser()?.on("disconnected", () => {
 		process.stderr.write("Browser disconnected — daemon exiting.\n");
 		cleanupFiles(lifecycleConfig);
+		cleanupToken();
 		process.exit(1);
 	});
 
-	// Load config from cwd
-	const configPath = join(process.cwd(), "browse.config.json");
-	const { config, error: configError } = loadConfig(configPath);
-	if (configError) {
-		console.error(`Warning: ${configError}`);
+	// Load config: explicit path > upward search > global fallback
+	const resolvedConfigPath = resolveConfigPath(options.configPath);
+	let config: BrowseConfig | null = null;
+	if (resolvedConfigPath) {
+		const { config: loaded, error: configError } =
+			loadConfig(resolvedConfigPath);
+		config = loaded;
+		if (configError) {
+			console.error(`Warning: ${configError}`);
+		}
 	}
 
 	writePidFile(lifecycleConfig);
+
+	// Generate auth token for socket security
+	const token = generateToken();
 
 	const { shutdown } = await startServer(
 		{
@@ -607,9 +627,11 @@ export async function startDaemon(
 			context,
 			config,
 			stealthOpts: { userAgent, navigatorPlatform, chromeMajor },
+			token,
 		},
 		lifecycleConfig,
 		async () => {
+			cleanupToken();
 			try {
 				await context.close();
 			} catch {
@@ -617,6 +639,26 @@ export async function startDaemon(
 			}
 		},
 	);
+
+	// Graceful signal handling — clean up PID/socket and close browser on
+	// SIGTERM/SIGINT so that CI runners and interactive Ctrl-C don't leave
+	// orphaned files or zombie browser processes.
+	let shuttingDown = false;
+	const graceful = async () => {
+		if (shuttingDown) return;
+		shuttingDown = true;
+		try {
+			await shutdown();
+		} catch {
+			// Best-effort cleanup
+			cleanupFiles(lifecycleConfig);
+			cleanupToken();
+		}
+		process.exit(0);
+	};
+
+	process.on("SIGTERM", graceful);
+	process.on("SIGINT", graceful);
 
 	return { shutdown };
 }
