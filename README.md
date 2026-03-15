@@ -156,6 +156,33 @@ browse tab switch 2
 browse tab close
 ```
 
+### Named sessions
+
+Isolate work across multiple browser contexts sharing one Chromium process:
+
+```sh
+browse session create worker-1              # create an isolated session
+browse session create worker-2
+browse --session worker-1 goto https://a.com  # route commands to a session
+browse --session worker-2 goto https://b.com
+browse session list                         # list all sessions
+browse session close worker-1               # close a session
+```
+
+### Pool (library)
+
+For multi-agent orchestration, use the pool manager to acquire/release sessions programmatically:
+
+```typescript
+import { createPool } from "browse/pool";
+
+const pool = createPool({ socketPath: "/tmp/browse-daemon.sock", maxSessions: 10 });
+const session = await pool.acquire();
+await session.exec("goto", "https://example.com");
+session.release();
+await pool.destroy();
+```
+
 ### Auth and sessions
 
 ```sh
@@ -173,6 +200,69 @@ browse eval "getComputedStyle(document.body).backgroundColor"  # inspect compute
 browse eval "document.querySelectorAll('a').length"            # count elements
 browse page-eval "await page.title()"                          # run Playwright page-level code
 browse page-eval "page.viewportSize()"                         # access page API directly
+```
+
+### Dialogs
+
+```sh
+browse dialog status                        # check for pending dialog
+browse dialog accept                        # accept (OK) a pending dialog
+browse dialog accept "some text"            # accept with input text (prompt dialogs)
+browse dialog dismiss                       # dismiss (Cancel) a pending dialog
+browse dialog auto-accept                   # automatically accept all future dialogs
+browse dialog auto-dismiss                  # automatically dismiss all future dialogs
+browse dialog auto-off                      # disable auto-mode, queue dialogs
+```
+
+### Downloads
+
+```sh
+browse download wait                        # wait for next download
+browse download wait --save-to ./file.pdf   # save to specific path
+browse download wait --timeout 60000        # custom timeout
+```
+
+### Iframes
+
+```sh
+browse frame list                           # list all frames
+browse frame switch 0                       # switch to frame by index
+browse frame switch "my-frame"              # switch by name
+browse frame switch "example.com"           # switch by URL substring
+browse frame main                           # show main frame info
+```
+
+### Network interception
+
+```sh
+browse intercept add "**/api/users" --body '{"users":[]}'   # mock API response
+browse intercept add "**/analytics/**" --status 204          # block with status
+browse intercept list                                        # list active rules
+browse intercept remove "**/api/users"                       # remove a rule
+browse intercept clear                                       # remove all rules
+```
+
+### DOM inspection
+
+```sh
+browse html                                 # full page HTML
+browse html @e3                             # element's outerHTML
+browse html ".sidebar"                      # element by CSS selector
+browse title                                # page title
+browse element-count ".item"                # count matching elements
+browse cookies                              # list all cookies
+browse cookies --domain example.com         # filter by domain
+browse storage local                        # show localStorage
+browse storage session                      # show sessionStorage
+browse pdf                                  # export page as PDF
+browse pdf ./report.pdf                     # export to specific path
+```
+
+### Daemon health
+
+```sh
+browse ping                                 # check if daemon is alive
+browse status                               # show URL, sessions, uptime
 ```
 
 ### Flows and assertions
@@ -239,7 +329,7 @@ Optional. Create `browse.config.json` in your project root to configure login en
 
 ## Architecture
 
-The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses.
+The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses. Named sessions allow multiple isolated browser contexts to share one Chromium process — each with its own tabs, cookies, storage, and event buffers.
 
 > **Note:** Rebuilding the binary does not restart a running daemon. If you rebuild after adding or changing commands, run `browse quit` first so the next call cold-starts with the new binary.
 
@@ -292,6 +382,19 @@ Measured with `browse benchmark`:
 | `assert <type> <args>` | Assertions (visible, text, url, element, permission) |
 | `healthcheck` | Multi-page health check |
 | `a11y [@eN]` | Accessibility audit (`--standard`, `--json`, `--include`, `--exclude`) |
+| `session create\|list\|close` | Manage isolated browser sessions |
+| `ping` | Check if daemon is alive |
+| `status` | Show daemon status and uptime |
+| `dialog accept\|dismiss\|status\|auto-*` | Handle browser dialogs |
+| `download wait` | Wait for and save file downloads (`--save-to`, `--timeout`) |
+| `frame list\|switch\|main` | Navigate and inspect iframes |
+| `intercept add\|remove\|list\|clear` | Mock or block network requests |
+| `cookies` | Inspect browser cookies (`--domain`) |
+| `storage local\|session` | Inspect localStorage or sessionStorage |
+| `html [selector\|@eN]` | Get page or element HTML |
+| `title` | Get the page title |
+| `pdf [path]` | Export page as PDF |
+| `element-count <selector>` | Count elements matching a selector |
 | `wipe` | Clear all session data |
 | `benchmark` | Measure latency |
 | `version` | Print version and platform info |
