@@ -4,22 +4,17 @@ import type { Response } from "../protocol.ts";
 export async function handleDownload(
 	page: Page,
 	args: string[],
+	resolvedTimeout?: number,
 ): Promise<Response> {
 	const subcommand = args[0];
 
 	if (!subcommand || subcommand === "wait") {
 		let saveTo: string | undefined;
-		let timeoutMs = 30_000;
+		const timeoutMs = resolvedTimeout ?? 30_000;
 
 		for (let i = 1; i < args.length; i++) {
 			if (args[i] === "--save-to" && args[i + 1]) {
 				saveTo = args[i + 1];
-				i++;
-			} else if (args[i] === "--timeout" && args[i + 1]) {
-				const val = Number.parseInt(args[i + 1], 10);
-				if (!Number.isNaN(val) && val > 0) {
-					timeoutMs = val;
-				}
 				i++;
 			}
 		}

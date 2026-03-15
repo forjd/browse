@@ -65,8 +65,24 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Assert** | `assert visible/text-contains/url-contains/...` |
 | **Accessibility** | `a11y` (full page), `a11y @eN` (element), `a11y --standard wcag2aa`, `a11y --json` |
 | **Flows** | `flow list`, `flow <name> --var key=value`, `healthcheck` |
+| **Sessions** | `session list/create/close`, `--session <name>` on any command |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.
+
+### Named sessions
+
+Use named sessions to run multiple independent page groups:
+
+```
+browse session create worker-1               # shared context (same cookies/storage)
+browse session create worker-2 --isolated    # isolated context (separate cookies/storage)
+browse --session worker-1 goto https://a.com
+browse --session worker-2 goto https://b.com
+browse session list
+browse session close worker-1
+```
+
+By default sessions share the browser context. Use `--isolated` for fully separate cookies, storage, and permissions.
 
 ## Authentication
 

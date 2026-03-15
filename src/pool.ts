@@ -1,11 +1,17 @@
 /**
- * Browse Pool — manages multiple isolated browser sessions for concurrent agent use.
+ * Browse Pool — manages multiple browser sessions for concurrent agent use.
+ *
+ * Sessions share the default browser context by default. Pass `isolated: true`
+ * to create sessions with fully separate browser contexts (cookies, storage).
  *
  * Usage:
  *   const pool = createPool({ socketPath: "/tmp/browse-daemon.sock", maxSessions: 10 });
  *   const session = await pool.acquire();
  *   const result = await session.exec("goto", "https://example.com");
  *   pool.release(session);
+ *
+ *   // For isolated contexts:
+ *   const pool = createPool({ socketPath: "...", isolated: true });
  */
 
 import { connect } from "node:net";
@@ -20,6 +26,8 @@ export type PoolOptions = {
 	idleTimeoutMs?: number;
 	/** Pre-warm this many sessions on pool creation (default: 0) */
 	warmCount?: number;
+	/** Create sessions with isolated browser contexts (default: false) */
+	isolated?: boolean;
 };
 
 export type SessionHandle = {
@@ -50,8 +58,6 @@ export type BrowsePool = {
 	/** Destroy the pool and close all sessions */
 	destroy: () => Promise<void>;
 };
-
-let sessionCounter = 0;
 
 function sendRequest(
 	socketPath: string,
@@ -90,8 +96,10 @@ export function createPool(options: PoolOptions): BrowsePool {
 		maxSessions = 10,
 		idleTimeoutMs = 60_000,
 		warmCount = 0,
+		isolated = false,
 	} = options;
 
+	let sessionCounter = 0;
 	const activeSessions = new Set<string>();
 	const idleSessions: string[] = [];
 	const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -99,7 +107,11 @@ export function createPool(options: PoolOptions): BrowsePool {
 	async function createSession(): Promise<string> {
 		sessionCounter++;
 		const id = `pool-${sessionCounter}-${Date.now()}`;
-		const response = await sendRequest(socketPath, "session", ["create", id]);
+		const createArgs = ["create", id];
+		if (isolated) {
+			createArgs.push("--isolated");
+		}
+		const response = await sendRequest(socketPath, "session", createArgs);
 		if (!response.ok) {
 			throw new Error(`Failed to create session: ${response.error}`);
 		}
@@ -125,7 +137,11 @@ export function createPool(options: PoolOptions): BrowsePool {
 			if (idx !== -1) {
 				idleSessions.splice(idx, 1);
 				idleTimers.delete(id);
-				await closeSession(id);
+				try {
+					await closeSession(id);
+				} catch (err) {
+					console.error(`startIdleTimer: failed to close session ${id}:`, err);
+				}
 			}
 		}, idleTimeoutMs);
 		idleTimers.set(id, timer);
@@ -215,9 +231,11 @@ export function createPool(options: PoolOptions): BrowsePool {
 		idleSessions.length = 0;
 	}
 
-	// Warm up if requested
+	// Warm up if requested (non-blocking — acquire() may be called before warming completes)
 	if (warmCount > 0) {
-		warmUp(warmCount);
+		warmUp(warmCount).catch((err) => {
+			console.error("Pool warmUp failed:", err);
+		});
 	}
 
 	return { acquire, release, warmUp, stats, destroy };

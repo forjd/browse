@@ -39,9 +39,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
 				timeout = val;
 			}
 			i++; // skip the value
-		} else if (rawArgs[i] === "--session" && i + 1 < rawArgs.length) {
-			session = rawArgs[i + 1];
-			i++; // skip the value
+		} else if (rawArgs[i] === "--session") {
+			if (i + 1 < rawArgs.length) {
+				session = rawArgs[i + 1];
+				i++; // skip the value
+			}
+			// Missing value: --session flag is silently ignored (same as --timeout)
 		} else if (rawArgs[i] === "--json") {
 			json = true;
 		} else {

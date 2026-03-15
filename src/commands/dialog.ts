@@ -11,13 +11,17 @@ export function createDialogState(): DialogState {
 }
 
 export function attachDialogListener(page: Page, state: DialogState): void {
-	page.on("dialog", (dialog) => {
-		if (state.autoMode === "accept") {
-			dialog.accept();
-		} else if (state.autoMode === "dismiss") {
-			dialog.dismiss();
-		} else {
-			state.pending = dialog;
+	page.on("dialog", async (dialog) => {
+		try {
+			if (state.autoMode === "accept") {
+				await dialog.accept();
+			} else if (state.autoMode === "dismiss") {
+				await dialog.dismiss();
+			} else {
+				state.pending = dialog;
+			}
+		} catch {
+			// Dialog may have been dismissed already
 		}
 	});
 }

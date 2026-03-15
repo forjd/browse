@@ -94,7 +94,9 @@ export function parseRequest(raw: string): Request {
 			? obj.timeout
 			: undefined;
 
-	const session = typeof obj.session === "string" ? obj.session : undefined;
+	const rawSession =
+		typeof obj.session === "string" ? obj.session.trim() : undefined;
+	const session = rawSession && rawSession.length > 0 ? rawSession : undefined;
 
 	const json = obj.json === true;
 

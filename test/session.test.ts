@@ -62,26 +62,52 @@ function sendCommand(
 	cmd: string,
 	args: string[] = [],
 	session?: string,
+	timeoutMs = 5_000,
 ): Promise<Response> {
 	return new Promise((resolve, reject) => {
+		let settled = false;
+		const settle = (fn: () => void) => {
+			if (!settled) {
+				settled = true;
+				fn();
+			}
+		};
+
 		const payload: Record<string, unknown> = { cmd, args };
 		if (session) payload.session = session;
 		const client = connect(socketPath, () => {
 			client.write(`${JSON.stringify(payload)}\n`);
 		});
 
+		const timer = setTimeout(() => {
+			settle(() => {
+				client.destroy();
+				reject(
+					new Error(
+						`sendCommand timed out after ${timeoutMs}ms: ${cmd} ${args.join(" ")}`,
+					),
+				);
+			});
+		}, timeoutMs);
+
 		let data = "";
 		client.on("data", (chunk) => {
 			data += chunk.toString();
 		});
 		client.on("end", () => {
-			try {
-				resolve(JSON.parse(data.trim()));
-			} catch {
-				reject(new Error(`Failed to parse response: ${data}`));
-			}
+			clearTimeout(timer);
+			settle(() => {
+				try {
+					resolve(JSON.parse(data.trim()));
+				} catch {
+					reject(new Error(`Failed to parse response: ${data}`));
+				}
+			});
 		});
-		client.on("error", reject);
+		client.on("error", (err) => {
+			clearTimeout(timer);
+			settle(() => reject(err));
+		});
 	});
 }
 
@@ -356,6 +382,112 @@ describe("session management", () => {
 			if (!r.ok) {
 				expect(r.error).toContain("name");
 			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("session create --isolated creates isolated session", async () => {
+		const config = testPaths();
+		const isolatedPage = mockPage({
+			url: mock(() => "about:blank"),
+		});
+		const isolatedCtx = mockContext({
+			newPage: mock(() => Promise.resolve(isolatedPage)),
+			close: mock(() => Promise.resolve()),
+			addInitScript: mock(() => Promise.resolve()),
+		});
+		const browser = {
+			newContext: mock(() => Promise.resolve(isolatedCtx)),
+		};
+		const ctx = mockContext({
+			newPage: mock(() => Promise.resolve(mockPage())),
+			browser: mock(() => browser),
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, {
+				context: ctx,
+				stealthOpts: {
+					userAgent: "Test Agent",
+					navigatorPlatform: "Linux",
+					chromeMajor: "120",
+				},
+			}),
+			config,
+			async () => {},
+		);
+
+		try {
+			const r = await sendCommand(config.socketPath, "session", [
+				"create",
+				"iso-1",
+				"--isolated",
+			]);
+			expect(r.ok).toBe(true);
+			if (r.ok) {
+				expect(r.data).toContain("iso-1");
+				expect(r.data).toContain("isolated");
+			}
+
+			// Verify browser.newContext was called
+			expect(browser.newContext).toHaveBeenCalled();
+
+			// List should show isolated marker
+			const list = await sendCommand(config.socketPath, "session", ["list"]);
+			if (list.ok) {
+				expect(list.data).toContain("[isolated]");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("closing isolated session closes the context", async () => {
+		const config = testPaths();
+		const isolatedPage = mockPage({
+			url: mock(() => "about:blank"),
+			close: mock(() => Promise.resolve()),
+		});
+		const isolatedCtxClose = mock(() => Promise.resolve());
+		const isolatedCtx = mockContext({
+			newPage: mock(() => Promise.resolve(isolatedPage)),
+			close: isolatedCtxClose,
+			addInitScript: mock(() => Promise.resolve()),
+		});
+		const browser = {
+			newContext: mock(() => Promise.resolve(isolatedCtx)),
+		};
+		const ctx = mockContext({
+			newPage: mock(() => Promise.resolve(mockPage())),
+			browser: mock(() => browser),
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, {
+				context: ctx,
+				stealthOpts: {
+					userAgent: "Test Agent",
+					navigatorPlatform: "Linux",
+					chromeMajor: "120",
+				},
+			}),
+			config,
+			async () => {},
+		);
+
+		try {
+			await sendCommand(config.socketPath, "session", [
+				"create",
+				"iso-close",
+				"--isolated",
+			]);
+			const r = await sendCommand(config.socketPath, "session", [
+				"close",
+				"iso-close",
+			]);
+			expect(r.ok).toBe(true);
+			expect(isolatedCtxClose).toHaveBeenCalled();
 		} finally {
 			await shutdown();
 		}

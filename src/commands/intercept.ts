@@ -1,9 +1,8 @@
-import type { Page, Route } from "playwright";
+import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 
 export type InterceptState = {
 	rules: Map<string, InterceptRule>;
-	routes: Map<string, Route[]>;
 };
 
 export type InterceptRule = {
@@ -14,7 +13,7 @@ export type InterceptRule = {
 };
 
 export function createInterceptState(): InterceptState {
-	return { rules: new Map(), routes: new Map() };
+	return { rules: new Map() };
 }
 
 export async function handleIntercept(
@@ -49,7 +48,14 @@ export async function handleIntercept(
 
 			for (let i = 2; i < args.length; i++) {
 				if (args[i] === "--status" && args[i + 1]) {
-					status = Number.parseInt(args[i + 1], 10);
+					const parsed = Number.parseInt(args[i + 1], 10);
+					if (!Number.isInteger(parsed) || parsed < 100 || parsed > 599) {
+						return {
+							ok: false,
+							error: `Invalid HTTP status code: ${args[i + 1]}. Must be 100–599.`,
+						};
+					}
+					status = parsed;
 					i++;
 				} else if (args[i] === "--body" && args[i + 1]) {
 					body = args[i + 1];
@@ -58,6 +64,11 @@ export async function handleIntercept(
 					contentType = args[i + 1];
 					i++;
 				}
+			}
+
+			// Remove existing handler for this pattern before adding
+			if (state.rules.has(pattern)) {
+				await page.unroute(pattern);
 			}
 
 			const rule: InterceptRule = { pattern, status, body, contentType };

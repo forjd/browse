@@ -8,7 +8,11 @@ export async function handleCookies(
 	let domain: string | undefined;
 
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === "--domain" && args[i + 1]) {
+		if (
+			args[i] === "--domain" &&
+			args[i + 1] &&
+			!args[i + 1].startsWith("--")
+		) {
 			domain = args[i + 1];
 			i++;
 		}
@@ -17,7 +21,12 @@ export async function handleCookies(
 	try {
 		const cookies = await context.cookies();
 		const filtered = domain
-			? cookies.filter((c) => c.domain.includes(domain))
+			? cookies.filter(
+					(c) =>
+						c.domain === domain ||
+						c.domain === `.${domain}` ||
+						(c.domain.startsWith(".") && domain.endsWith(c.domain.slice(1))),
+				)
 			: cookies;
 
 		if (filtered.length === 0) {

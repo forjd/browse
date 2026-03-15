@@ -1,10 +1,14 @@
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import type { Response } from "../protocol.ts";
 import type { TabRegistry, TabState } from "./tab.ts";
 
 export type Session = {
 	name: string;
 	tabRegistry: TabRegistry;
+	/** The browser context for this session */
+	context: BrowserContext;
+	/** Whether this session uses an isolated browser context */
+	isolated: boolean;
 	/** Callback to attach page listeners to new tabs in this session */
 	attachListeners: (page: Page, tabState: TabState) => void;
 };
@@ -14,7 +18,10 @@ export type SessionRegistry = {
 };
 
 export type SessionCallbacks = {
-	createSessionTab: () => Promise<TabState>;
+	createSessionTab: (context?: BrowserContext) => Promise<TabState>;
+	createIsolatedContext: () => Promise<BrowserContext>;
+	/** The shared (default) browser context */
+	defaultContext: BrowserContext;
 	attachListeners: (page: Page, tabState: TabState) => void;
 };
 
@@ -46,14 +53,22 @@ export async function handleSession(
 			return handleCreate(registry, args, callbacks);
 		case "close":
 			return handleClose(registry, args);
+		default:
+			throw new Error(`Unexpected subcommand: ${subcommand}`);
 	}
 }
 
 function handleList(registry: SessionRegistry): Response {
+	if (registry.sessions.size === 0) {
+		return { ok: true, data: "No sessions available." };
+	}
 	const lines: string[] = [];
 	for (const [name, session] of registry.sessions) {
 		const tabCount = session.tabRegistry.tabs.length;
-		lines.push(`  ${name} (${tabCount} tab${tabCount !== 1 ? "s" : ""})`);
+		const marker = session.isolated ? " [isolated]" : "";
+		lines.push(
+			`  ${name}${marker} (${tabCount} tab${tabCount !== 1 ? "s" : ""})`,
+		);
 	}
 	return { ok: true, data: lines.join("\n") };
 }
@@ -64,10 +79,11 @@ async function handleCreate(
 	callbacks: SessionCallbacks,
 ): Promise<Response> {
 	const name = args[1];
-	if (!name) {
+	if (!name || name.startsWith("--")) {
 		return {
 			ok: false,
-			error: "Missing session name. Usage: browse session create <name>",
+			error:
+				"Missing session name. Usage: browse session create <name> [--isolated]",
 		};
 	}
 
@@ -78,7 +94,14 @@ async function handleCreate(
 		};
 	}
 
-	const tabState = await callbacks.createSessionTab();
+	const isolated = args.includes("--isolated");
+	const sessionContext = isolated
+		? await callbacks.createIsolatedContext()
+		: callbacks.defaultContext;
+
+	const tabState = await callbacks.createSessionTab(
+		isolated ? sessionContext : undefined,
+	);
 	callbacks.attachListeners(tabState.page, tabState);
 
 	const tabRegistry: TabRegistry = {
@@ -88,13 +111,15 @@ async function handleCreate(
 
 	registry.sessions.set(name, {
 		name,
+		context: sessionContext,
+		isolated,
 		tabRegistry,
 		attachListeners: callbacks.attachListeners,
 	});
 
 	return {
 		ok: true,
-		data: `Session '${name}' created.`,
+		data: `Session '${name}' created${isolated ? " (isolated)" : ""}.`,
 	};
 }
 
@@ -131,6 +156,15 @@ async function handleClose(
 			await tab.page.close();
 		} catch {
 			// Page may already be closed
+		}
+	}
+
+	// Close the isolated context if this session owns one
+	if (session.isolated && session.context) {
+		try {
+			await session.context.close();
+		} catch {
+			// Context may already be closed
 		}
 	}
 
