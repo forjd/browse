@@ -13,11 +13,13 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 - Single-threaded TCP server listening on a Unix socket at `/tmp/browse-daemon.sock`
 - PID file: `/tmp/browse-daemon.pid`
 - Socket permissions: `0o600` (owner-only access)
+- Authentication token: `/tmp/browse-daemon.token` (0o600, validated on every request)
 - Owns one Chromium instance via Playwright (patchright fork)
 - Uses a persistent browser context at `~/.bun-browse/user-data`
 - Default viewport: 1440x900
 - Idle timeout: 30 minutes of inactivity triggers auto-shutdown
-- Loads `browse.config.json` from CWD at startup
+- Config resolution: `--config` flag > upward directory search > `~/.browse/config.json` > none
+- Headed mode: set `BROWSE_HEADED=1` before the daemon starts to launch visible Chromium
 
 ## Cold Start / Warm Start
 
@@ -25,12 +27,30 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 - **Subsequent calls:** The CLI connects directly to the existing socket. Warm calls complete in under 30ms.
 - **Client-side commands** (version, help) do not start the daemon.
 
+## Socket Authentication
+
+The daemon generates a cryptographically random 256-bit token at startup and writes it to `/tmp/browse-daemon.token` with `0o600` permissions. The CLI reads this token file before every request and includes the token in the JSON payload. The daemon validates the token before processing any command.
+
+This prevents other local processes from executing arbitrary commands (including `eval` for JavaScript execution) through the unguarded socket. The token file is cleaned up on daemon shutdown, browser crash, and signal-based termination.
+
+## Signal Handling
+
+The daemon traps `SIGTERM` and `SIGINT` for graceful shutdown. On receiving either signal:
+
+1. Idle timer is cleared
+2. Socket server is closed
+3. Browser context is closed
+4. PID file, socket file, and token file are removed
+5. Process exits cleanly
+
+This prevents orphaned files and zombie browser processes in CI environments and during interactive Ctrl-C.
+
 ## Request/Response Protocol
 
 The CLI sends a JSON object followed by a newline over the Unix socket:
 
 ```json
-{"cmd": "goto", "args": ["https://example.com"], "timeout": 30000, "session": "default", "json": false}
+{"cmd": "goto", "args": ["https://example.com"], "timeout": 30000, "session": "default", "json": false, "token": "<hex>"}
 ```
 
 The daemon responds with a JSON object followed by a newline:
@@ -101,9 +121,11 @@ Stealth options are propagated to isolated session contexts.
 ## Lifecycle
 
 - The PID file is written at startup with mode `0o600`
+- The auth token is generated and written to `/tmp/browse-daemon.token` with mode `0o600`
 - Socket permissions are set to `0o600` after listen
 - The idle timer resets on every incoming request. After 30 minutes of inactivity, `shutdown()` is called
-- Shutdown sequence: clear idle timer, close server, close browser context, clean up PID and socket files
+- SIGTERM/SIGINT are trapped for graceful shutdown
+- Shutdown sequence: clear idle timer, close server, close browser context, clean up PID file, socket file, and token file
 
 ## Performance
 

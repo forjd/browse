@@ -97,6 +97,13 @@ Always re-snapshot after any action that changes the page. Stale refs produce a 
 | `--timeout <ms>` | Override the default timeout for a command |
 | `--session <name>` | Route the command to a named session |
 | `--json` | Return output as JSON |
+| `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
+
+## Environment variables
+
+| Variable | Description |
+|----------|-------------|
+| `BROWSE_HEADED=1` | Launch browser in headed (visible) mode for debugging |
 
 ## Getting help
 

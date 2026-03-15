@@ -108,16 +108,20 @@ browse wait 2000                  # simple delay (last resort)
 
 All wait subcommands respect `--timeout` and error if the condition isn't met in time.
 
-### Screenshots and debugging
+### Screenshots and visual diff
 
 ```sh
 browse screenshot [path]            # full-page (auto-names if no path given)
 browse screenshot --viewport        # viewport only
+browse screenshot --diff baseline.png          # compare against baseline
+browse screenshot --diff baseline.png --threshold 5  # custom sensitivity
 browse console                      # console messages since last call
 browse console --level error        # filter by level
 browse network                      # failed requests (4xx/5xx)
 browse network --all                # all requests
 ```
+
+The `--diff` flag compares the new screenshot against a baseline image and produces a similarity score, diff pixel count, and a visual diff image highlighting changed regions in red.
 
 ### Accessibility audit
 
@@ -275,9 +279,11 @@ Define reusable flows in `browse.config.json`, then run them:
 ```sh
 browse flow list
 browse flow signup --var base_url=https://staging.example.com
+browse flow signup --reporter junit                    # JUnit XML output for CI
 browse assert text-contains "Welcome"
 browse assert visible ".dashboard"
 browse healthcheck --var base_url=https://staging.example.com
+browse healthcheck --reporter junit                    # JUnit XML output for CI
 ```
 
 ### Timeouts
@@ -290,9 +296,17 @@ browse goto https://slow-page.com --timeout 60000
 
 Unrecognised flags on any command produce an error with a hint to check `browse help <command>`.
 
+### Headed mode
+
+Launch the browser visibly for debugging:
+
+```sh
+BROWSE_HEADED=1 browse goto https://example.com
+```
+
 ## Configuration
 
-Optional. Create `browse.config.json` in your project root to configure login environments, reusable flows, permission checks, and health checks.
+Optional. Create `browse.config.json` in your project root to configure login environments, reusable flows, permission checks, and health checks. The config file is resolved in order: `--config <path>` flag, upward directory search from cwd, then `~/.browse/config.json` as a global fallback.
 
 ```json
 {
@@ -334,6 +348,8 @@ Optional. Create `browse.config.json` in your project root to configure login en
 
 The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses. Named sessions allow multiple page groups to share one Chromium process. By default sessions share the browser context; pass `--isolated` to `session create` for a fully separate context with its own cookies, storage, and permissions.
 
+The daemon socket is secured with a shared-secret authentication token generated at startup and stored at `/tmp/browse-daemon.token` (owner-readable only). The CLI reads this token and sends it with every request. SIGTERM and SIGINT are trapped for graceful shutdown — PID files, socket files, and token files are cleaned up automatically.
+
 > **Note:** Rebuilding the binary does not restart a running daemon. If you rebuild after adding or changing commands, run `browse quit` first so the next call cold-starts with the new binary.
 
 ```
@@ -372,7 +388,7 @@ Measured with `browse benchmark`:
 | `press <key> [key ...]` | Send keyboard key presses (`Shift+Tab`, `Escape`, etc.) |
 | `wait <type> <args>` | Wait for condition (`url`, `text`, `visible`, `hidden`, `network-idle`, `<ms>`) |
 | `scroll <direction\|@ref\|x y>` | Scroll page or element into view |
-| `screenshot [path]` | Capture page (`--viewport`, `--selector`) |
+| `screenshot [path]` | Capture page (`--viewport`, `--selector`, `--diff`, `--threshold`) |
 | `console` | Console log (`--level`, `--keep`) |
 | `network` | Failed requests (`--all`, `--keep`) |
 | `eval <expression>` | Run JavaScript in page context |
@@ -381,9 +397,9 @@ Measured with `browse benchmark`:
 | `tab list\|new\|switch\|close` | Tab management |
 | `login --env <name>` | Configured login |
 | `auth-state save\|load <path>` | Session import/export |
-| `flow list\|<name>` | Run configured flows |
+| `flow list\|<name>` | Run configured flows (`--reporter junit`) |
 | `assert <type> <args>` | Assertions (visible, text, url, element, permission) |
-| `healthcheck` | Multi-page health check |
+| `healthcheck` | Multi-page health check (`--reporter junit`) |
 | `a11y [@eN]` | Accessibility audit (`--standard`, `--json`, `--include`, `--exclude`) |
 | `session create\|list\|close` | Manage isolated browser sessions |
 | `ping` | Check if daemon is alive |
