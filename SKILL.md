@@ -82,7 +82,7 @@ browse session list
 browse session close worker-1
 ```
 
-By default sessions share the browser context. Use `--isolated` for fully separate cookies, storage, and permissions.
+By default, sessions share the browser context. Use `--isolated` for fully separate cookies, storage, and permissions.
 
 ## Authentication
 

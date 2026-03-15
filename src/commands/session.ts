@@ -1,5 +1,11 @@
 import type { BrowserContext, Page } from "playwright";
 import type { Response } from "../protocol.ts";
+import {
+	attachDialogListener,
+	createDialogState,
+	type DialogState,
+} from "./dialog.ts";
+import { createInterceptState, type InterceptState } from "./intercept.ts";
 import type { TabRegistry, TabState } from "./tab.ts";
 
 export type Session = {
@@ -9,6 +15,10 @@ export type Session = {
 	context: BrowserContext;
 	/** Whether this session uses an isolated browser context */
 	isolated: boolean;
+	/** Per-session dialog handling state */
+	dialogState: DialogState;
+	/** Per-session request interception state */
+	interceptState: InterceptState;
 	/** Callback to attach page listeners to new tabs in this session */
 	attachListeners: (page: Page, tabState: TabState) => void;
 };
@@ -18,7 +28,7 @@ export type SessionRegistry = {
 };
 
 export type SessionCallbacks = {
-	createSessionTab: (context?: BrowserContext) => Promise<TabState>;
+	createSessionTab: (context: BrowserContext) => Promise<TabState>;
 	createIsolatedContext: () => Promise<BrowserContext>;
 	/** The shared (default) browser context */
 	defaultContext: BrowserContext;
@@ -99,10 +109,13 @@ async function handleCreate(
 		? await callbacks.createIsolatedContext()
 		: callbacks.defaultContext;
 
-	const tabState = await callbacks.createSessionTab(
-		isolated ? sessionContext : undefined,
-	);
+	const tabState = await callbacks.createSessionTab(sessionContext);
 	callbacks.attachListeners(tabState.page, tabState);
+
+	const dialogState = createDialogState();
+	attachDialogListener(tabState.page, dialogState);
+
+	const interceptState = createInterceptState();
 
 	const tabRegistry: TabRegistry = {
 		tabs: [tabState],
@@ -113,6 +126,8 @@ async function handleCreate(
 		name,
 		context: sessionContext,
 		isolated,
+		dialogState,
+		interceptState,
 		tabRegistry,
 		attachListeners: callbacks.attachListeners,
 	});

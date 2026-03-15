@@ -82,7 +82,7 @@ import { resolveTimeout, withTimeout } from "./timeout.ts";
 const KNOWN_FLAGS: Record<string, string[]> = {
 	goto: ["--viewport", "--device", "--preset"],
 	text: [],
-	snapshot: ["--json"],
+	snapshot: ["--json", "-i", "-f"],
 	click: [],
 	hover: ["--duration"],
 	screenshot: ["--viewport", "--selector"],
@@ -208,12 +208,12 @@ export async function startServer(
 	// Attach listeners to the initial page
 	attachPageListeners(deps.page, initialTabState);
 
-	// Dialog handling state
-	const dialogState = createDialogState();
-	attachDialogListener(deps.page, dialogState);
+	// Dialog handling state for default session
+	const defaultDialogState = createDialogState();
+	attachDialogListener(deps.page, defaultDialogState);
 
-	// Request interception state
-	const interceptState = createInterceptState();
+	// Request interception state for default session
+	const defaultInterceptState = createInterceptState();
 
 	// Session registry — default session is always present
 	const sessionRegistry: SessionRegistry = {
@@ -224,6 +224,8 @@ export async function startServer(
 		name: "default",
 		context,
 		isolated: false,
+		dialogState: defaultDialogState,
+		interceptState: defaultInterceptState,
 		tabRegistry: defaultTabRegistry,
 		attachListeners: attachPageListeners,
 	};
@@ -257,8 +259,8 @@ export async function startServer(
 			.networkBuffer;
 	}
 
-	async function createTab(targetContext?: BrowserContext): Promise<TabState> {
-		const newPage = await (targetContext ?? context).newPage();
+	async function createTab(targetContext: BrowserContext): Promise<TabState> {
+		const newPage = await targetContext.newPage();
 		const tabState: TabState = {
 			page: newPage,
 			consoleBuffer: new RingBuffer<ConsoleEntry>(500),
@@ -406,7 +408,7 @@ export async function startServer(
 					case "tab":
 						return handleTab(tabRegistry, request.args, {
 							clearRefs,
-							createTab,
+							createTab: () => createTab(sessionContext),
 						});
 					case "flow":
 						return handleFlow(config, page, request.args, {
@@ -451,13 +453,13 @@ export async function startServer(
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "dialog":
-						return handleDialog(dialogState, request.args);
+						return handleDialog(session.dialogState, request.args);
 					case "download":
 						return handleDownload(page, request.args, request.timeout);
 					case "frame":
 						return handleFrame(page, request.args, activeTabState);
 					case "intercept":
-						return handleIntercept(page, request.args, interceptState);
+						return handleIntercept(page, request.args, session.interceptState);
 					case "cookies":
 						return handleCookies(sessionContext, request.args);
 					case "storage":

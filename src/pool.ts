@@ -64,8 +64,17 @@ function sendRequest(
 	cmd: string,
 	args: string[],
 	session?: string,
+	timeoutMs = 30_000,
 ): Promise<Response> {
 	return new Promise((resolve, reject) => {
+		let settled = false;
+		const settle = (fn: () => void) => {
+			if (!settled) {
+				settled = true;
+				fn();
+			}
+		};
+
 		const payload: Record<string, unknown> = { cmd, args };
 		if (session) payload.session = session;
 
@@ -73,19 +82,30 @@ function sendRequest(
 			client.write(`${JSON.stringify(payload)}\n`);
 		});
 
+		const timer = setTimeout(() => {
+			settle(() => {
+				client.destroy();
+				reject(new Error(`Daemon request timed out after ${timeoutMs}ms`));
+			});
+		}, timeoutMs);
+
 		let data = "";
 		client.on("data", (chunk) => {
 			data += chunk.toString();
 		});
 		client.on("end", () => {
-			try {
-				resolve(JSON.parse(data.trim()));
-			} catch {
-				reject(new Error("Failed to parse daemon response"));
-			}
+			clearTimeout(timer);
+			settle(() => {
+				try {
+					resolve(JSON.parse(data.trim()));
+				} catch {
+					reject(new Error("Failed to parse daemon response"));
+				}
+			});
 		});
 		client.on("error", (err) => {
-			reject(err);
+			clearTimeout(timer);
+			settle(() => reject(err));
 		});
 	});
 }
@@ -100,6 +120,7 @@ export function createPool(options: PoolOptions): BrowsePool {
 	} = options;
 
 	let sessionCounter = 0;
+	let pendingCreates = 0;
 	const activeSessions = new Set<string>();
 	const idleSessions: string[] = [];
 	const idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -163,13 +184,18 @@ export function createPool(options: PoolOptions): BrowsePool {
 			id = idleSessions.pop()!;
 			clearIdleTimer(id);
 		} else {
-			const total = activeSessions.size + idleSessions.length;
+			const total = activeSessions.size + idleSessions.length + pendingCreates;
 			if (total >= maxSessions) {
 				throw new Error(
 					`Pool exhausted: ${total}/${maxSessions} sessions in use. Release a session or increase maxSessions.`,
 				);
 			}
-			id = await createSession();
+			pendingCreates++;
+			try {
+				id = await createSession();
+			} finally {
+				pendingCreates--;
+			}
 		}
 
 		activeSessions.add(id);
@@ -194,13 +220,18 @@ export function createPool(options: PoolOptions): BrowsePool {
 	async function warmUp(count: number): Promise<void> {
 		const promises: Promise<void>[] = [];
 		for (let i = 0; i < count; i++) {
-			const total = activeSessions.size + idleSessions.length;
+			const total = activeSessions.size + idleSessions.length + pendingCreates;
 			if (total >= maxSessions) break;
+			pendingCreates++;
 			promises.push(
-				createSession().then((id) => {
-					idleSessions.push(id);
-					startIdleTimer(id);
-				}),
+				createSession()
+					.then((id) => {
+						idleSessions.push(id);
+						startIdleTimer(id);
+					})
+					.finally(() => {
+						pendingCreates--;
+					}),
 			);
 		}
 		await Promise.all(promises);
