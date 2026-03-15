@@ -73,7 +73,7 @@ Run `browse help <command>` for flags and detailed usage — don't guess at flag
 
 Use named sessions to run multiple independent page groups:
 
-```
+```sh
 browse session create worker-1               # shared context (same cookies/storage)
 browse session create worker-2 --isolated    # isolated context (separate cookies/storage)
 browse --session worker-1 goto https://a.com
