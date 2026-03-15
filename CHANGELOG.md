@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0](https://github.com/forjd/browse/compare/browse-v0.6.0...browse-v0.7.0) (2026-03-15)
+
+
+### Features
+
+* add dialog, download, frame, intercept, cookies, storage, html, title, pdf, element-count commands ([fb67112](https://github.com/forjd/browse/commit/fb671125be1f479837ba4860d078307ff2e190c9))
+* add isolated browser contexts and fix review findings ([5d70386](https://github.com/forjd/browse/commit/5d703861f6621c1ed28d31dda98ef4ec328edb6d))
+* add named sessions, multi-context isolation, ping/status commands ([72b2eba](https://github.com/forjd/browse/commit/72b2eba1f33cda6681d8e43441ef48e6926c713e))
+* add pool manager library and help text for all new commands ([a248e92](https://github.com/forjd/browse/commit/a248e9237a31769f97b6d2805ece3091bc4652f0))
+
+
+### Bug Fixes
+
+* per-session state isolation and pool robustness ([00fb5ad](https://github.com/forjd/browse/commit/00fb5ad40320ce5d3b6f9b148c2bb89334ce6f67))
+
 ## [0.6.0](https://github.com/forjd/browse/compare/browse-v0.5.0...browse-v0.6.0) (2026-03-13)
 
 
