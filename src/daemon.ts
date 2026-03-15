@@ -16,7 +16,6 @@ import { handleCookies } from "./commands/cookies.ts";
 import {
 	attachDialogListener,
 	createDialogState,
-	type DialogState,
 	handleDialog,
 } from "./commands/dialog.ts";
 import { handleDownload } from "./commands/download.ts";
@@ -30,11 +29,7 @@ import { handleGoto } from "./commands/goto.ts";
 import { handleHealthcheck } from "./commands/healthcheck.ts";
 import { handleHover } from "./commands/hover.ts";
 import { handleHtml } from "./commands/html.ts";
-import {
-	createInterceptState,
-	handleIntercept,
-	type InterceptState,
-} from "./commands/intercept.ts";
+import { createInterceptState, handleIntercept } from "./commands/intercept.ts";
 import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handlePageEval } from "./commands/page-eval.ts";

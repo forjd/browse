@@ -287,6 +287,100 @@ Examples:
 		summary: "Print version and platform info",
 		usage: "browse version",
 	},
+	session: {
+		summary: "Manage isolated browser sessions",
+		usage: `browse session list              List all sessions
+browse session create <name>     Create a new isolated session
+browse session close <name>      Close a session and its pages
+
+Use --session <name> on any command to route it to a named session:
+  browse --session worker-1 goto https://example.com
+  browse --session worker-1 snapshot`,
+	},
+	ping: {
+		summary: "Check if daemon is alive",
+		usage: "browse ping\n\nReturns 'pong' if the daemon is running.",
+	},
+	status: {
+		summary: "Show daemon status and uptime",
+		usage:
+			"browse status\n\nShows current URL, session count, uptime, and tab counts per session.",
+	},
+	dialog: {
+		summary: "Handle browser dialogs (alert, confirm, prompt)",
+		usage: `browse dialog accept [text]      Accept pending dialog (optional input text)
+browse dialog dismiss            Dismiss pending dialog
+browse dialog status             Show pending dialog info and auto-mode
+browse dialog auto-accept        Automatically accept all future dialogs
+browse dialog auto-dismiss       Automatically dismiss all future dialogs
+browse dialog auto-off           Disable auto-mode (queue dialogs)`,
+	},
+	download: {
+		summary: "Wait for and save file downloads",
+		usage: `browse download wait [--save-to <path>] [--timeout <ms>]
+
+Flags:
+  --save-to <path>   Save downloaded file to this path
+  --timeout <ms>     Timeout for waiting (default: 30000)`,
+	},
+	frame: {
+		summary: "Navigate and inspect iframes",
+		usage: `browse frame list                 List all frames
+browse frame switch <target>     Switch to frame by index, name, or URL substring
+browse frame main                Show main frame info`,
+	},
+	intercept: {
+		summary: "Mock or block network requests",
+		usage: `browse intercept add <pattern> [--status N] [--body data] [--content-type type]
+browse intercept remove <pattern>
+browse intercept list
+browse intercept clear
+
+Flags:
+  --status <N>            HTTP status code (default: 200)
+  --body <data>           Response body (default: "")
+  --content-type <type>   Content type (default: application/json)
+
+Examples:
+  browse intercept add "**/api/users" --body '{"users":[]}'
+  browse intercept add "**/analytics/**" --status 204
+  browse intercept clear`,
+	},
+	cookies: {
+		summary: "Inspect browser cookies",
+		usage: `browse cookies [--domain <domain>]
+
+Flags:
+  --domain <domain>   Filter cookies by domain substring`,
+	},
+	storage: {
+		summary: "Inspect localStorage or sessionStorage",
+		usage: `browse storage local              Show localStorage entries
+browse storage session            Show sessionStorage entries`,
+	},
+	html: {
+		summary: "Get page or element HTML",
+		usage: `browse html [selector|@ref]
+
+Without arguments, returns full page HTML.
+With a selector or ref, returns outerHTML of that element.`,
+	},
+	title: {
+		summary: "Get the page title",
+		usage: "browse title",
+	},
+	pdf: {
+		summary: "Export page as PDF",
+		usage: `browse pdf [path]
+
+If no path given, saves to ~/.bun-browse/exports/ with a timestamp.`,
+	},
+	"element-count": {
+		summary: "Count elements matching a selector",
+		usage: `browse element-count <selector|@ref>
+
+Returns the number of elements matching the selector.`,
+	},
 };
 
 export function formatOverview(): string {
@@ -300,6 +394,11 @@ export function formatOverview(): string {
 	}
 
 	lines.push(
+		"",
+		"Global flags:",
+		"  --timeout <ms>       Set command timeout",
+		"  --session <name>     Route command to a named session",
+		"  --json               Request JSON output (where supported)",
 		"",
 		'Run "browse help <command>" for detailed usage of a specific command.',
 	);
