@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/forjd/browse/compare/browse-v0.7.0...browse-v0.7.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* add missing --json flag to help text for 6 commands ([ca5a5cc](https://github.com/forjd/browse/commit/ca5a5ccd53abc8844c625ec6f87acfab77739600))
+
 ## [0.7.0](https://github.com/forjd/browse/compare/browse-v0.6.0...browse-v0.7.0) (2026-03-15)
 
 
