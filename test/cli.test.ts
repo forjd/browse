@@ -8,17 +8,31 @@ describe("parseArgs", () => {
 			cmd: "goto",
 			args: ["https://example.com"],
 			timeout: undefined,
+			session: undefined,
+			json: false,
 		});
 	});
 
 	test("parses text command with no args", () => {
 		const result = parseArgs(["text"]);
-		expect(result).toEqual({ cmd: "text", args: [], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "text",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("parses quit command", () => {
 		const result = parseArgs(["quit"]);
-		expect(result).toEqual({ cmd: "quit", args: [], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "quit",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("returns null for empty args", () => {
@@ -33,27 +47,57 @@ describe("parseArgs", () => {
 
 	test("passes through unknown commands (server validates)", () => {
 		const result = parseArgs(["unknown"]);
-		expect(result).toEqual({ cmd: "unknown", args: [], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "unknown",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("parses help with no args", () => {
 		const result = parseArgs(["help"]);
-		expect(result).toEqual({ cmd: "help", args: [], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "help",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("parses help with command arg", () => {
 		const result = parseArgs(["help", "goto"]);
-		expect(result).toEqual({ cmd: "help", args: ["goto"], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "help",
+			args: ["goto"],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("parses --help flag", () => {
 		const result = parseArgs(["--help"]);
-		expect(result).toEqual({ cmd: "--help", args: [], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "--help",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("parses -h flag", () => {
 		const result = parseArgs(["-h"]);
-		expect(result).toEqual({ cmd: "-h", args: [], timeout: undefined });
+		expect(result).toEqual({
+			cmd: "-h",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("parses command with --help flag (interception is in runCli)", () => {
@@ -62,6 +106,8 @@ describe("parseArgs", () => {
 			cmd: "goto",
 			args: ["--help"],
 			timeout: undefined,
+			session: undefined,
+			json: false,
 		});
 	});
 
@@ -76,6 +122,8 @@ describe("parseArgs", () => {
 			cmd: "goto",
 			args: ["https://example.com"],
 			timeout: 60000,
+			session: undefined,
+			json: false,
 		});
 	});
 
@@ -103,6 +151,8 @@ describe("parseArgs", () => {
 			cmd: "goto",
 			args: ["https://example.com"],
 			timeout: undefined,
+			session: undefined,
+			json: false,
 		});
 	});
 
@@ -117,6 +167,8 @@ describe("parseArgs", () => {
 			cmd: "goto",
 			args: ["https://example.com"],
 			timeout: undefined,
+			session: undefined,
+			json: false,
 		});
 	});
 
@@ -126,6 +178,8 @@ describe("parseArgs", () => {
 			cmd: "goto",
 			args: ["https://example.com"],
 			timeout: undefined,
+			session: undefined,
+			json: false,
 		});
 	});
 
@@ -135,6 +189,8 @@ describe("parseArgs", () => {
 			cmd: "goto",
 			args: ["https://example.com", "--timeout"],
 			timeout: undefined,
+			session: undefined,
+			json: false,
 		});
 	});
 
@@ -149,6 +205,8 @@ describe("parseArgs", () => {
 			cmd: "screenshot",
 			args: ["/tmp/shot.png"],
 			timeout: 10000,
+			session: undefined,
+			json: false,
 		});
 	});
 
@@ -158,6 +216,53 @@ describe("parseArgs", () => {
 			cmd: "fill",
 			args: ["input.email", "user@test.com"],
 			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
+	});
+
+	test("extracts --session flag from args", () => {
+		const result = parseArgs([
+			"goto",
+			"https://example.com",
+			"--session",
+			"worker-1",
+		]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com"],
+			timeout: undefined,
+			session: "worker-1",
+			json: false,
+		});
+	});
+
+	test("extracts --json flag from args", () => {
+		const result = parseArgs(["snapshot", "--json"]);
+		expect(result).toEqual({
+			cmd: "snapshot",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: true,
+		});
+	});
+
+	test("combines --session, --timeout, and --json", () => {
+		const result = parseArgs([
+			"url",
+			"--session",
+			"s1",
+			"--timeout",
+			"5000",
+			"--json",
+		]);
+		expect(result).toEqual({
+			cmd: "url",
+			args: [],
+			timeout: 5000,
+			session: "s1",
+			json: true,
 		});
 	});
 });
