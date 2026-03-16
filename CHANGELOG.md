@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.8.1](https://github.com/forjd/browse/compare/browse-v0.8.0...browse-v0.8.1) (2026-03-16)
+
+
+### Bug Fixes
+
+* address code review findings across multiple modules ([69342da](https://github.com/forjd/browse/commit/69342da22b971a777436b0b65db47a226d80f80b))
+* align BACKOFF_DELAYS array with documented exponential backoff ([7455214](https://github.com/forjd/browse/commit/7455214a082d4f812e73d3de3ce5e19bde678154))
+* harden regex handling, report resilience, and HTML escaping ([804c5a7](https://github.com/forjd/browse/commit/804c5a76a24a0db2b8c3780842b07f88bb082b1d))
+* resolve click timeout on combobox elements ([#33](https://github.com/forjd/browse/issues/33)) ([4a9d0e7](https://github.com/forjd/browse/commit/4a9d0e7d0b6e791c683d52447e92ec0786613faf))
+* support custom ARIA comboboxes in select command ([#34](https://github.com/forjd/browse/issues/34)) ([e1d09b1](https://github.com/forjd/browse/commit/e1d09b1d4e969410dfbdfcff1592698f11baed0d))
+
 ## [0.8.0](https://github.com/forjd/browse/compare/browse-v0.7.1...browse-v0.8.0) (2026-03-16)
 
 
