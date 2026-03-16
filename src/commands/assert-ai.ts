@@ -37,6 +37,7 @@ export async function handleAssertAi(
 	let baseUrl: string | undefined;
 	const positional: string[] = [];
 
+	const unknownFlags: string[] = [];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
 		if (arg === "--model") {
@@ -48,9 +49,18 @@ export async function handleAssertAi(
 		} else if (arg === "--base-url") {
 			baseUrl = args[i + 1];
 			i++;
-		} else if (!arg.startsWith("--")) {
+		} else if (arg.startsWith("--")) {
+			unknownFlags.push(arg);
+		} else {
 			positional.push(arg);
 		}
+	}
+
+	if (unknownFlags.length > 0) {
+		return {
+			ok: false,
+			error: `Unknown flag${unknownFlags.length > 1 ? "s" : ""}: ${unknownFlags.join(", ")}. Run 'browse help assert-ai' for usage.`,
+		};
 	}
 
 	const assertion = positional.join(" ");
@@ -316,14 +326,28 @@ function parseAiResponse(text: string): AiAssertResult {
 	}
 
 	const obj = parsed as Record<string, unknown>;
+	if (typeof obj.passed !== "boolean") {
+		throw new Error(
+			`Invalid AI response: 'passed' must be a boolean, got ${typeof obj.passed}: ${jsonMatch[0].slice(0, 200)}`,
+		);
+	}
+	if (
+		typeof obj.confidence !== "number" ||
+		obj.confidence < 0 ||
+		obj.confidence > 1
+	) {
+		throw new Error(
+			`Invalid AI response: 'confidence' must be a number between 0 and 1, got ${String(obj.confidence)}: ${jsonMatch[0].slice(0, 200)}`,
+		);
+	}
+	if (typeof obj.reasoning !== "string" || obj.reasoning.length === 0) {
+		throw new Error(
+			`Invalid AI response: 'reasoning' must be a non-empty string: ${jsonMatch[0].slice(0, 200)}`,
+		);
+	}
 	return {
-		passed: obj.passed === true,
-		reasoning: String(obj.reasoning ?? "No reasoning provided"),
-		confidence:
-			typeof obj.confidence === "number" &&
-			obj.confidence >= 0 &&
-			obj.confidence <= 1
-				? obj.confidence
-				: 0.5,
+		passed: obj.passed,
+		reasoning: obj.reasoning,
+		confidence: obj.confidence,
 	};
 }

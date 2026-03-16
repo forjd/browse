@@ -181,7 +181,7 @@ export async function handleForm(
 		}
 	}
 
-	if (errors.length > 0 && filled.length === 0) {
+	if (errors.length > 0) {
 		return { ok: false, error: result };
 	}
 
