@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.0](https://github.com/forjd/browse/compare/browse-v0.7.1...browse-v0.8.0) (2026-03-16)
+
+
+### Features
+
+* add comprehensive feature gap analysis ([600d3d0](https://github.com/forjd/browse/commit/600d3d0732a91e55cb6079256af0ae39795f5037))
+* implement all 6 tier-1 feature gaps ([668ffae](https://github.com/forjd/browse/commit/668ffae5d8852a0fcc055d9d7b5c0671853f2b68))
+
+
+### Bug Fixes
+
+* **ci:** install chrome (not chromium) and match setup.sh compile flags ([6beb97d](https://github.com/forjd/browse/commit/6beb97d7780b7a0fc69ea2b332d40179daeb9f8a))
+* **ci:** split Playwright browser install by OS ([cbcbe0c](https://github.com/forjd/browse/commit/cbcbe0c6d799e7af962019c36a97ea50cc399567))
+* harden auth, JUnit output, PNG validation, and docs accuracy ([b1d95ba](https://github.com/forjd/browse/commit/b1d95ba5e54fda6f1956f772e70627637adf2bd3))
+* harden input validation, auth security, and docs accuracy ([96b03fc](https://github.com/forjd/browse/commit/96b03fcac7fb6259943ad5f28d37e753d5ca8341))
+
 ## [0.7.1](https://github.com/forjd/browse/compare/browse-v0.7.0...browse-v0.7.1) (2026-03-15)
 
 
