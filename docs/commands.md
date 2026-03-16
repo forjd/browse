@@ -11,7 +11,7 @@ Commands are grouped by category. Global flags are documented at the end.
 ### goto
 
 ```
-browse goto <url> [--viewport WxH] [--device name] [--preset name]
+browse goto <url> [--viewport WxH] [--device name] [--preset name] [--auto-snapshot]
 ```
 
 Navigate to a URL and return the page title.
@@ -21,6 +21,7 @@ Navigate to a URL and return the page title.
 | `--viewport WxH` | Set viewport dimensions (e.g. `1280x720`) |
 | `--device name` | Emulate a named device |
 | `--preset name` | Use a viewport preset: `mobile` (375x667), `tablet` (768x1024), `desktop` (1440x900) |
+| `--auto-snapshot` | Automatically snapshot after navigation completes |
 
 **Examples:**
 
@@ -28,6 +29,7 @@ Navigate to a URL and return the page title.
 browse goto https://example.com
 browse goto https://example.com --preset mobile
 browse goto https://example.com --viewport 1280x720
+browse goto https://example.com --auto-snapshot
 ```
 
 ### url
@@ -1270,6 +1272,178 @@ browse completions fish | source     # add to fish config
 
 ---
 
+## Form Filling
+
+### form
+
+```
+browse form --data <json> [--auto-snapshot]
+```
+
+Bulk-fill form fields from a JSON object. Maps field names to values and attempts to fill using ARIA roles (textbox, searchbox, combobox, checkbox, radio, switch) or falls back to `getByLabel`.
+
+| Flag | Description |
+|------|-------------|
+| `--data <json>` | JSON object mapping field names to values |
+| `--auto-snapshot` | Snapshot after filling all fields |
+
+**Examples:**
+
+```bash
+browse form --data '{"name":"Jane","email":"jane@example.com"}'
+browse form --data '{"agree":true,"plan":"premium"}' --auto-snapshot
+```
+
+---
+
+## AI Assertions
+
+### assert-ai
+
+```
+browse assert-ai "<assertion>" [--model <model>] [--provider <provider>]
+```
+
+AI-powered visual assertion. Takes a screenshot and sends it to an AI model to evaluate whether the assertion passes. Requires `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` environment variable.
+
+| Flag | Description |
+|------|-------------|
+| `--model <model>` | Model to use (default: `claude-sonnet-4-20250514` for Anthropic, `gpt-4o` for OpenAI) |
+| `--provider <provider>` | AI provider: `anthropic` (default) or `openai` |
+
+**Examples:**
+
+```bash
+browse assert-ai "the login form is visible"
+browse assert-ai "the page shows a dashboard with charts"
+browse assert-ai "there are no error messages" --provider openai
+browse assert-ai "the navigation menu has 5 items" --model claude-sonnet-4-20250514
+```
+
+---
+
+## Multi-Role Testing
+
+### test-matrix
+
+```
+browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter junit]
+```
+
+Run the same flow in parallel across multiple roles/environments. Each role gets its own isolated browser context with separate authentication. Compares results across roles and highlights differences.
+
+Roles must correspond to environment names in `browse.config.json`.
+
+| Flag | Description |
+|------|-------------|
+| `--roles <r1,r2,...>` | Comma-separated list of roles (minimum 2) |
+| `--flow <name>` | Flow to execute (from `browse.config.json`) |
+| `--env <name>` | Environment prefix (tries `<env>-<role>` then `<role>`) |
+| `--reporter junit` | Output JUnit XML format |
+
+**Examples:**
+
+```bash
+browse test-matrix --roles admin,viewer,guest --flow checkout
+browse test-matrix --roles admin,viewer --flow dashboard --env staging
+browse test-matrix --roles admin,viewer --flow dashboard --reporter junit > results.xml
+```
+
+---
+
+## Visual Diffing
+
+### diff
+
+```
+browse diff --baseline <url> --current <url> [--flow <name>] [--threshold <0-1>] [--var k=v] [--no-screenshots]
+```
+
+Visual diff across two deployments. Navigates to matching pages on both baseline and current URLs, screenshots each, and compares pixel similarity.
+
+If `--flow` is specified, extracts goto URLs from the flow steps. Otherwise uses healthcheck pages from config.
+
+| Flag | Description |
+|------|-------------|
+| `--baseline <url>` | Baseline deployment URL |
+| `--current <url>` | Current deployment URL |
+| `--flow <name>` | Flow whose goto steps define pages to compare |
+| `--threshold <0-1>` | Similarity threshold (default: 0.95) |
+| `--var k=v` | Pass variables (repeatable) |
+| `--no-screenshots` | Skip saving screenshot files |
+
+**Examples:**
+
+```bash
+browse diff --baseline https://staging.example.com --current https://prod.example.com
+browse diff --baseline https://v1.example.com --current https://v2.example.com --flow smoke-test
+browse diff --baseline https://old.example.com --current https://new.example.com --threshold 0.9
+```
+
+---
+
+## Session Replay
+
+### replay
+
+```
+browse replay [session] [--out <path>]
+browse replay list
+```
+
+Generate an interactive HTML timeline from session screenshots. The replay page includes a clickable timeline, embedded screenshots, auto-play, and keyboard navigation (arrow keys, spacebar).
+
+| Flag | Description |
+|------|-------------|
+| `--out <path>` | Output path for the HTML file |
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List available replay recordings |
+
+**Examples:**
+
+```bash
+browse replay --out replay.html
+browse replay list
+```
+
+---
+
+## Flow Sharing
+
+### flow-share
+
+```
+browse flow-share <subcommand> [args]
+```
+
+Share and install reusable flow definitions. Flows are stored in a local registry at `~/.bun-browse/flow-registry/`.
+
+**Subcommands:**
+
+| Subcommand | Description |
+|------------|-------------|
+| `export <flow-name>` | Export a flow from config to a `.flow.json` file |
+| `import <file>` | Import a `.flow.json` file to the local registry |
+| `list` | List installed flows in the registry |
+| `install <url>` | Install a flow from a GitHub raw URL |
+| `publish <flow-name>` | Publish a flow from config to the local registry |
+
+**Examples:**
+
+```bash
+browse flow-share export checkout
+browse flow-share import ./checkout.flow.json
+browse flow-share list
+browse flow-share install https://raw.githubusercontent.com/user/repo/main/flows/login.flow.json
+browse flow-share publish smoke-test
+```
+
+---
+
 ## Global Flags
 
 These flags work with any command.
@@ -1280,6 +1454,7 @@ These flags work with any command.
 | `--session <name>` | Route the command to a named session |
 | `--json` | Request JSON output (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`) |
 | `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
+| `--auto-snapshot` | Auto-snapshot after navigation (supported by: `goto`, `click`, `form`) |
 | `--help` | Show help for any command |
 
 ## Environment Variables

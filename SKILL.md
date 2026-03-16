@@ -56,18 +56,18 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 |----------|----------|
 | **Navigate** | `goto <url>`, `url`, `back`, `forward`, `reload [--hard]`, `text`, `version`, `quit`, `wipe` |
 | **Observe** | `snapshot`, `screenshot` (`--diff`, `--threshold`), `console`, `network` |
-| **Interact** | `click @eN`, `hover @eN [--duration ms]`, `press <key> [key ...]`, `fill @eN "value"`, `select @eN "option"`, `upload @eN <file> [file ...]`, `attr @eN [attribute]`, `scroll down/up/top/bottom/@eN/x y` |
+| **Interact** | `click @eN`, `hover @eN [--duration ms]`, `press <key> [key ...]`, `fill @eN "value"`, `select @eN "option"`, `upload @eN <file> [file ...]`, `attr @eN [attribute]`, `scroll down/up/top/bottom/@eN/x y`, `form --data '{"field":"value"}'` |
 | **Wait** | `wait url <str>`, `wait text <str>`, `wait visible <sel>`, `wait hidden <sel>`, `wait network-idle`, `wait <ms>` |
 | **Viewport** | `viewport`, `goto --viewport/--device/--preset` |
 | **Evaluate** | `eval <expr>` (in-page JS), `page-eval <expr>` (Playwright page API) |
 | **Auth** | `login --env <name>`, `auth-state save/load <path>` |
 | **Tabs** | `tab list/new/switch/close` |
-| **Assert** | `assert visible/text-contains/url-contains/...` |
+| **Assert** | `assert visible/text-contains/url-contains/...`, `assert-ai "<visual assertion>"` |
 | **Accessibility** | `a11y` (full page), `a11y @eN` (element), `a11y --standard wcag2aa`, `a11y --json` |
-| **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit`, `--dry-run`, `--stream`), `healthcheck` (`--reporter junit`, `--parallel`, `--concurrency`) |
+| **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit`, `--dry-run`, `--stream`), `healthcheck` (`--reporter junit`, `--parallel`, `--concurrency`), `test-matrix --roles r1,r2 --flow <name>`, `diff --baseline <url> --current <url>` |
 | **Sessions** | `session list/create/close`, `--session <name>` on any command |
 | **Tracing** | `trace start` (`--screenshots`, `--snapshots`), `trace stop --out <path>`, `trace status` |
-| **Tooling** | `init`, `report --out <path>`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status --json` |
+| **Tooling** | `init`, `report --out <path>`, `replay --out <path>`, `flow-share export/import/list/install/publish`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status --json` |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.
 
