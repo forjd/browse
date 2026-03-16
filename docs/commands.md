@@ -718,7 +718,7 @@ List all defined flows.
 ### flow
 
 ```
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream]
 ```
 
 Execute a named flow defined in `browse.config.json`.
@@ -728,6 +728,8 @@ Execute a named flow defined in `browse.config.json`.
 | `--var k=v` | Pass variables (repeatable) |
 | `--continue-on-error` | Continue executing steps after a failure |
 | `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
+| `--dry-run` | Preview steps without executing them |
+| `--stream` | Output real-time NDJSON with one object per step |
 
 **Examples:**
 
@@ -735,12 +737,14 @@ Execute a named flow defined in `browse.config.json`.
 browse flow login --var user=admin --var pass=secret
 browse flow checkout --continue-on-error
 browse flow smoke-test --reporter junit > results.xml
+browse flow signup --dry-run
+browse flow smoke-test --stream
 ```
 
 ### healthcheck
 
 ```
-browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit]
+browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N]
 ```
 
 Run a healthcheck across configured pages defined in `browse.config.json`.
@@ -750,6 +754,8 @@ Run a healthcheck across configured pages defined in `browse.config.json`.
 | `--var k=v` | Pass variables (repeatable) |
 | `--no-screenshots` | Skip screenshots during the healthcheck |
 | `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
+| `--parallel` | Check pages concurrently instead of sequentially |
+| `--concurrency N` | Max concurrent pages when `--parallel` is set (default: 4) |
 
 **Examples:**
 
@@ -758,6 +764,7 @@ browse healthcheck
 browse healthcheck --var env=staging
 browse healthcheck --no-screenshots
 browse healthcheck --reporter junit > results.xml
+browse healthcheck --parallel --concurrency 8
 ```
 
 ---
@@ -1057,10 +1064,14 @@ Check if the daemon is alive. Returns `pong`.
 ### status
 
 ```
-browse status
+browse status [--json]
 ```
 
-Show sessions, uptime, URLs, and tab counts per session.
+Show sessions, uptime, URLs, and tab counts per session. With `--json`, outputs machine-readable JSON including memory usage, browser version, daemon PID, and per-session details.
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON with extended details (memory, browser version, PID) |
 
 ### benchmark
 
@@ -1096,6 +1107,166 @@ browse quit
 ```
 
 Shut down the daemon.
+
+---
+
+## Tracing
+
+### trace start
+
+```
+browse trace start [--screenshots] [--snapshots]
+```
+
+Start recording a Playwright trace. While recording, all page actions are captured for later analysis in the [Playwright Trace Viewer](https://trace.playwright.dev).
+
+| Flag | Description |
+|------|-------------|
+| `--screenshots` | Include screenshots in the trace |
+| `--snapshots` | Include DOM snapshots in the trace |
+
+**Examples:**
+
+```bash
+browse trace start
+browse trace start --screenshots --snapshots
+```
+
+### trace stop
+
+```
+browse trace stop [--out <path>]
+```
+
+Stop recording and save the trace to a file.
+
+| Flag | Description |
+|------|-------------|
+| `--out <path>` | Output path for the trace file (default: `trace.zip`) |
+
+**Examples:**
+
+```bash
+browse trace stop
+browse trace stop --out /tmp/my-trace.zip
+```
+
+### trace status
+
+```
+browse trace status
+```
+
+Check whether a trace is currently recording.
+
+---
+
+## Project Setup
+
+### init
+
+```
+browse init [path] [--force]
+```
+
+Generate a `browse.config.json` template with sample environment, flow, and healthcheck configurations.
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Overwrite existing config file |
+
+**Examples:**
+
+```bash
+browse init
+browse init ./my-project/browse.config.json
+browse init --force
+```
+
+---
+
+## Screenshot Management
+
+### screenshots list
+
+```
+browse screenshots list
+```
+
+List all saved screenshots sorted by date.
+
+### screenshots clean
+
+```
+browse screenshots clean [--older-than <duration>]
+```
+
+Delete screenshots older than the specified duration.
+
+| Flag | Description |
+|------|-------------|
+| `--older-than <duration>` | Duration threshold (e.g. `7d`, `24h`, `30m`) |
+
+**Examples:**
+
+```bash
+browse screenshots clean --older-than 7d
+browse screenshots clean --older-than 24h
+```
+
+### screenshots count
+
+```
+browse screenshots count
+```
+
+Show total number and size of saved screenshots.
+
+---
+
+## Reporting
+
+### report
+
+```
+browse report --out <path> [--title <title>] [--screenshots <dir>]
+```
+
+Generate a self-contained HTML report from saved screenshots. Images are embedded as base64 data URIs.
+
+| Flag | Description |
+|------|-------------|
+| `--out <path>` | Required. Output path for the HTML file |
+| `--title <title>` | Report title (default: "Browse Report") |
+| `--screenshots <dir>` | Screenshot directory to scan (default: `~/.bun-browse/screenshots`) |
+
+**Examples:**
+
+```bash
+browse report --out report.html
+browse report --out report.html --title "QA Run 2026-03-16"
+browse report --out report.html --screenshots ./my-screenshots
+```
+
+---
+
+## Shell Completions
+
+### completions
+
+```
+browse completions <shell>
+```
+
+Output shell completion scripts. Supported shells: `bash`, `zsh`, `fish`.
+
+**Examples:**
+
+```bash
+eval "$(browse completions bash)"    # add to ~/.bashrc
+eval "$(browse completions zsh)"     # add to ~/.zshrc
+browse completions fish | source     # add to fish config
+```
 
 ---
 

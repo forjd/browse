@@ -38,6 +38,8 @@ browse flow list                          # list all defined flows
 browse flow signup --var base_url=https://staging.example.com --var test_email=test@example.com
 browse flow signup --var base_url=https://staging.example.com --continue-on-error
 browse flow signup --reporter junit > results.xml   # JUnit XML output for CI
+browse flow signup --dry-run              # preview steps without executing
+browse flow signup --stream               # real-time NDJSON output per step
 ```
 
 ### Variables
@@ -49,7 +51,7 @@ browse flow signup --reporter junit > results.xml   # JUnit XML output for CI
 
 ### Step Types
 
-All 11 step types are listed below.
+All 13 step types are listed below.
 
 | Step | Description | Example |
 |------|-------------|---------|
@@ -64,6 +66,8 @@ All 11 step types are listed below.
 | `assert` | Assert condition | `{ "assert": { "visible": ".success-message" } }` |
 | `login` | Log in via environment | `{ "login": "staging" }` |
 | `snapshot` | Take accessibility snapshot | `{ "snapshot": true }` |
+| `if` | Conditional branch | `{ "if": { "elementVisible": ".modal" }, "then": [...], "else": [...] }` |
+| `while` | Loop while condition holds | `{ "while": { "elementVisible": ".next" }, "do": [...] }` |
 
 **Important**: `click` and `fill` in flows use **accessible names** (not CSS selectors or refs). The flow runner looks for elements by role:
 
@@ -123,6 +127,63 @@ browse flow smoke-test --reporter junit > test-results.xml
 
 The XML includes a `<testsuite>` with one `<testcase>` per step, including `<failure>` elements for failed steps with error messages.
 
+### Conditional Steps
+
+Flows support `if`/`else` branching and `while` loops using `FlowCondition`:
+
+```json
+{
+  "steps": [
+    { "goto": "{{base_url}}" },
+    {
+      "if": { "elementVisible": ".cookie-banner" },
+      "then": [
+        { "click": "Accept cookies" }
+      ]
+    },
+    {
+      "while": { "elementVisible": ".load-more" },
+      "do": [
+        { "click": "Load more" },
+        { "wait": { "timeout": 1000 } }
+      ]
+    }
+  ]
+}
+```
+
+**Flow conditions:**
+
+| Condition | Description |
+|-----------|-------------|
+| `urlContains` | Current URL includes substring |
+| `urlPattern` | Current URL matches regex |
+| `elementVisible` | CSS selector matches a visible element |
+| `elementNotVisible` | CSS selector matches no visible element |
+| `textVisible` | Page text includes string |
+
+`while` loops have a built-in safety limit of 10 iterations to prevent infinite loops.
+
+### Dry Run
+
+Preview flow steps without executing them:
+
+```sh
+browse flow signup --dry-run
+```
+
+Returns a numbered list of steps with descriptions, useful for verifying flow definitions.
+
+### Streaming Output
+
+Get real-time NDJSON output as each step completes:
+
+```sh
+browse flow smoke-test --stream
+```
+
+Each line is a JSON object with step index, description, status, and timing.
+
 ### Error Handling
 
 - By default, a flow stops on the first failure
@@ -171,6 +232,7 @@ A quick pass/fail check across multiple pages. Defined in `browse.config.json`, 
 browse healthcheck --var base_url=https://staging.example.com
 browse healthcheck --var base_url=https://staging.example.com --no-screenshots
 browse healthcheck --reporter junit > healthcheck-results.xml   # JUnit XML for CI
+browse healthcheck --parallel --concurrency 4                    # check pages concurrently
 ```
 
 ### Per-Page Options
@@ -188,6 +250,8 @@ browse healthcheck --reporter junit > healthcheck-results.xml   # JUnit XML for 
 - `--var key=value` -- Pass variables for URL interpolation (repeatable)
 - `--no-screenshots` -- Skip screenshot capture
 - `--reporter junit` -- Output results as JUnit XML for CI integration
+- `--parallel` -- Check pages concurrently instead of sequentially
+- `--concurrency N` -- Max concurrent pages when `--parallel` is set (default: 4)
 
 ## See Also
 

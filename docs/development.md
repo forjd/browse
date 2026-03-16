@@ -30,12 +30,14 @@ src/
 ├── help.ts             # Command help text and formatting
 ├── flags.ts            # Flag validation per command
 ├── timeout.ts          # Timeout wrapper and resolution
-├── retry.ts            # Crash recovery with retry logic
+├── retry.ts            # Crash recovery with exponential backoff and circuit breaker
 ├── version.ts          # Version formatter
 ├── stealth.ts          # Browser fingerprint spoofing
 ├── buffers.ts          # RingBuffer for console/network logs
-├── flow-runner.ts      # Flow execution engine, variable interpolation
-└── commands/           # One file per command (43 total)
+├── flow-runner.ts      # Flow execution engine, variable interpolation, conditionals
+├── completions.ts      # Shell completion generators (bash, zsh, fish)
+├── reporters.ts        # JUnit XML reporter for CI
+└── commands/           # One file per command (48 total)
     ├── a11y.ts
     ├── assert.ts
     ├── attr.ts
@@ -54,7 +56,7 @@ src/
     ├── forward.ts
     ├── frame.ts
     ├── goto.ts
-    ├── healthcheck.ts
+    ├── healthcheck.ts    # --parallel, --concurrency support
     ├── hover.ts
     ├── html.ts
     ├── intercept.ts
@@ -78,7 +80,11 @@ src/
     ├── url.ts
     ├── viewport.ts
     ├── wait.ts
-    └── wipe.ts
+    ├── wipe.ts
+    ├── init.ts           # Config template generator
+    ├── trace.ts          # Playwright trace recording
+    ├── screenshots.ts    # Screenshot management (list, clean, count)
+    └── report.ts         # HTML report generator
 test/
 ├── *.test.ts           # Unit/integration tests
 ├── unit/               # Isolated unit tests

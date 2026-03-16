@@ -4,13 +4,15 @@
 
 ```
 CLI ──JSON──▶ Unix socket ──▶ Daemon ──▶ Playwright ──▶ Chromium
+              TCP socket ──┘
 ```
 
 Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, and Playwright/Chromium. The CLI is a stateless process that serialises a command into JSON and sends it over a Unix socket. The daemon holds the browser open between invocations, amortising the startup cost across many commands.
 
 ## The Daemon
 
-- Single-threaded TCP server listening on a Unix socket at `/tmp/browse-daemon.sock`
+- Single-threaded server listening on a Unix socket at `/tmp/browse-daemon.sock`
+- Optional TCP transport via `--listen <host>:<port>` for remote agent access
 - PID file: `/tmp/browse-daemon.pid`
 - Socket permissions: `0o600` (owner-only access)
 - Authentication token: `~/.local/state/browse/daemon.token` (0o600, validated on every request)
@@ -72,7 +74,7 @@ Each connection handles exactly one request: connect, send, receive, close.
 - The request is parsed by `parseRequest()` in `protocol.ts`
 - Unknown flags are rejected before dispatch via `checkUnknownFlags()`
 - Commands are routed through a switch statement in `daemon.ts`
-- Timeout-exempt commands: `quit`, `benchmark`, `session`, `ping`, `status`
+- Timeout-exempt commands: `quit`, `benchmark`, `session`, `ping`, `status`, `trace`, `init`, `screenshots`, `report`, `completions`
 - All other commands are wrapped in `withTimeout()` using the config timeout or `--timeout` override
 
 ## Session Architecture
@@ -99,6 +101,8 @@ Each connection handles exactly one request: connect, send, receive, close.
 
 - The CLI uses `sendWithRetry()` from `retry.ts`
 - On `DAEMON_NOT_RUNNING` or connection error: cleans up stale PID/socket files, spawns a new daemon, and retries
+- Retries use exponential backoff: 3 attempts with 1s, 2s, 4s delays
+- A circuit breaker trips after 3 consecutive failures, returning an immediate error without attempting recovery (resets on success)
 - A browser disconnect event triggers daemon exit and cleanup
 - Stale PID detection: checks whether the process is alive via `process.kill(pid, 0)`
 
@@ -142,10 +146,12 @@ Measured with `browse benchmark`:
 ## Key Design Decisions
 
 - **Unix socket over HTTP:** Lower overhead, no port conflicts, OS-level access control.
+- **TCP transport option:** Enables remote agents to connect without SSH tunnelling.
 - **Persistent daemon:** Amortises browser startup cost across commands.
 - **JSON protocol:** Simple, language-agnostic, easy to parse.
 - **Module-level ref state:** Simpler than per-session — refs are only meaningful for one page at a time.
 - **Ring buffers for console/network:** Bounded memory with FIFO eviction at 500 entries.
+- **Exponential backoff + circuit breaker:** Prevents retry storms while allowing recovery from transient failures.
 
 ## See Also
 
