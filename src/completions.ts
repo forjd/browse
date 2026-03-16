@@ -54,6 +54,12 @@ const COMMANDS = [
 	"init",
 	"screenshots",
 	"completions",
+	"form",
+	"test-matrix",
+	"assert-ai",
+	"replay",
+	"diff",
+	"flow-share",
 ];
 
 const GLOBAL_FLAGS = ["--timeout", "--session", "--json", "--config"];
@@ -116,6 +122,19 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	init: ["--force"],
 	screenshots: ["--older-than"],
 	completions: [],
+	form: ["--data", "--auto-snapshot"],
+	"test-matrix": ["--roles", "--flow", "--env", "--reporter"],
+	"assert-ai": ["--model", "--provider"],
+	replay: ["--out"],
+	diff: [
+		"--baseline",
+		"--current",
+		"--flow",
+		"--threshold",
+		"--var",
+		"--no-screenshots",
+	],
+	"flow-share": [],
 };
 
 export function generateBashCompletions(): string {
@@ -206,7 +225,7 @@ export function generateZshCompletions(): string {
 		}
 	}
 
-	const cmdList = COMMANDS.map((c) => `'${c}'`).join(" ");
+	const _cmdList = COMMANDS.map((c) => `'${c}'`).join(" ");
 
 	return `#compdef browse
 # zsh completion for browse

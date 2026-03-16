@@ -1,5 +1,6 @@
 import { devices, type Page } from "playwright";
 import type { Response } from "../protocol.ts";
+import { handleSnapshot } from "./snapshot.ts";
 import { PRESETS, type ViewportParsedArgs } from "./viewport.ts";
 
 /**
@@ -23,6 +24,8 @@ function parseGotoArgs(args: string[]): {
 			preset = args[++i];
 		} else if (arg === "--viewport") {
 			viewportSize = args[++i];
+		} else if (arg === "--auto-snapshot") {
+			// Handled by the caller, skip
 		} else if (!arg.startsWith("--")) {
 			positional.push(arg);
 		}
@@ -102,6 +105,7 @@ function parseGotoArgs(args: string[]): {
 export async function handleGoto(
 	page: Page,
 	args: string[],
+	options?: { autoSnapshot?: boolean },
 ): Promise<Response> {
 	const { url, viewport } = parseGotoArgs(args);
 
@@ -125,15 +129,23 @@ export async function handleGoto(
 		await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
 		const title = await page.title();
 
+		let result: string;
 		if (viewport && viewport.action === "set") {
 			const suffix = viewport.label ? ` (${viewport.label})` : "";
-			return {
-				ok: true,
-				data: `${title} [${viewport.width}x${viewport.height}${suffix}]`,
-			};
+			result = `${title} [${viewport.width}x${viewport.height}${suffix}]`;
+		} else {
+			result = title;
 		}
 
-		return { ok: true, data: title };
+		// Auto-snapshot: refresh refs so agent can immediately interact
+		if (options?.autoSnapshot) {
+			const snapshotResult = await handleSnapshot(page, []);
+			if (snapshotResult.ok) {
+				return { ok: true, data: `${result}\n\n${snapshotResult.data}` };
+			}
+		}
+
+		return { ok: true, data: result };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: message };

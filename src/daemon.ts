@@ -7,6 +7,7 @@ import { cleanupToken, generateToken } from "./auth.ts";
 import { RingBuffer } from "./buffers.ts";
 import { handleA11y } from "./commands/a11y.ts";
 import { handleAssert } from "./commands/assert.ts";
+import { handleAssertAi } from "./commands/assert-ai.ts";
 import { handleAttr } from "./commands/attr.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
 import { handleBack } from "./commands/back.ts";
@@ -19,11 +20,14 @@ import {
 	createDialogState,
 	handleDialog,
 } from "./commands/dialog.ts";
+import { handleDiff } from "./commands/diff.ts";
 import { handleDownload } from "./commands/download.ts";
 import { handleElementCount } from "./commands/element-count.ts";
 import { handleEval } from "./commands/eval.ts";
 import { handleFill } from "./commands/fill.ts";
 import { handleFlow } from "./commands/flow.ts";
+import { handleFlowShare } from "./commands/flow-share.ts";
+import { handleForm } from "./commands/form.ts";
 import { handleForward } from "./commands/forward.ts";
 import { handleFrame } from "./commands/frame.ts";
 import { handleGoto } from "./commands/goto.ts";
@@ -39,6 +43,7 @@ import { handlePdf } from "./commands/pdf.ts";
 import { handlePress } from "./commands/press.ts";
 import { handleQuit } from "./commands/quit.ts";
 import { handleReload } from "./commands/reload.ts";
+import { handleReplay } from "./commands/replay.ts";
 import { handleReport } from "./commands/report.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleScreenshots } from "./commands/screenshots.ts";
@@ -52,6 +57,7 @@ import {
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleStorage } from "./commands/storage.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
+import { handleTestMatrix } from "./commands/test-matrix.ts";
 import { handleText } from "./commands/text.ts";
 import { handleTitle } from "./commands/title.ts";
 import { createTraceState, handleTrace } from "./commands/trace.ts";
@@ -86,10 +92,10 @@ import { resolveTimeout, withTimeout } from "./timeout.ts";
  * (e.g. eval/page-eval/fill/select where all args form freeform data).
  */
 const KNOWN_FLAGS: Record<string, string[]> = {
-	goto: ["--viewport", "--device", "--preset"],
+	goto: ["--viewport", "--device", "--preset", "--auto-snapshot"],
 	text: [],
 	snapshot: ["--json", "-i", "-f"],
-	click: [],
+	click: ["--auto-snapshot"],
 	hover: ["--duration"],
 	screenshot: ["--viewport", "--selector", "--diff", "--threshold"],
 	console: ["--level", "--keep", "--json"],
@@ -138,6 +144,19 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	screenshots: ["--older-than"],
 	report: ["--out", "--title", "--screenshots"],
 	completions: [],
+	form: ["--auto-snapshot"],
+	"test-matrix": ["--roles", "--flow", "--env", "--reporter"],
+	"assert-ai": ["--model", "--provider"],
+	replay: ["--out"],
+	diff: [
+		"--baseline",
+		"--current",
+		"--flow",
+		"--threshold",
+		"--var",
+		"--no-screenshots",
+	],
+	"flow-share": [],
 };
 
 export type DaemonOptions = {
@@ -331,6 +350,10 @@ export async function startServer(
 		"screenshots",
 		"report",
 		"completions",
+		"replay",
+		"flow-share",
+		"test-matrix",
+		"diff",
 	]);
 
 	async function handleConnection(data: string): Promise<string> {
@@ -405,7 +428,7 @@ export async function startServer(
 
 				// Get browser version
 				let browserVersion = "unknown";
-				let chromiumPid: number | undefined;
+				let _chromiumPid: number | undefined;
 				try {
 					const browser = context.browser();
 					if (browser) {
@@ -486,13 +509,17 @@ export async function startServer(
 			async function executeCommand(): Promise<Response> {
 				switch (request.cmd) {
 					case "goto":
-						return handleGoto(page, request.args);
+						return handleGoto(page, request.args, {
+							autoSnapshot: request.args.includes("--auto-snapshot"),
+						});
 					case "text":
 						return handleText(page);
 					case "snapshot":
 						return handleSnapshot(page, request.args);
 					case "click":
-						return handleClick(page, request.args);
+						return handleClick(page, request.args, {
+							autoSnapshot: request.args.includes("--auto-snapshot"),
+						});
 					case "hover":
 						return handleHover(page, request.args);
 					case "fill":
@@ -609,6 +636,38 @@ export async function startServer(
 							error: `Unknown shell: '${shell}'. Supported: bash, zsh, fish`,
 						};
 					}
+					case "form":
+						return handleForm(page, request.args);
+					case "test-matrix":
+						return handleTestMatrix(
+							config,
+							page,
+							request.args,
+							{
+								consoleBuffer: getActiveConsoleBuffer(session),
+								networkBuffer: getActiveNetworkBuffer(session),
+							},
+							sessionContext,
+							context,
+							stealthOpts,
+						);
+					case "assert-ai":
+						return handleAssertAi(page, request.args);
+					case "replay":
+						return handleReplay(request.args);
+					case "diff":
+						return handleDiff(
+							config,
+							page,
+							request.args,
+							{
+								consoleBuffer: getActiveConsoleBuffer(session),
+								networkBuffer: getActiveNetworkBuffer(session),
+							},
+							sessionContext,
+						);
+					case "flow-share":
+						return handleFlowShare(config, request.args);
 					case "quit": {
 						const response = await handleQuit();
 						setTimeout(() => shutdown(), 50);
@@ -721,12 +780,12 @@ export async function startServer(
 			});
 
 			await new Promise<void>((resolve, reject) => {
-				tcpServer!.on("error", (err) => {
+				tcpServer?.on("error", (err) => {
 					// TCP bind failed — roll back the already-open Unix socket
 					server.close();
 					reject(err);
 				});
-				tcpServer!.listen(port, host, () => {
+				tcpServer?.listen(port, host, () => {
 					resolve();
 				});
 			});
