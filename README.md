@@ -55,6 +55,12 @@ browse upload @e5 /path/to/file.pdf  # set file on a file input
 browse scroll down                  # scroll down one viewport height
 browse scroll @e3                   # scroll element into view
 browse screenshot                   # capture the page
+browse trace start                  # start recording a Playwright trace
+browse trace stop --out trace.zip   # stop and save the trace
+browse init                         # generate a browse.config.json template
+browse screenshots list             # list saved screenshots
+browse report --out report.html     # generate an HTML report from screenshots
+browse completions bash             # output shell completions
 browse version                       # print version and platform
 browse quit                         # shut down the daemon
 ```
@@ -270,6 +276,7 @@ browse pdf ./report.pdf                     # export to specific path
 ```sh
 browse ping                                 # check if daemon is alive
 browse status                               # show URL, sessions, uptime
+browse status --json                        # machine-readable daemon status
 ```
 
 ### Flows and assertions
@@ -280,10 +287,13 @@ Define reusable flows in `browse.config.json`, then run them:
 browse flow list
 browse flow signup --var base_url=https://staging.example.com
 browse flow signup --reporter junit                    # JUnit XML output for CI
+browse flow signup --dry-run                           # preview steps without running
+browse flow signup --stream                            # real-time NDJSON step output
 browse assert text-contains "Welcome"
 browse assert visible ".dashboard"
 browse healthcheck --var base_url=https://staging.example.com
 browse healthcheck --reporter junit                    # JUnit XML output for CI
+browse healthcheck --parallel --concurrency 4          # check pages in parallel
 ```
 
 ### Timeouts
@@ -350,10 +360,13 @@ The daemon spawns on first use and stays alive for 30 minutes of inactivity. It 
 
 The daemon socket is secured with a shared-secret authentication token generated at startup and stored at `$XDG_STATE_HOME/browse/daemon.token` (or `~/.local/state/browse/daemon.token` when `$XDG_STATE_HOME` is unset), owner-readable only. The CLI reads this token and sends it with every request. SIGTERM and SIGINT are trapped for graceful shutdown — PID files, socket files, and token files are cleaned up automatically.
 
+For remote agent access, the daemon can also listen on a TCP port via `--listen <host>:<port>`. Crash recovery uses exponential backoff (3 retries at 1s/2s/4s delays) with a circuit breaker that trips after 3 consecutive failures.
+
 > **Note:** Rebuilding the binary does not restart a running daemon. If you rebuild after adding or changing commands, run `browse quit` first so the next call cold-starts with the new binary.
 
 ```
 CLI ──JSON──▶ Unix socket ──▶ Daemon ──▶ Playwright ──▶ Chromium
+              TCP socket ──┘
 ```
 
 ## Performance
@@ -397,13 +410,13 @@ Measured with `browse benchmark`:
 | `tab list\|new\|switch\|close` | Tab management |
 | `login --env <name>` | Configured login |
 | `auth-state save\|load <path>` | Session import/export |
-| `flow list\|<name>` | Run configured flows (`--reporter junit`) |
+| `flow list\|<name>` | Run configured flows (`--reporter junit`, `--dry-run`, `--stream`) |
 | `assert <type> <args>` | Assertions (visible, text, url, element, permission) |
-| `healthcheck` | Multi-page health check (`--reporter junit`) |
+| `healthcheck` | Multi-page health check (`--reporter junit`, `--parallel`, `--concurrency`) |
 | `a11y [@eN]` | Accessibility audit (`--standard`, `--json`, `--include`, `--exclude`) |
 | `session create\|list\|close` | Manage isolated browser sessions |
 | `ping` | Check if daemon is alive |
-| `status` | Show daemon status and uptime |
+| `status` | Show daemon status and uptime (`--json` for machine-readable) |
 | `dialog accept\|dismiss\|status\|auto-*` | Handle browser dialogs |
 | `download wait` | Wait for and save file downloads (`--save-to`, `--timeout`) |
 | `frame list\|switch\|main` | Navigate and inspect iframes |
@@ -416,6 +429,11 @@ Measured with `browse benchmark`:
 | `element-count <selector>` | Count elements matching a selector |
 | `wipe` | Clear all session data |
 | `benchmark` | Measure latency |
+| `trace start\|stop\|status` | Record Playwright traces (`--screenshots`, `--snapshots`, `--out`) |
+| `report --out <path>` | Generate HTML report from screenshots (`--title`, `--screenshots`) |
+| `init` | Generate a `browse.config.json` template (`--force` to overwrite) |
+| `screenshots list\|clean\|count` | Manage saved screenshots (`--older-than`) |
+| `completions bash\|zsh\|fish` | Output shell completion scripts |
 | `version` | Print version and platform info |
 | `quit` | Stop the daemon |
 

@@ -64,8 +64,10 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Tabs** | `tab list/new/switch/close` |
 | **Assert** | `assert visible/text-contains/url-contains/...` |
 | **Accessibility** | `a11y` (full page), `a11y @eN` (element), `a11y --standard wcag2aa`, `a11y --json` |
-| **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit`), `healthcheck` (`--reporter junit`) |
+| **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit`, `--dry-run`, `--stream`), `healthcheck` (`--reporter junit`, `--parallel`, `--concurrency`) |
 | **Sessions** | `session list/create/close`, `--session <name>` on any command |
+| **Tracing** | `trace start` (`--screenshots`, `--snapshots`), `trace stop --out <path>`, `trace status` |
+| **Tooling** | `init`, `report --out <path>`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status --json` |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.
 

@@ -105,7 +105,16 @@ type FlowStep =
   | { wait: WaitCondition }
   | { assert: AssertCondition }
   | { login: string }                    // environment name
-  | { snapshot: true };
+  | { snapshot: true }
+  | { if: FlowCondition; then: FlowStep[]; else?: FlowStep[] }
+  | { while: FlowCondition; do: FlowStep[] };
+
+type FlowCondition =
+  | { urlContains: string }
+  | { urlPattern: string }
+  | { elementVisible: string }
+  | { elementNotVisible: string }
+  | { textVisible: string };
 ```
 
 ### Variables
