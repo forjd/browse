@@ -63,9 +63,9 @@ Browse's differentiators: single-binary distribution, persistent daemon for sub-
 
 **Gaps identified:**
 
-1. **No visual diff / regression detection.** The tool takes screenshots but has no way to compare them against baselines. The agent takes a screenshot, then has to visually inspect it (using multimodal capabilities). There is no pixel-diff, perceptual-hash, or structural comparison. This is the single biggest missing capability — the roadmap lists it under "future considerations" but it is table stakes for a QA tool.
+1. ~~**No visual diff / regression detection.**~~ **Resolved.** `browse screenshot --diff baseline.png --threshold N` compares against a baseline and produces a diff image + similarity score. See `src/visual-diff.ts`.
 
-2. **No headed mode.** When the agent reports a failure, a human cannot see the browser to debug. The developer must reproduce the issue manually. `--headed` is listed as a future consideration but unimplemented. This breaks the agent-to-human handoff workflow.
+2. ~~**No headed mode.**~~ **Resolved.** Set `BROWSE_HEADED=1` before the daemon starts to launch visible Chromium. See `src/cli.ts`, `src/daemon.ts`.
 
 3. **No video/trace recording.** Playwright natively supports trace recording (`tracing.start()`) and video. Browse has no way to capture a session as a reviewable artifact. When an agent runs a 20-step flow and something fails at step 15, the only evidence is text output and a final screenshot.
 
@@ -79,7 +79,7 @@ Browse's differentiators: single-binary distribution, persistent daemon for sub-
 
 ### 2.2 Developer Experience
 
-8. **Config file must be in cwd.** `browse.config.json` is only loaded from the current working directory. No `--config` flag, no upward directory search, no `~/.browse/config.json` global config. If you run `browse` from a subdirectory, config is invisible.
+8. ~~**Config file must be in cwd.**~~ **Resolved.** Config is now resolved via `--config` flag > upward directory search > `~/.browse/config.json` global fallback. See `src/config.ts`.
 
 9. **No `browse init` scaffolding command.** New users must hand-write `browse.config.json` from scratch. There is no interactive setup, no template generation, no config validation command (beyond runtime errors).
 
@@ -91,7 +91,7 @@ Browse's differentiators: single-binary distribution, persistent daemon for sub-
 
 12. **Single retry on daemon crash with no backoff.** `retry.ts` retries exactly once. If the browser crashes due to a resource-intensive page and the respawned daemon hits the same page, it will crash again with no circuit breaking. The CLI should implement exponential backoff (2-3 retries) and optionally skip the failing command.
 
-13. **No SIGTERM/SIGINT handler in the daemon.** The daemon does not trap signals for graceful shutdown. If the process is killed, PID and socket files may be left behind. `lifecycle.ts` has cleanup functions but they are not wired to signal handlers.
+13. ~~**No SIGTERM/SIGINT handler in the daemon.**~~ **Resolved.** The daemon traps SIGTERM/SIGINT for graceful shutdown — clears idle timer, closes server/browser, removes PID/socket/token files. See `src/daemon.ts`.
 
 14. **No daemon health endpoint.** `browse ping` exists but there is no continuous health monitoring, no way for CI to poll daemon readiness, and no structured health response (uptime, memory, open sessions, browser version).
 
@@ -105,7 +105,7 @@ Browse's differentiators: single-binary distribution, persistent daemon for sub-
 
 ### 2.5 Security & Compliance
 
-18. **No authentication for the daemon socket.** Any process on the machine that can reach the Unix socket can send arbitrary commands, including `eval` (arbitrary JavaScript execution in the browser context). The socket has 0o600 permissions, but if the daemon is running as a shared user or in a container with shared `/tmp`, this is an unguarded RCE vector. A shared-secret token in the request protocol would mitigate this.
+18. ~~**No authentication for the daemon socket.**~~ **Resolved.** A 256-bit random token is generated at daemon startup, stored at `$XDG_STATE_HOME/browse/daemon.token` (0o600), and validated on every request. See `src/auth.ts`.
 
 ### 2.6 User Experience & Polish
 
@@ -117,7 +117,7 @@ Browse's differentiators: single-binary distribution, persistent daemon for sub-
 
 21. **No JSON output for all commands.** The `--json` flag exists but was only recently fixed (v0.7.1), and some commands still return human-readable text even with `--json`. For CI integration and programmatic consumption, every command should have a machine-parseable output mode.
 
-22. **No JUnit/TAP test output format.** Flows and healthchecks produce custom text output. CI systems expect JUnit XML or TAP. There is no `--reporter junit` flag, forcing teams to write output parsers.
+22. ~~**No JUnit/TAP test output format.**~~ **Resolved.** `--reporter junit` on `flow` and `healthcheck` commands outputs JUnit XML to stdout. See `src/reporters.ts`.
 
 23. **No webhook/callback on completion.** When a flow or healthcheck finishes, there is no way to notify an external system (Slack, PagerDuty, CI webhook). The tool is fire-and-forget from the terminal.
 
@@ -137,16 +137,18 @@ Documentation is strong — 12 pages covering commands, architecture, authentica
 
 ## Phase 3 — Prioritised List
 
-### Tier 1 — Table Stakes
+### Tier 1 — Table Stakes ✅
 
-| # | Feature | Category | Impact | Effort |
-|---|---|---|---|---|
-| 1 | **Visual diff screenshots** — `browse screenshot --diff baseline.png` that compares against a baseline and returns a diff image + similarity score | Core (2.1) | Enables regression detection, the primary QA use case, without relying on multimodal vision | M |
-| 2 | **Headed mode** — `browse goto --headed` or `BROWSE_HEADED=1` to launch visible Chromium | Core (2.1) | Unblocks human debugging when agent reports failures; bridges the agent→human handoff gap | S |
-| 3 | **Graceful signal handling** — trap SIGTERM/SIGINT in daemon, clean up PID/socket, close browser | Reliability (2.3) | Prevents orphaned files and zombie browser processes in CI and interactive use | S |
-| 4 | **Config file resolution** — `--config` flag + upward directory search + `~/.browse/config.json` global fallback | DX (2.2) | Lets users run `browse` from any subdirectory without losing config; standard CLI convention | S |
-| 5 | **Socket authentication token** — require a shared secret in request headers, generated on daemon start, saved to a token file | Security (2.5) | Prevents any local process from executing arbitrary JS via `browse eval` through the unguarded socket | S |
-| 6 | **JUnit/TAP reporter for flows and healthchecks** — `--reporter junit` writes XML to stdout or file | Ecosystem (2.7) | Makes Browse usable in CI pipelines that gate on test results (GitHub Actions, Jenkins, GitLab) | S |
+All Tier 1 items have been implemented.
+
+| # | Feature | Category | Impact | Effort | Status |
+|---|---|---|---|---|---|
+| 1 | **Visual diff screenshots** — `browse screenshot --diff baseline.png` that compares against a baseline and returns a diff image + similarity score | Core (2.1) | Enables regression detection, the primary QA use case, without relying on multimodal vision | M | ✅ Done |
+| 2 | **Headed mode** — `BROWSE_HEADED=1` to launch visible Chromium | Core (2.1) | Unblocks human debugging when agent reports failures; bridges the agent→human handoff gap | S | ✅ Done |
+| 3 | **Graceful signal handling** — trap SIGTERM/SIGINT in daemon, clean up PID/socket/token, close browser | Reliability (2.3) | Prevents orphaned files and zombie browser processes in CI and interactive use | S | ✅ Done |
+| 4 | **Config file resolution** — `--config` flag + upward directory search + `~/.browse/config.json` global fallback | DX (2.2) | Lets users run `browse` from any subdirectory without losing config; standard CLI convention | S | ✅ Done |
+| 5 | **Socket authentication token** — shared secret generated on daemon start, saved to token file, validated on every request | Security (2.5) | Prevents unauthorised processes without token-file access from executing arbitrary JS via `browse eval` through the socket | S | ✅ Done |
+| 6 | **JUnit reporter for flows and healthchecks** — `--reporter junit` writes XML to stdout | Ecosystem (2.7) | Makes Browse usable in CI pipelines that gate on test results (GitHub Actions, Jenkins, GitLab) | S | ✅ Done |
 
 ### Tier 2 — Competitive Edge
 
@@ -183,7 +185,7 @@ Documentation is strong — 12 pages covering commands, architecture, authentica
 
 Browse is a well-architected, well-documented tool that has executed its original six-phase roadmap cleanly. The foundation is solid. The gaps fall into three buckets:
 
-1. **Table stakes (items 1–6):** Visual diffing, headed mode, signal handling, config resolution, socket auth, and CI reporter formats. These are expected by any serious QA tool user and their absence will block adoption in team/CI contexts.
+1. **Table stakes (items 1–6):** ✅ **All complete.** Visual diffing, headed mode, signal handling, config resolution, socket auth, and JUnit reporter. These are expected by any serious QA tool user and were blocking adoption in team/CI contexts.
 
 2. **Competitive edge (items 7–18):** Trace recording, reports, retry hardening, TCP transport, and flow improvements. These differentiate Browse from "just use Playwright directly" and make the daemon architecture pay dividends.
 
