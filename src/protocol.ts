@@ -44,6 +44,11 @@ const VALID_COMMANDS = [
 	"title",
 	"pdf",
 	"element-count",
+	"trace",
+	"init",
+	"screenshots",
+	"report",
+	"completions",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];

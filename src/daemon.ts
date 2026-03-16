@@ -56,6 +56,11 @@ import { handleUrl } from "./commands/url.ts";
 import { handleViewport } from "./commands/viewport.ts";
 import { handleWait } from "./commands/wait.ts";
 import { handleWipe } from "./commands/wipe.ts";
+import { handleInit } from "./commands/init.ts";
+import { handleScreenshots } from "./commands/screenshots.ts";
+import { createTraceState, handleTrace } from "./commands/trace.ts";
+import { handleReport } from "./commands/report.ts";
+import { generateCompletions } from "./completions.ts";
 import type { BrowseConfig } from "./config.ts";
 import { loadConfig, resolveConfigPath } from "./config.ts";
 import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
@@ -92,9 +97,9 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	"auth-state": [],
 	login: ["--env"],
 	tab: [],
-	flow: ["--var", "--continue-on-error", "--reporter"],
+	flow: ["--var", "--continue-on-error", "--reporter", "--dry-run", "--stream"],
 	assert: ["--var", "--json"],
-	healthcheck: ["--var", "--no-screenshots", "--reporter"],
+	healthcheck: ["--var", "--no-screenshots", "--reporter", "--parallel", "--concurrency"],
 	wipe: [],
 	benchmark: ["--iterations"],
 	viewport: ["--device", "--preset"],
@@ -122,6 +127,12 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	title: [],
 	pdf: [],
 	"element-count": [],
+	trace: ["--screenshots", "--snapshots", "--out"],
+	init: ["--force"],
+	screenshots: ["--older-than"],
+	report: ["--out", "--title", "--screenshots"],
+	flow: ["--var", "--continue-on-error", "--reporter", "--dry-run", "--stream"],
+	completions: [],
 };
 
 export type DaemonOptions = {
@@ -131,6 +142,8 @@ export type DaemonOptions = {
 	headless?: boolean;
 	userDataDir?: string;
 	configPath?: string;
+	/** Optional TCP listen address, e.g. "tcp://0.0.0.0:9222" */
+	tcpListen?: string;
 };
 
 export type DaemonHandle = {
@@ -149,6 +162,8 @@ export type ServerDeps = {
 	config: BrowseConfig | null;
 	stealthOpts?: StealthOpts;
 	token?: string;
+	/** Optional TCP listen address, e.g. "tcp://0.0.0.0:9222" */
+	tcpListen?: string;
 };
 
 function attachPageListeners(page: Page, tabState: TabState): void {
@@ -193,8 +208,11 @@ export async function startServer(
 	let server: Server;
 	let idleTimer: IdleTimer;
 
-	const { context, config, stealthOpts, token } = deps;
+	const { context, config, stealthOpts, token, tcpListen } = deps;
 	const startTime = Date.now();
+
+	// Trace state for recording sessions
+	const traceState = createTraceState();
 
 	// Tab registry for default session
 	const initialTabState: TabState = {
@@ -291,6 +309,11 @@ export async function startServer(
 		"session",
 		"ping",
 		"status",
+		"trace",
+		"init",
+		"screenshots",
+		"report",
+		"completions",
 	]);
 
 	async function handleConnection(data: string): Promise<string> {
@@ -342,16 +365,73 @@ export async function startServer(
 			if (request.cmd === "status") {
 				const uptimeMs = Date.now() - startTime;
 				const uptimeSec = Math.floor(uptimeMs / 1000);
-				const statusData = [
-					`sessions: ${sessionRegistry.sessions.size}`,
-					`uptime: ${uptimeSec}s`,
-				];
+				const memUsage = process.memoryUsage();
+				const memMb = Math.round(memUsage.rss / 1024 / 1024);
+
+				// Collect session details
+				const sessionsInfo: Record<
+					string,
+					{ url: string; tabs: number; isolated: boolean }
+				> = {};
+				let totalTabs = 0;
 				for (const [name, session] of sessionRegistry.sessions) {
 					const tabCount = session.tabRegistry.tabs.length;
+					totalTabs += tabCount;
 					const page = getActivePage(session);
 					const url = page?.url() ?? "<no page>";
+					sessionsInfo[name] = {
+						url,
+						tabs: tabCount,
+						isolated: session.isolated,
+					};
+				}
+
+				// Get browser version
+				let browserVersion = "unknown";
+				let chromiumPid: number | undefined;
+				try {
+					const browser = context.browser();
+					if (browser) {
+						browserVersion = browser.version();
+					}
+				} catch {
+					// Browser info unavailable
+				}
+
+				if (request.json) {
+					const jsonData = {
+						uptime: uptimeSec,
+						uptimeMs,
+						memory: {
+							rss: memUsage.rss,
+							heapUsed: memUsage.heapUsed,
+							heapTotal: memUsage.heapTotal,
+							rssMb: memMb,
+						},
+						sessions: sessionRegistry.sessions.size,
+						totalTabs,
+						browserVersion,
+						daemonPid: process.pid,
+						sessionsDetail: sessionsInfo,
+					};
+					return serialiseResponse({
+						ok: true,
+						data: JSON.stringify(jsonData, null, 2),
+					});
+				}
+
+				const statusData = [
+					`Daemon PID: ${process.pid}`,
+					`Uptime: ${uptimeSec}s`,
+					`Memory: ${memMb} MB`,
+					`Browser: Chromium ${browserVersion}`,
+					`Sessions: ${sessionRegistry.sessions.size}`,
+					`Total tabs: ${totalTabs}`,
+					"",
+				];
+				for (const [name, info] of Object.entries(sessionsInfo)) {
 					statusData.push(
-						`  ${name}: ${url} (${tabCount} tab${tabCount !== 1 ? "s" : ""})`,
+						`  ${name}: ${info.url} (${info.tabs} tab${info.tabs !== 1 ? "s" : ""}${info.isolated ? ", isolated" : ""})`,
 					);
 				}
 				return serialiseResponse({
@@ -429,10 +509,16 @@ export async function startServer(
 					case "assert":
 						return handleAssert(config, page, request.args);
 					case "healthcheck":
-						return handleHealthcheck(config, page, request.args, {
-							consoleBuffer: getActiveConsoleBuffer(session),
-							networkBuffer: getActiveNetworkBuffer(session),
-						});
+						return handleHealthcheck(
+							config,
+							page,
+							request.args,
+							{
+								consoleBuffer: getActiveConsoleBuffer(session),
+								networkBuffer: getActiveNetworkBuffer(session),
+							},
+							sessionContext,
+						);
 					case "wipe":
 						return handleWipe({
 							context: sessionContext,
@@ -483,6 +569,25 @@ export async function startServer(
 						return handlePdf(page, request.args);
 					case "element-count":
 						return handleElementCount(page, request.args);
+					case "trace":
+						return handleTrace(sessionContext, traceState, request.args);
+					case "init":
+						return handleInit(request.args);
+					case "screenshots":
+						return handleScreenshots(request.args);
+					case "report":
+						return handleReport(request.args);
+					case "completions": {
+						const shell = request.args[0] ?? "bash";
+						const script = generateCompletions(shell);
+						if (script) {
+							return { ok: true, data: script };
+						}
+						return {
+							ok: false,
+							error: `Unknown shell: '${shell}'. Supported: bash, zsh, fish`,
+						};
+					}
 					case "quit": {
 						const response = await handleQuit();
 						setTimeout(() => shutdown(), 50);
@@ -556,7 +661,49 @@ export async function startServer(
 		// Socket file may not be accessible — continue
 	}
 
-	return { server, idleTimer, shutdown };
+	// Optional TCP transport — allows remote agents to connect over the network
+	let tcpServer: Server | undefined;
+	if (tcpListen) {
+		const match = tcpListen.match(/^tcp:\/\/([^:]+):(\d+)$/);
+		if (match) {
+			const [, host, portStr] = match;
+			const port = Number.parseInt(portStr, 10);
+
+			tcpServer = createServer((socket) => {
+				let tcpBuffer = "";
+				socket.on("data", (chunk) => {
+					tcpBuffer += chunk.toString();
+					const newlineIndex = tcpBuffer.indexOf("\n");
+					if (newlineIndex === -1) return;
+
+					const line = tcpBuffer.slice(0, newlineIndex);
+					tcpBuffer = tcpBuffer.slice(newlineIndex + 1);
+
+					handleConnection(line).then(
+						(responseStr) => {
+							socket.end(responseStr);
+						},
+						(err) => {
+							const errResponse = serialiseResponse({
+								ok: false,
+								error: err instanceof Error ? err.message : String(err),
+							});
+							socket.end(errResponse);
+						},
+					);
+				});
+			});
+
+			await new Promise<void>((resolve, reject) => {
+				tcpServer!.on("error", reject);
+				tcpServer!.listen(port, host, () => {
+					resolve();
+				});
+			});
+		}
+	}
+
+	return { server, idleTimer, shutdown, tcpServer };
 }
 
 /**
@@ -628,6 +775,7 @@ export async function startDaemon(
 			config,
 			stealthOpts: { userAgent, navigatorPlatform, chromeMajor },
 			token,
+			tcpListen: options.tcpListen,
 		},
 		lifecycleConfig,
 		async () => {

@@ -133,14 +133,17 @@ browse tab close [index]     Close tab (closes active tab if no index)`,
 	flow: {
 		summary: "Execute a named flow",
 		usage: `browse flow list                          List defined flows
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream]
 
 Flags:
   --var key=value       Pass variables to flow (repeatable)
   --continue-on-error   Continue running steps even if one fails
   --reporter <format>   Output format: junit (JUnit XML for CI integration)
+  --dry-run             Preview step plan without executing
+  --stream              Emit step results as NDJSON as they complete
 
-Flows are defined in browse.config.json.`,
+Flows are defined in browse.config.json. Flows support conditional logic
+(if/else) and loops (while) with condition expressions.`,
 	},
 	assert: {
 		summary: "Assert a condition (PASS/FAIL)",
@@ -162,12 +165,14 @@ Flags:
 	},
 	healthcheck: {
 		summary: "Run healthcheck across configured pages",
-		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit]
+		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N]
 
 Flags:
   --var key=value       Pass variables for URL interpolation (repeatable)
   --no-screenshots      Skip screenshot capture
   --reporter <format>   Output format: junit (JUnit XML for CI integration)
+  --parallel            Check pages concurrently using separate browser tabs
+  --concurrency <N>     Max pages to check in parallel (default: 5, requires --parallel)
 
 Pages are defined in browse.config.json.`,
 	},
@@ -317,9 +322,13 @@ Use --session <name> on any command to route it to a named session:
 		usage: "browse ping\n\nReturns 'pong' if the daemon is running.",
 	},
 	status: {
-		summary: "Show daemon status and uptime",
-		usage:
-			"browse status\n\nShows current URL, session count, uptime, and tab counts per session.",
+		summary: "Show daemon status and health info",
+		usage: `browse status [--json]
+
+Shows daemon PID, uptime, memory usage, browser version, session count,
+total tabs, and per-session details.
+
+With --json, returns structured JSON with all health metrics for CI readiness checks.`,
 	},
 	dialog: {
 		summary: "Handle browser dialogs (alert, confirm, prompt)",
@@ -400,6 +409,58 @@ If no path given, saves to ~/.bun-browse/exports/ with a timestamp.`,
 
 Returns the number of elements matching the selector.`,
 	},
+	trace: {
+		summary: "Record and save Playwright traces",
+		usage: `browse trace start [--screenshots] [--snapshots]   Start recording
+browse trace stop [--out <path>]                   Stop and save trace
+browse trace status                                Check recording status
+
+Flags:
+  --screenshots   Capture screenshots during recording
+  --snapshots     Capture DOM snapshots during recording
+  --out <path>    Output path for trace file (default: ~/.bun-browse/traces/)
+
+View traces with: npx playwright show-trace <trace.zip>`,
+	},
+	init: {
+		summary: "Generate a browse.config.json template",
+		usage: `browse init [path] [--force]
+
+Flags:
+  --force   Overwrite existing config file
+
+Generates a template browse.config.json with sample environments,
+flows, and healthcheck configuration.`,
+	},
+	screenshots: {
+		summary: "Manage screenshot files",
+		usage: `browse screenshots list                    List all screenshots
+browse screenshots clean [--older-than <duration>]   Delete screenshots
+browse screenshots count                  Show count and total size
+
+Flags:
+  --older-than <duration>   Only delete screenshots older than duration (e.g. 7d, 24h, 30m)`,
+	},
+	report: {
+		summary: "Generate an HTML QA report",
+		usage: `browse report --out <path> [--title <title>] [--screenshots <dir>]
+
+Flags:
+  --out <path>          Output path for the HTML report (required)
+  --title <title>       Report title (default: "Browse QA Report")
+  --screenshots <dir>   Directory containing screenshots (default: ~/.bun-browse/screenshots/)`,
+	},
+	completions: {
+		summary: "Generate shell completion scripts",
+		usage: `browse completions <shell>
+
+Supported shells: bash, zsh, fish
+
+Install completions:
+  browse completions bash > ~/.local/share/bash-completion/completions/browse
+  browse completions zsh > ~/.zfunc/_browse
+  browse completions fish > ~/.config/fish/completions/browse.fish`,
+	},
 };
 
 export function formatOverview(): string {
@@ -419,6 +480,9 @@ export function formatOverview(): string {
 		"  --session <name>     Route command to a named session",
 		"  --json               Request JSON output (where supported)",
 		"  --config <path>      Path to browse.config.json (default: search upward from cwd, then ~/.browse/config.json)",
+		"",
+		"Daemon flags:",
+		"  --listen <addr>      Also listen on TCP (e.g. tcp://0.0.0.0:9222) for remote agent access",
 		"",
 		"Environment variables:",
 		"  BROWSE_HEADED=1      Launch browser in headed (visible) mode",

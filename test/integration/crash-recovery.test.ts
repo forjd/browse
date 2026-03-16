@@ -4,7 +4,11 @@ import { join } from "node:path";
 import type { LifecycleConfig } from "../../src/lifecycle.ts";
 import { checkStalePid, cleanupFiles } from "../../src/lifecycle.ts";
 import type { Response } from "../../src/protocol.ts";
-import { type RetryDeps, sendWithRetry } from "../../src/retry.ts";
+import {
+	resetCircuitBreaker,
+	type RetryDeps,
+	sendWithRetry,
+} from "../../src/retry.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-crash");
 let testIndex = 0;
@@ -23,6 +27,7 @@ function testPaths(): LifecycleConfig & { dir: string } {
 
 beforeEach(() => {
 	mkdirSync(TEST_DIR, { recursive: true });
+	resetCircuitBreaker();
 });
 
 afterEach(() => {
@@ -114,9 +119,9 @@ describe("integration: crash recovery", () => {
 		};
 
 		await expect(sendWithRetry(deps, "text", [])).rejects.toThrow(
-			"Daemon crashed and recovery failed",
+			"Daemon crashed and recovery failed after 3 attempts",
 		);
-		// Exactly 2 calls: initial + one retry
-		expect(deps.sendRequest).toHaveBeenCalledTimes(2);
+		// 1 initial + 3 retry attempts = 4 calls
+		expect(deps.sendRequest).toHaveBeenCalledTimes(4);
 	});
 });
