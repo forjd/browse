@@ -73,25 +73,32 @@ function collectScreenshots(dir: string): ScreenshotEntry[] {
 			continue;
 		}
 
-		const filePath = join(dir, file);
-		const stat = statSync(filePath);
+		try {
+			const filePath = join(dir, file);
+			const stat = statSync(filePath);
 
-		if (!stat.isFile()) {
-			continue;
-		}
+			if (!stat.isFile()) {
+				continue;
+			}
 
-		const ext = file.split(".").pop()?.toLowerCase() ?? "png";
-		const mime =
-			ext === "jpg" || ext === "jpeg"
-				? "image/jpeg"
-				: ext === "webp"
-					? "image/webp"
-					: "image/png";
+			const ext = file.split(".").pop()?.toLowerCase() ?? "png";
+			const mime =
+				ext === "jpg" || ext === "jpeg"
+					? "image/jpeg"
+					: ext === "webp"
+						? "image/webp"
+						: "image/png";
 
-		const raw = readFileSync(filePath);
-		const base64 = `data:${mime};base64,${raw.toString("base64")}`;
+			const raw = readFileSync(filePath);
+			const base64 = `data:${mime};base64,${raw.toString("base64")}`;
 
-		entries.push({ name: file, path: filePath, mtime: stat.mtime, base64 });
+			entries.push({
+				name: file,
+				path: filePath,
+				mtime: stat.mtime,
+				base64,
+			});
+		} catch {}
 	}
 
 	entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
@@ -103,7 +110,8 @@ function escapeHtml(text: string): string {
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")
 		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;");
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
 }
 
 function formatTimestamp(date: Date): string {

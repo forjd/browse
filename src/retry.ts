@@ -31,7 +31,7 @@ const MAX_RETRIES = 3;
 /**
  * Backoff delays in milliseconds for each retry attempt (1s, 2s, 4s).
  */
-const BACKOFF_DELAYS = [1_000, 2_000, 4_000];
+const BACKOFF_DELAYS = [1_000, 2_000];
 
 /**
  * Circuit breaker: number of consecutive failures before skipping.
@@ -95,7 +95,7 @@ export async function sendWithRetry(
 						`Daemon crashed and recovery failed after ${MAX_RETRIES} attempts. Error: ${detail}`,
 					);
 				}
-				await sleep(BACKOFF_DELAYS[attempt]);
+				await sleep(BACKOFF_DELAYS[attempt] ?? 1_000);
 				continue;
 			}
 
@@ -119,7 +119,7 @@ export async function sendWithRetry(
 						`Daemon crashed and recovery failed after ${MAX_RETRIES} attempts. Error: ${detail}`,
 					);
 				}
-				await sleep(BACKOFF_DELAYS[attempt]);
+				await sleep(BACKOFF_DELAYS[attempt] ?? 1_000);
 			}
 		}
 

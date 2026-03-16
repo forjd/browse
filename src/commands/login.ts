@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { BrowseConfig, EnvironmentConfig } from "../config.ts";
 import type { Response } from "../protocol.ts";
+import { compileSafePattern } from "../safe-pattern.ts";
 
 const DEFAULT_USERNAME_FIELDS = ["Username", "Email"];
 const DEFAULT_PASSWORD_FIELDS = ["Password"];
@@ -149,7 +150,7 @@ async function waitForSuccess(
 			timeout: 10_000,
 		});
 	} else if ("urlPattern" in condition) {
-		await page.waitForURL(new RegExp(condition.urlPattern), {
+		await page.waitForURL(compileSafePattern(condition.urlPattern), {
 			timeout: 10_000,
 		});
 	} else if ("elementVisible" in condition) {
