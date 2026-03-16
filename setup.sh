@@ -56,6 +56,12 @@ if [ ! -f dist/browse ]; then
   exit 1
 fi
 
+# Re-sign on macOS — Bun's --compile invalidates the linker signature
+if [ "$(uname -s)" = "Darwin" ]; then
+  codesign -s - -f dist/browse
+  echo "  ✓ ad-hoc signed"
+fi
+
 # Copy screenxy-fix extension alongside the binary
 if [ -d extensions/screenxy-fix ]; then
   mkdir -p dist/extensions/screenxy-fix

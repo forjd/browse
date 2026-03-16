@@ -66,6 +66,13 @@ if ! curl -fSL --progress-bar -o "${BIN_DIR}/browse" "$DOWNLOAD_URL"; then
 fi
 
 chmod +x "${BIN_DIR}/browse"
+
+# Re-sign on macOS — downloaded binaries may have invalid signatures
+if [ "$(uname -s)" = "Darwin" ]; then
+  codesign -s - -f "${BIN_DIR}/browse" 2>/dev/null || true
+  xattr -d com.apple.quarantine "${BIN_DIR}/browse" 2>/dev/null || true
+fi
+
 echo "  binary: ${BIN_DIR}/browse"
 
 # Install Playwright Chromium

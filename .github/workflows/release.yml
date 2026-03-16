@@ -61,6 +61,10 @@ jobs:
             ./src/cli.ts --outfile dist/${{ matrix.artifact }} \
             --external electron --external chromium-bidi
 
+      - name: Ad-hoc sign macOS binary
+        if: runner.os == 'macOS'
+        run: codesign -s - -f dist/${{ matrix.artifact }}
+
       - name: Upload binary to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
