@@ -116,7 +116,6 @@ export function resolveConfigPath(explicitPath?: string): string | null {
 
 	// Walk upward from cwd
 	let dir = process.cwd();
-	const _root = dirname(dir) === dir ? dir : undefined; // handle root
 	while (true) {
 		const candidate = join(dir, "browse.config.json");
 		if (existsSync(candidate)) {

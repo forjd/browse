@@ -79,7 +79,8 @@ export async function handleForm(
 					if ((await locator.count()) > 0) {
 						if (value) {
 							await locator.first().check({ timeout: 5_000 });
-						} else {
+						} else if (role !== "radio") {
+							// Radio buttons cannot be unchecked
 							await locator.first().uncheck({ timeout: 5_000 });
 						}
 						filled.push(`${fieldName}: ${value} (${role})`);

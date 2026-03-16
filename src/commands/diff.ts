@@ -24,6 +24,7 @@ type PageDiffResult = {
 	diffPixels: number;
 	totalPixels: number;
 	diffImagePath?: string;
+	error?: string;
 };
 
 /**
@@ -38,17 +39,16 @@ type PageDiffResult = {
  */
 export async function handleDiff(
 	config: BrowseConfig | null,
-	page: Page,
+	_page: Page,
 	args: string[],
 	_deps: DiffDeps,
-	_context: BrowserContext,
+	context: BrowserContext,
 ): Promise<Response> {
 	// Parse args
 	let baselineUrl: string | undefined;
 	let currentUrl: string | undefined;
 	let flowName: string | undefined;
 	let threshold = 10;
-	let _noScreenshots = false;
 	const vars = parseVars(args);
 
 	for (let i = 0; i < args.length; i++) {
@@ -66,8 +66,6 @@ export async function handleDiff(
 			const val = Number(args[i + 1]);
 			if (!Number.isNaN(val)) threshold = val;
 			i++;
-		} else if (arg === "--no-screenshots") {
-			_noScreenshots = true;
 		}
 	}
 
@@ -118,101 +116,119 @@ export async function handleDiff(
 
 	const results: PageDiffResult[] = [];
 
-	for (let i = 0; i < flowPages.length; i++) {
-		const relativePath = flowPages[i];
-		const baseUrl = relativePath.startsWith("http")
-			? relativePath
-			: `${baselineUrl.replace(/\/$/, "")}${relativePath.startsWith("/") ? "" : "/"}${relativePath}`;
-		const currUrl = relativePath.startsWith("http")
-			? relativePath.replace(
-					new URL(relativePath).origin,
-					currentUrl.replace(/\/$/, ""),
-				)
-			: `${currentUrl.replace(/\/$/, "")}${relativePath.startsWith("/") ? "" : "/"}${relativePath}`;
+	// Use a temporary page to avoid mutating the caller's active tab
+	const diffPage = await context.newPage();
 
-		const pageName =
-			relativePath.replace(/[^a-zA-Z0-9]/g, "-").replace(/^-|-$/g, "") ||
-			"home";
+	try {
+		for (let i = 0; i < flowPages.length; i++) {
+			const relativePath = flowPages[i];
+			let baseUrl: string;
+			let currUrl: string;
 
-		// Screenshot baseline
-		const baselinePath = join(
-			diffDir,
-			`diff-${timestamp}-${pageName}-baseline.png`,
-		);
-		const currentPath = join(
-			diffDir,
-			`diff-${timestamp}-${pageName}-current.png`,
-		);
+			if (relativePath.startsWith("http")) {
+				// Absolute URL — rebase onto each deployment origin
+				const parsed = new URL(relativePath);
+				const baseOrigin = new URL(baselineUrl);
+				const currOrigin = new URL(currentUrl);
+				baseUrl = `${baseOrigin.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+				currUrl = `${currOrigin.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
+			} else {
+				const path = relativePath.startsWith("/")
+					? relativePath
+					: `/${relativePath}`;
+				baseUrl = `${baselineUrl.replace(/\/$/, "")}${path}`;
+				currUrl = `${currentUrl.replace(/\/$/, "")}${path}`;
+			}
 
-		try {
-			await page.goto(baseUrl, {
-				waitUntil: "domcontentloaded",
-				timeout: 30_000,
-			});
-			await page.screenshot({ path: baselinePath, fullPage: true });
-		} catch (err) {
-			const _message = err instanceof Error ? err.message : String(err);
-			results.push({
-				name: pageName,
-				url: baseUrl,
-				baselineScreenshot: "",
-				currentScreenshot: "",
-				similarity: 0,
-				diffPixels: 0,
-				totalPixels: 0,
-			});
-			continue;
-		}
+			const pageName =
+				relativePath.replace(/[^a-zA-Z0-9]/g, "-").replace(/^-|-$/g, "") ||
+				"home";
 
-		try {
-			await page.goto(currUrl, {
-				waitUntil: "domcontentloaded",
-				timeout: 30_000,
-			});
-			await page.screenshot({ path: currentPath, fullPage: true });
-		} catch (err) {
-			const _message = err instanceof Error ? err.message : String(err);
-			results.push({
-				name: pageName,
-				url: currUrl,
-				baselineScreenshot: baselinePath,
-				currentScreenshot: "",
-				similarity: 0,
-				diffPixels: 0,
-				totalPixels: 0,
-			});
-			continue;
-		}
-
-		// Compare screenshots
-		try {
-			const diffResult = compareScreenshots(
-				currentPath,
-				baselinePath,
-				threshold,
+			// Screenshot baseline
+			const baselinePath = join(
+				diffDir,
+				`diff-${timestamp}-${pageName}-baseline.png`,
 			);
-			results.push({
-				name: pageName,
-				url: relativePath,
-				baselineScreenshot: baselinePath,
-				currentScreenshot: currentPath,
-				similarity: diffResult.similarity,
-				diffPixels: diffResult.diffPixels,
-				totalPixels: diffResult.totalPixels,
-				diffImagePath: diffResult.diffImagePath,
-			});
-		} catch (err) {
-			const _message = err instanceof Error ? err.message : String(err);
-			results.push({
-				name: pageName,
-				url: relativePath,
-				baselineScreenshot: baselinePath,
-				currentScreenshot: currentPath,
-				similarity: 0,
-				diffPixels: 0,
-				totalPixels: 0,
-			});
+			const currentPath = join(
+				diffDir,
+				`diff-${timestamp}-${pageName}-current.png`,
+			);
+
+			try {
+				await diffPage.goto(baseUrl, {
+					waitUntil: "domcontentloaded",
+					timeout: 30_000,
+				});
+				await diffPage.screenshot({ path: baselinePath, fullPage: true });
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				results.push({
+					name: pageName,
+					url: baseUrl,
+					baselineScreenshot: "",
+					currentScreenshot: "",
+					similarity: 0,
+					diffPixels: 0,
+					totalPixels: 0,
+					error: `Baseline load failed: ${message}`,
+				});
+				continue;
+			}
+
+			try {
+				await diffPage.goto(currUrl, {
+					waitUntil: "domcontentloaded",
+					timeout: 30_000,
+				});
+				await diffPage.screenshot({ path: currentPath, fullPage: true });
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				results.push({
+					name: pageName,
+					url: currUrl,
+					baselineScreenshot: baselinePath,
+					currentScreenshot: "",
+					similarity: 0,
+					diffPixels: 0,
+					totalPixels: 0,
+					error: `Current load failed: ${message}`,
+				});
+				continue;
+			}
+
+			// Compare screenshots
+			try {
+				const diffResult = compareScreenshots(
+					currentPath,
+					baselinePath,
+					threshold,
+				);
+				results.push({
+					name: pageName,
+					url: relativePath,
+					baselineScreenshot: baselinePath,
+					currentScreenshot: currentPath,
+					similarity: diffResult.similarity,
+					diffPixels: diffResult.diffPixels,
+					totalPixels: diffResult.totalPixels,
+					diffImagePath: diffResult.diffImagePath,
+				});
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				results.push({
+					name: pageName,
+					url: relativePath,
+					baselineScreenshot: baselinePath,
+					currentScreenshot: currentPath,
+					similarity: 0,
+					diffPixels: 0,
+					totalPixels: 0,
+					error: `Comparison failed: ${message}`,
+				});
+			}
 		}
+	} finally {
+		await diffPage.close().catch(() => {});
 	}
 
 	// Format report
@@ -230,6 +246,9 @@ export async function handleDiff(
 		lines.push(
 			`  ${mark} ${result.name}: ${result.similarity.toFixed(1)}% similar`,
 		);
+		if (result.error) {
+			lines.push(`    Error: ${result.error}`);
+		}
 		if (!isIdentical && result.diffPixels > 0) {
 			lines.push(
 				`    Changed pixels: ${result.diffPixels}/${result.totalPixels}`,

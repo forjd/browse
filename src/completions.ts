@@ -65,10 +65,10 @@ const COMMANDS = [
 const GLOBAL_FLAGS = ["--timeout", "--session", "--json", "--config"];
 
 const KNOWN_FLAGS: Record<string, string[]> = {
-	goto: ["--viewport", "--device", "--preset"],
+	goto: ["--viewport", "--device", "--preset", "--auto-snapshot"],
 	text: [],
 	snapshot: ["--json", "-i", "-f"],
-	click: [],
+	click: ["--auto-snapshot"],
 	hover: ["--duration"],
 	fill: [],
 	select: [],

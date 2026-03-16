@@ -1,5 +1,5 @@
 import type { BrowserContext, Page } from "playwright";
-import type { RingBuffer } from "../buffers.ts";
+import { RingBuffer } from "../buffers.ts";
 import type { BrowseConfig } from "../config.ts";
 import type { StealthOpts } from "../daemon.ts";
 import { parseVars, runFlow, type StepResult } from "../flow-runner.ts";
@@ -159,7 +159,6 @@ export async function handleTestMatrix(
 			}
 
 			// Create buffers for this role's session
-			const { RingBuffer } = await import("../buffers.ts");
 			const consoleBuffer = new RingBuffer<ConsoleEntry>(500);
 			const networkBuffer = new RingBuffer<NetworkEntry>(500);
 
