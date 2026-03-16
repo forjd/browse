@@ -1276,7 +1276,7 @@ browse completions fish | source     # add to fish config
 
 ### form
 
-```
+```sh
 browse form --data <json> [--auto-snapshot]
 ```
 
@@ -1300,7 +1300,7 @@ browse form --data '{"agree":true,"plan":"premium"}' --auto-snapshot
 
 ### assert-ai
 
-```
+```sh
 browse assert-ai "<assertion>" [--model <model>] [--provider <provider>] [--base-url <url>]
 ```
 
@@ -1338,7 +1338,7 @@ browse assert-ai "page looks correct" --base-url https://openrouter.ai/api/v1 --
 
 ### test-matrix
 
-```
+```sh
 browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter junit]
 ```
 
@@ -1367,22 +1367,21 @@ browse test-matrix --roles admin,viewer --flow dashboard --reporter junit > resu
 
 ### diff
 
-```
-browse diff --baseline <url> --current <url> [--flow <name>] [--threshold <0-1>] [--var k=v] [--no-screenshots]
+```sh
+browse diff --baseline <url> --current <url> [--flow <name>] [--threshold <n>] [--var k=v]
 ```
 
 Visual diff across two deployments. Navigates to matching pages on both baseline and current URLs, screenshots each, and compares pixel similarity.
 
-If `--flow` is specified, extracts goto URLs from the flow steps. Otherwise uses healthcheck pages from config.
+If `--flow` is specified, extracts goto URLs from the flow steps. Otherwise, uses healthcheck pages from config.
 
 | Flag | Description |
 |------|-------------|
 | `--baseline <url>` | Baseline deployment URL |
 | `--current <url>` | Current deployment URL |
 | `--flow <name>` | Flow whose goto steps define pages to compare |
-| `--threshold <0-1>` | Similarity threshold (default: 0.95) |
+| `--threshold <n>` | Pixel difference threshold (default: 10). Lower values are stricter. |
 | `--var k=v` | Pass variables (repeatable) |
-| `--no-screenshots` | Skip saving screenshot files |
 
 **Examples:**
 
@@ -1398,7 +1397,7 @@ browse diff --baseline https://old.example.com --current https://new.example.com
 
 ### replay
 
-```
+```sh
 browse replay [session] [--out <path>]
 browse replay list
 ```
@@ -1428,7 +1427,7 @@ browse replay list
 
 ### flow-share
 
-```
+```sh
 browse flow-share <subcommand> [args]
 ```
 

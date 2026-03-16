@@ -6,11 +6,26 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import type { BrowseConfig } from "../config.ts";
 import type { Response } from "../protocol.ts";
 
 const FLOW_REGISTRY_DIR = join(homedir(), ".bun-browse", "flow-registry");
+
+/** Sanitise a flow name to prevent path traversal. */
+function sanitizeFlowName(name: string): string {
+	return basename(name).replace(/[^a-zA-Z0-9._-]/g, "-");
+}
+
+/** Validate that a registry path stays inside FLOW_REGISTRY_DIR. */
+function safeRegistryPath(flowName: string): string {
+	const sanitized = sanitizeFlowName(flowName);
+	const target = resolve(FLOW_REGISTRY_DIR, `${sanitized}.flow.json`);
+	if (!target.startsWith(resolve(FLOW_REGISTRY_DIR))) {
+		throw new Error(`Invalid flow name: ${flowName}`);
+	}
+	return target;
+}
 
 /**
  * Flow sharing: export, import, and manage reusable flow definitions.
@@ -82,8 +97,13 @@ function handleExport(config: BrowseConfig | null, args: string[]): Response {
 		},
 	};
 
-	const outPath = `${flowName}.flow.json`;
-	writeFileSync(outPath, JSON.stringify(exportData, null, 2), "utf-8");
+	const outPath = `${sanitizeFlowName(flowName)}.flow.json`;
+	try {
+		writeFileSync(outPath, JSON.stringify(exportData, null, 2), "utf-8");
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: `Failed to write ${outPath}: ${message}` };
+	}
 
 	return {
 		ok: true,
@@ -122,12 +142,19 @@ function handleImport(args: string[]): Response {
 		return { ok: false, error: `Invalid JSON in ${source}` };
 	}
 
-	const flowName = String(flowData.name ?? basename(source, ".flow.json"));
+	const flowName = sanitizeFlowName(
+		String(flowData.name ?? basename(source, ".flow.json")),
+	);
 
 	// Save to registry
 	mkdirSync(FLOW_REGISTRY_DIR, { recursive: true });
-	const registryPath = join(FLOW_REGISTRY_DIR, `${flowName}.flow.json`);
-	writeFileSync(registryPath, JSON.stringify(flowData, null, 2), "utf-8");
+	const registryPath = safeRegistryPath(flowName);
+	try {
+		writeFileSync(registryPath, JSON.stringify(flowData, null, 2), "utf-8");
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: `Failed to write to registry: ${message}` };
+	}
 
 	return {
 		ok: true,
@@ -212,6 +239,7 @@ async function handleInstall(args: string[]): Promise<Response> {
 
 	let rawContent: string | undefined;
 	let fetchedUrl: string | undefined;
+	let lastError: string | undefined;
 
 	for (const url of urls) {
 		try {
@@ -221,13 +249,16 @@ async function handleInstall(args: string[]): Promise<Response> {
 				fetchedUrl = url;
 				break;
 			}
-		} catch {}
+			lastError = `HTTP ${response.status}`;
+		} catch (err) {
+			lastError = err instanceof Error ? err.message : String(err);
+		}
 	}
 
 	if (!rawContent) {
 		return {
 			ok: false,
-			error: `Could not fetch flow from ${user}/${repo}/${flowFile}.\nTried:\n${urls.map((u) => `  ${u}`).join("\n")}`,
+			error: `Could not fetch flow from ${user}/${repo}/${flowFile}.${lastError ? ` Last error: ${lastError}` : ""}\nTried:\n${urls.map((u) => `  ${u}`).join("\n")}`,
 		};
 	}
 
@@ -241,11 +272,21 @@ async function handleInstall(args: string[]): Promise<Response> {
 		};
 	}
 
-	const flowName = String(flowData.name ?? basename(flowFile, ".flow.json"));
+	const flowName = sanitizeFlowName(
+		String(flowData.name ?? basename(flowFile, ".flow.json")),
+	);
 
 	mkdirSync(FLOW_REGISTRY_DIR, { recursive: true });
-	const registryPath = join(FLOW_REGISTRY_DIR, `${flowName}.flow.json`);
-	writeFileSync(registryPath, JSON.stringify(flowData, null, 2), "utf-8");
+	const registryPath = safeRegistryPath(flowName);
+	try {
+		writeFileSync(registryPath, JSON.stringify(flowData, null, 2), "utf-8");
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return {
+			ok: false,
+			error: `Failed to write to registry: ${message}`,
+		};
+	}
 
 	return {
 		ok: true,
@@ -286,8 +327,13 @@ function handlePublish(config: BrowseConfig | null, args: string[]): Response {
 	};
 
 	mkdirSync(FLOW_REGISTRY_DIR, { recursive: true });
-	const registryPath = join(FLOW_REGISTRY_DIR, `${flowName}.flow.json`);
-	writeFileSync(registryPath, JSON.stringify(exportData, null, 2), "utf-8");
+	const registryPath = safeRegistryPath(flowName);
+	try {
+		writeFileSync(registryPath, JSON.stringify(exportData, null, 2), "utf-8");
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: `Failed to write to registry: ${message}` };
+	}
 
 	return {
 		ok: true,

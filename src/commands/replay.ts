@@ -50,8 +50,8 @@ export async function handleReplay(args: string[]): Promise<Response> {
 		return listReplays(replayDir);
 	}
 
-	// Find the most recent session log or specified one
-	const sessionName =
+	// Optional label for the replay (positional arg, e.g. "browse replay my-session")
+	const sessionLabel =
 		subcommand && subcommand !== "--out" ? subcommand : undefined;
 
 	const screenshotsDir = join(homedir(), ".bun-browse", "screenshots");
@@ -76,7 +76,7 @@ export async function handleReplay(args: string[]): Promise<Response> {
 	}));
 
 	// Generate HTML
-	const html = generateReplayHtml(entries, sessionName ?? "session");
+	const html = generateReplayHtml(entries, sessionLabel ?? "session");
 
 	if (!outPath) {
 		const pad = (n: number, len = 2) => String(n).padStart(len, "0");
