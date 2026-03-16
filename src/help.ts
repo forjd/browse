@@ -496,7 +496,7 @@ Examples:
 	},
 	"assert-ai": {
 		summary: "AI-powered visual assertion using a vision model",
-		usage: `browse assert-ai "<assertion>" [--model <model>] [--provider <anthropic|openai>]
+		usage: `browse assert-ai "<assertion>" [--model <model>] [--provider <anthropic|openai>] [--base-url <url>]
 
 Takes a viewport screenshot and sends it to a vision model to evaluate
 whether the assertion holds. Returns structured PASS/FAIL with reasoning.
@@ -504,15 +504,20 @@ whether the assertion holds. Returns structured PASS/FAIL with reasoning.
 Flags:
   --model <model>        Model to use (default: claude-sonnet-4-20250514 for Anthropic, gpt-4o for OpenAI)
   --provider <provider>  AI provider: anthropic (default), openai
+  --base-url <url>       Custom API base URL for OpenAI-compatible providers
+                         (OpenRouter, Groq, Ollama, Together, etc.)
+                         Auto-selects openai provider when set.
 
 Environment variables:
   ANTHROPIC_API_KEY      Required for Anthropic provider (default)
-  OPENAI_API_KEY         Required for OpenAI provider
+  OPENAI_API_KEY         Required for OpenAI provider (and compatible providers)
+  OPENAI_BASE_URL        Custom base URL (alternative to --base-url flag)
 
 Examples:
   browse assert-ai "the page should show a dashboard with 3 charts"
   browse assert-ai "there should be no error banners visible"
-  browse assert-ai "the login form has email and password fields" --provider openai`,
+  browse assert-ai "the login form has email and password fields" --provider openai
+  browse assert-ai "page looks correct" --base-url https://openrouter.ai/api/v1 --model anthropic/claude-sonnet-4-20250514`,
 	},
 	replay: {
 		summary: "Generate interactive session replay HTML",
