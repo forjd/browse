@@ -94,9 +94,14 @@ describe("sendWithRetry", () => {
 		expect(deps.spawnDaemon).toHaveBeenCalled();
 	});
 
-	test("retry fails — returns error after 3 attempts", async () => {
+	test("retry fails — returns error after 3 attempts with correct backoff", async () => {
+		const sleepDelays: number[] = [];
 		const deps = makeDeps({
 			sendRequest: mock(() => Promise.reject(new Error("DAEMON_NOT_RUNNING"))),
+			sleep: (ms: number) => {
+				sleepDelays.push(ms);
+				return Promise.resolve();
+			},
 		});
 
 		await expect(sendWithRetry(deps, "text", [])).rejects.toThrow(
@@ -104,6 +109,8 @@ describe("sendWithRetry", () => {
 		);
 		// sendRequest called: 1 initial + 3 retries = 4
 		expect(deps.sendRequest).toHaveBeenCalledTimes(4);
+		// Backoff sleeps: 1s after attempt 0, 2s after attempt 1, none after final attempt
+		expect(sleepDelays).toEqual([1_000, 2_000]);
 	});
 
 	test("application-level error (ok: false) is not retried", async () => {

@@ -3,6 +3,7 @@ import type { AssertCondition, BrowseConfig } from "../config.ts";
 import { interpolateVars, parseVars } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import { resolveLocator } from "../refs.ts";
+import { compileSafePattern } from "../safe-pattern.ts";
 
 export type AssertResult = {
 	passed: boolean;
@@ -188,7 +189,7 @@ export async function evaluateAssertCondition(
 
 	if ("urlPattern" in condition) {
 		const url = page.url();
-		if (new RegExp(condition.urlPattern).test(url)) {
+		if (compileSafePattern(condition.urlPattern).test(url)) {
 			return { passed: true, reason: "" };
 		}
 		return {

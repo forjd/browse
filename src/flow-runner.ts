@@ -17,6 +17,7 @@ import type {
 	FlowStep,
 	WaitCondition,
 } from "./config.ts";
+import { compileSafePattern } from "./safe-pattern.ts";
 
 export function parseVars(args: string[]): Record<string, string> {
 	const vars: Record<string, string> = {};
@@ -195,7 +196,7 @@ async function waitForCondition(
 		if ("urlContains" in condition) {
 			if (page.url().includes(condition.urlContains)) return;
 		} else if ("urlPattern" in condition) {
-			if (new RegExp(condition.urlPattern).test(page.url())) return;
+			if (compileSafePattern(condition.urlPattern).test(page.url())) return;
 		} else if ("elementVisible" in condition) {
 			try {
 				const visible = await page
@@ -252,7 +253,7 @@ async function evaluateFlowCondition(
 		return page.url().includes(condition.urlContains);
 	}
 	if ("urlPattern" in condition) {
-		return new RegExp(condition.urlPattern).test(page.url());
+		return compileSafePattern(condition.urlPattern).test(page.url());
 	}
 	if ("elementVisible" in condition) {
 		try {
