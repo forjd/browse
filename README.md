@@ -60,6 +60,8 @@ browse trace stop --out trace.zip   # stop and save the trace
 browse init                         # generate a browse.config.json template
 browse screenshots list             # list saved screenshots
 browse report --out report.html     # generate an HTML report from screenshots
+browse form --data '{"name":"Jo"}'  # bulk-fill form fields
+browse replay --out replay.html     # generate session replay timeline
 browse completions bash             # output shell completions
 browse version                       # print version and platform
 browse quit                         # shut down the daemon
@@ -432,6 +434,12 @@ Measured with `browse benchmark`:
 | `trace start\|stop\|status` | Record Playwright traces (`--screenshots`, `--snapshots`, `--out`) |
 | `report --out <path>` | Generate HTML report from screenshots (`--title`, `--screenshots`) |
 | `init` | Generate a `browse.config.json` template (`--force` to overwrite) |
+| `form --data <json>` | Bulk-fill form fields (`--auto-snapshot`) |
+| `test-matrix --roles <r1,r2> --flow <name>` | Multi-role parallel testing (`--env`, `--reporter junit`) |
+| `assert-ai "<assertion>"` | AI-powered visual assertion (`--model`, `--provider`) |
+| `replay [--out path]` | Generate interactive session replay HTML |
+| `diff --baseline <url> --current <url>` | Visual diff across deployments (`--flow`, `--threshold`) |
+| `flow-share export\|import\|list\|install\|publish` | Share and install reusable flows |
 | `screenshots list\|clean\|count` | Manage saved screenshots (`--older-than`) |
 | `completions bash\|zsh\|fish` | Output shell completion scripts |
 | `version` | Print version and platform info |
