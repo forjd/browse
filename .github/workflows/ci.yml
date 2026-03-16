@@ -25,13 +25,13 @@ jobs:
         run: bun install
 
       - name: Install Playwright browsers
-        run: bunx playwright install chromium --with-deps
+        run: bunx playwright install chrome --with-deps
 
       - name: Run tests
         run: bun test
 
       - name: Compile binary
-        run: bun build --compile ./src/cli.ts --outfile dist/browse --external playwright --external playwright-core
+        run: bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi
 
       - name: Smoke test binary
         run: |
