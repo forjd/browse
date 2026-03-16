@@ -156,7 +156,7 @@ Clears all cookies, localStorage, sessionStorage, tabs, and buffers without stop
 The daemon socket is protected by a shared-secret token to prevent unauthorized processes from executing commands. This is separate from web application authentication described above.
 
 - A 256-bit random token is generated at daemon startup
-- The token is stored at `~/.local/state/browse/daemon.token` with `0o600` permissions (owner-readable only)
+- The token is stored at `$XDG_STATE_HOME/browse/daemon.token` (when `$XDG_STATE_HOME` is set) or `~/.local/state/browse/daemon.token` (fallback), with `0o600` permissions (owner-readable only)
 - The CLI reads this token and includes it in every request
 - The daemon validates the token before processing any command
 - The token file is cleaned up on daemon shutdown

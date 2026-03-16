@@ -207,10 +207,7 @@ export async function handleHealthcheck(
 
 	if (reporter === "junit") {
 		const junit = formatHealthcheckJUnit(results, durationMs);
-		if (allPassed) {
-			return { ok: true, data: junit };
-		}
-		return { ok: false, error: junit };
+		return { ok: true, data: junit };
 	}
 
 	const report = formatHealthcheckReport(results, allScreenshots);

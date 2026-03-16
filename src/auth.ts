@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -26,7 +27,9 @@ export function generateToken(): string {
 		"browse",
 	);
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
+	chmodSync(dir, 0o700);
 	writeFileSync(TOKEN_PATH, token, { mode: 0o600 });
+	chmodSync(TOKEN_PATH, 0o600);
 	return token;
 }
 

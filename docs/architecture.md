@@ -124,8 +124,8 @@ Stealth options are propagated to isolated session contexts.
 - The auth token is generated and written to `~/.local/state/browse/daemon.token` with mode `0o600`
 - Socket permissions are set to `0o600` after listen
 - The idle timer resets on every incoming request. After 30 minutes of inactivity, `shutdown()` is called
-- SIGTERM/SIGINT are trapped for graceful shutdown
-- Shutdown sequence: clear idle timer, close server, close browser context, clean up PID file, socket file, and token file
+- SIGTERM/SIGINT are trapped to allow graceful termination
+- Termination sequence: clear idle timer, close server, close browser context, clean up PID file, socket file, and token file
 
 ## Performance
 

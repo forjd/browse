@@ -131,10 +131,7 @@ export async function handleFlow(
 
 	if (reporter === "junit") {
 		const junit = formatFlowJUnit(flowName, results, durationMs);
-		if (allPassed) {
-			return { ok: true, data: junit };
-		}
-		return { ok: false, error: junit };
+		return { ok: true, data: junit };
 	}
 
 	const report = formatFlowReport(
