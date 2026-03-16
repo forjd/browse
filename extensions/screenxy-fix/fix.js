@@ -27,8 +27,7 @@
 		configurable: true,
 		enumerable: true,
 		get: function () {
-			var base =
-				origScreenX && origScreenX.get ? origScreenX.get.call(this) : 0;
+			var base = origScreenX?.get ? origScreenX.get.call(this) : 0;
 			return base + offsetX;
 		},
 	});
@@ -37,8 +36,7 @@
 		configurable: true,
 		enumerable: true,
 		get: function () {
-			var base =
-				origScreenY && origScreenY.get ? origScreenY.get.call(this) : 0;
+			var base = origScreenY?.get ? origScreenY.get.call(this) : 0;
 			return base + offsetY;
 		},
 	});

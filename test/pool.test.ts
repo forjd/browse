@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
-import { connect } from "node:net";
 import { join } from "node:path";
 import type { ServerDeps } from "../src/daemon.ts";
 import { startServer } from "../src/daemon.ts";
@@ -230,7 +229,7 @@ describe("BrowsePool", () => {
 			});
 
 			const s1 = await pool.acquire();
-			const s2 = await pool.acquire();
+			const _s2 = await pool.acquire();
 
 			expect(pool.stats()).toEqual({
 				active: 2,
