@@ -461,6 +461,107 @@ Install completions:
   browse completions zsh > ~/.zfunc/_browse
   browse completions fish > ~/.config/fish/completions/browse.fish`,
 	},
+	form: {
+		summary: "Bulk fill form fields in one command",
+		usage: `browse form --data '{"field":"value",...}' [--auto-snapshot]
+
+Fills multiple form fields in a single command by matching field names/labels
+to data keys. Supports text inputs, selects, checkboxes, and radio buttons.
+
+Flags:
+  --data <json>        JSON object mapping field names to values (required)
+  --auto-snapshot      Take a snapshot after filling to refresh refs
+
+Examples:
+  browse form --data '{"Email":"test@example.com","Password":"secret"}'
+  browse form --data '{"Name":"John","Country":"US","Newsletter":true}'`,
+	},
+	"test-matrix": {
+		summary: "Run same flow across multiple roles in parallel",
+		usage: `browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter junit]
+
+Runs the same flow simultaneously across isolated sessions with different
+authentication (roles/environments) and diffs the results. Each role maps
+to an environment in browse.config.json.
+
+Flags:
+  --roles <roles>      Comma-separated list of role names (required)
+  --flow <name>        Flow to run for each role (required)
+  --env <env>          Environment prefix (e.g., staging → looks for staging-admin, staging-viewer)
+  --reporter <format>  Output format: junit (JUnit XML for CI)
+
+Examples:
+  browse test-matrix --roles admin,viewer,guest --flow checkout
+  browse test-matrix --roles admin,viewer --flow dashboard --reporter junit`,
+	},
+	"assert-ai": {
+		summary: "AI-powered visual assertion using a vision model",
+		usage: `browse assert-ai "<assertion>" [--model <model>] [--provider <anthropic|openai>]
+
+Takes a viewport screenshot and sends it to a vision model to evaluate
+whether the assertion holds. Returns structured PASS/FAIL with reasoning.
+
+Flags:
+  --model <model>        Model to use (default: claude-sonnet-4-20250514 for Anthropic, gpt-4o for OpenAI)
+  --provider <provider>  AI provider: anthropic (default), openai
+
+Environment variables:
+  ANTHROPIC_API_KEY      Required for Anthropic provider (default)
+  OPENAI_API_KEY         Required for OpenAI provider
+
+Examples:
+  browse assert-ai "the page should show a dashboard with 3 charts"
+  browse assert-ai "there should be no error banners visible"
+  browse assert-ai "the login form has email and password fields" --provider openai`,
+	},
+	replay: {
+		summary: "Generate interactive session replay HTML",
+		usage: `browse replay [--out <path>]     Generate replay from screenshots
+browse replay list               List available replay recordings
+
+Generates a standalone HTML page with an interactive timeline of the session,
+including embedded screenshots, navigation controls, and keyboard shortcuts.
+
+Flags:
+  --out <path>   Output path for the HTML file (default: ~/.bun-browse/replays/)
+
+Keyboard shortcuts in the viewer:
+  ← / →          Navigate between events
+  Space           Auto-play / pause`,
+	},
+	diff: {
+		summary: "Visual diff between two deployments",
+		usage: `browse diff --baseline <url> --current <url> [--flow <name>] [--threshold <n>]
+
+Takes screenshots at each page on both deployments and produces a visual
+diff report showing what changed. Useful for PR review workflows.
+
+Flags:
+  --baseline <url>     Base deployment URL (e.g., https://main.example.com)
+  --current <url>      Current deployment URL (e.g., http://localhost:3000)
+  --flow <name>        Flow defining which pages to compare (uses goto steps)
+  --threshold <n>      Pixel diff threshold 0-255 (default: 10)
+  --var key=value      Pass variables for URL interpolation
+  --no-screenshots     Skip saving individual screenshots
+
+Examples:
+  browse diff --baseline https://staging.app --current http://localhost:3000
+  browse diff --baseline https://main.app --current https://feature.app --flow smoke`,
+	},
+	"flow-share": {
+		summary: "Export, import, and share flow definitions",
+		usage: `browse flow-share export <name>              Export a flow to .flow.json
+browse flow-share import <path>              Import a .flow.json file
+browse flow-share list                       List installed shared flows
+browse flow-share install <user/repo/flow>   Install from GitHub
+browse flow-share publish <name>             Publish to local registry
+
+Examples:
+  browse flow-share export checkout
+  browse flow-share import ./checkout.flow.json
+  browse flow-share install acme/browse-flows/checkout
+  browse flow-share list`,
+	},
 };
 
 export function formatOverview(): string {

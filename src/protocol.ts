@@ -49,6 +49,12 @@ const VALID_COMMANDS = [
 	"screenshots",
 	"report",
 	"completions",
+	"form",
+	"test-matrix",
+	"assert-ai",
+	"replay",
+	"diff",
+	"flow-share",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
