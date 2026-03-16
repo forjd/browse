@@ -50,7 +50,23 @@ export async function handleSelect(
 						exact: true,
 					});
 
-		await locator.selectOption({ label: optionText }, { timeout: 10_000 });
+		try {
+			await locator.selectOption({ label: optionText }, { timeout: 10_000 });
+		} catch (nativeErr) {
+			const msg =
+				nativeErr instanceof Error ? nativeErr.message : String(nativeErr);
+			if (!msg.includes("not a <select> element")) {
+				throw nativeErr;
+			}
+			// Custom ARIA combobox — focus, press ArrowDown to open, then click the option
+			await locator.focus({ timeout: 10_000 });
+			await page.keyboard.press("ArrowDown");
+			const option = page.getByRole("option", {
+				name: optionText,
+				exact: true,
+			});
+			await option.click({ timeout: 10_000 });
+		}
 
 		return {
 			ok: true,

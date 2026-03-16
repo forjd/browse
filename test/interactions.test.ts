@@ -326,6 +326,80 @@ describe("handleSelect", () => {
 
 		expect(result.ok).toBe(true);
 	});
+
+	test("falls back to keyboard-based selection for custom ARIA comboboxes", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "combobox", name: "Placeholder...", children: [] }),
+			"default",
+		);
+
+		const optionClickMock = mock(() => Promise.resolve());
+		const focusMock = mock(() => Promise.resolve());
+		const pressMock = mock(() => Promise.resolve());
+		const page = {
+			keyboard: { press: pressMock },
+			getByRole: mock((role: string, _opts?: Record<string, unknown>) => {
+				if (role === "option") {
+					return {
+						click: optionClickMock,
+					};
+				}
+				return {
+					nth: mock(() => ({
+						selectOption: mock(() => {
+							throw new Error("Element is not a <select> element");
+						}),
+						focus: focusMock,
+					})),
+					selectOption: mock(() => {
+						throw new Error("Element is not a <select> element");
+					}),
+					focus: focusMock,
+				};
+			}),
+		} as never;
+
+		const result = await handleSelect(page, ["@e1", "Aatrox"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Selected");
+			expect(result.data).toContain("Aatrox");
+		}
+		// Should have focused the trigger, pressed ArrowDown, then clicked the option
+		expect(focusMock).toHaveBeenCalledWith({ timeout: 10_000 });
+		expect(pressMock).toHaveBeenCalledWith("ArrowDown");
+		expect(optionClickMock).toHaveBeenCalledWith({ timeout: 10_000 });
+	});
+
+	test("propagates non-select errors without fallback", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "combobox", name: "Role", children: [] }),
+			"default",
+		);
+
+		const page = {
+			getByRole: mock(() => ({
+				nth: mock(() => ({
+					selectOption: mock(() => {
+						throw new Error("Timeout 10000ms exceeded.");
+					}),
+				})),
+				selectOption: mock(() => {
+					throw new Error("Timeout 10000ms exceeded.");
+				}),
+			})),
+		} as never;
+
+		const result = await handleSelect(page, ["@e1", "Admin"]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Timeout");
+		}
+	});
 });
 
 describe("handlePress", () => {
