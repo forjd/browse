@@ -71,10 +71,23 @@ export async function handleFlow(
 	const continueOnError = args.includes("--continue-on-error");
 
 	// Parse reporter flag
+	const VALID_REPORTERS = ["junit"];
 	let reporter: string | undefined;
 	for (let i = 1; i < args.length; i++) {
-		if (args[i] === "--reporter" && i + 1 < args.length) {
+		if (args[i] === "--reporter") {
+			if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
+				return {
+					ok: false,
+					error: `Missing value for --reporter. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
+				};
+			}
 			reporter = args[i + 1];
+			if (!VALID_REPORTERS.includes(reporter)) {
+				return {
+					ok: false,
+					error: `Invalid reporter '${reporter}'. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
+				};
+			}
 			break;
 		}
 	}

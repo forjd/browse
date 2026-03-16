@@ -25,17 +25,30 @@ function decodePng(buffer: Uint8Array): {
 
 	let offset = 8;
 	while (offset < buffer.length) {
+		// Need at least 12 bytes for length(4) + type(4) + CRC(4)
+		if (offset + 8 > buffer.length) {
+			throw new Error("Invalid PNG: truncated chunk header");
+		}
+		// Read length as unsigned 32-bit
 		const length =
-			(buffer[offset] << 24) |
-			(buffer[offset + 1] << 16) |
-			(buffer[offset + 2] << 8) |
-			buffer[offset + 3];
+			((buffer[offset] << 24) |
+				(buffer[offset + 1] << 16) |
+				(buffer[offset + 2] << 8) |
+				buffer[offset + 3]) >>>
+			0;
 		const type = String.fromCharCode(
 			buffer[offset + 4],
 			buffer[offset + 5],
 			buffer[offset + 6],
 			buffer[offset + 7],
 		);
+
+		// Validate chunk data + CRC fits in buffer
+		if (length > buffer.length - (offset + 12)) {
+			throw new Error(
+				`Invalid PNG: chunk '${type}' length ${length} exceeds available data`,
+			);
+		}
 
 		if (type === "IHDR") {
 			width =
@@ -50,6 +63,35 @@ function decodePng(buffer: Uint8Array): {
 				buffer[offset + 15];
 			bitDepth = buffer[offset + 16];
 			colorType = buffer[offset + 17];
+			const compressionMethod = buffer[offset + 18];
+			const filterMethod = buffer[offset + 19];
+			const interlaceMethod = buffer[offset + 20];
+
+			if (compressionMethod !== 0) {
+				throw new Error(
+					`Unsupported PNG compression method: ${compressionMethod} (only 0 is supported)`,
+				);
+			}
+			if (filterMethod !== 0) {
+				throw new Error(
+					`Unsupported PNG filter method: ${filterMethod} (only 0 is supported)`,
+				);
+			}
+			if (interlaceMethod !== 0) {
+				throw new Error(
+					`Unsupported PNG interlace method: ${interlaceMethod} (only non-interlaced is supported)`,
+				);
+			}
+			if (bitDepth !== 8) {
+				throw new Error(
+					`Unsupported PNG bit depth: ${bitDepth} (only 8 is supported)`,
+				);
+			}
+			if (colorType !== 6 && colorType !== 2) {
+				throw new Error(
+					`Unsupported PNG color type: ${colorType} (only 2=RGB and 6=RGBA are supported)`,
+				);
+			}
 		} else if (type === "IDAT") {
 			compressedChunks.push(buffer.slice(offset + 8, offset + 8 + length));
 		} else if (type === "IEND") {
@@ -342,7 +384,9 @@ export function compareScreenshots(
 			: 100;
 
 	// Write diff image next to the current screenshot
-	const diffImagePath = currentPath.replace(/\.png$/i, "-diff.png");
+	const diffImagePath = /\.png$/i.test(currentPath)
+		? currentPath.replace(/\.png$/i, "-diff.png")
+		: `${currentPath}-diff.png`;
 	mkdirSync(dirname(diffImagePath), { recursive: true });
 	const pngData = encodePng(width, height, diffData);
 	writeFileSync(diffImagePath, pngData);

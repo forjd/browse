@@ -6,9 +6,14 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname } from "node:path";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const TOKEN_PATH = "/tmp/browse-daemon.token";
+const TOKEN_PATH = join(
+	process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
+	"browse",
+	"daemon.token",
+);
 
 /**
  * Generate a cryptographically secure token, write it to the token file,
@@ -16,7 +21,11 @@ const TOKEN_PATH = "/tmp/browse-daemon.token";
  */
 export function generateToken(): string {
 	const token = randomBytes(32).toString("hex");
-	mkdirSync(dirname(TOKEN_PATH), { recursive: true });
+	const dir = join(
+		process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
+		"browse",
+	);
+	mkdirSync(dir, { recursive: true, mode: 0o700 });
 	writeFileSync(TOKEN_PATH, token, { mode: 0o600 });
 	return token;
 }

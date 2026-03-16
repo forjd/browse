@@ -37,6 +37,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 	}
 
+	if (filteredArgv.length === 0) return null;
 	if (filteredArgv[0] === "--daemon") return { daemon: true, config };
 
 	const [cmd, ...rawArgs] = filteredArgv;
@@ -225,7 +226,6 @@ async function runCli(): Promise<void> {
 
 	let response: Response;
 	try {
-		const token = readToken();
 		response = await sendWithRetry(
 			{
 				sendRequest: (c, a) =>
@@ -236,7 +236,7 @@ async function runCli(): Promise<void> {
 						timeout,
 						session,
 						json,
-						token,
+						readToken(),
 					),
 				spawnDaemon: () => spawnDaemon(configPath),
 				cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
