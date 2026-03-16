@@ -124,7 +124,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	completions: [],
 	form: ["--data", "--auto-snapshot"],
 	"test-matrix": ["--roles", "--flow", "--env", "--reporter"],
-	"assert-ai": ["--model", "--provider"],
+	"assert-ai": ["--model", "--provider", "--base-url"],
 	replay: ["--out"],
 	diff: [
 		"--baseline",

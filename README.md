@@ -436,7 +436,7 @@ Measured with `browse benchmark`:
 | `init` | Generate a `browse.config.json` template (`--force` to overwrite) |
 | `form --data <json>` | Bulk-fill form fields (`--auto-snapshot`) |
 | `test-matrix --roles <r1,r2> --flow <name>` | Multi-role parallel testing (`--env`, `--reporter junit`) |
-| `assert-ai "<assertion>"` | AI-powered visual assertion (`--model`, `--provider`) |
+| `assert-ai "<assertion>"` | AI-powered visual assertion (`--model`, `--provider`, `--base-url`) |
 | `replay [--out path]` | Generate interactive session replay HTML |
 | `diff --baseline <url> --current <url>` | Visual diff across deployments (`--flow`, `--threshold`) |
 | `flow-share export\|import\|list\|install\|publish` | Share and install reusable flows |

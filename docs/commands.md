@@ -1301,15 +1301,26 @@ browse form --data '{"agree":true,"plan":"premium"}' --auto-snapshot
 ### assert-ai
 
 ```
-browse assert-ai "<assertion>" [--model <model>] [--provider <provider>]
+browse assert-ai "<assertion>" [--model <model>] [--provider <provider>] [--base-url <url>]
 ```
 
 AI-powered visual assertion. Takes a screenshot and sends it to an AI model to evaluate whether the assertion passes. Requires `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` environment variable.
+
+Supports any OpenAI-compatible provider (OpenRouter, Groq, Together, Ollama, etc.) via `--base-url` or the `OPENAI_BASE_URL` environment variable.
 
 | Flag | Description |
 |------|-------------|
 | `--model <model>` | Model to use (default: `claude-sonnet-4-20250514` for Anthropic, `gpt-4o` for OpenAI) |
 | `--provider <provider>` | AI provider: `anthropic` (default) or `openai` |
+| `--base-url <url>` | Custom API base URL for OpenAI-compatible providers. Auto-selects `openai` provider when set. |
+
+**Environment variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Required for Anthropic provider (default) |
+| `OPENAI_API_KEY` | Required for OpenAI provider and compatible providers |
+| `OPENAI_BASE_URL` | Custom base URL (alternative to `--base-url` flag) |
 
 **Examples:**
 
@@ -1318,6 +1329,7 @@ browse assert-ai "the login form is visible"
 browse assert-ai "the page shows a dashboard with charts"
 browse assert-ai "there are no error messages" --provider openai
 browse assert-ai "the navigation menu has 5 items" --model claude-sonnet-4-20250514
+browse assert-ai "page looks correct" --base-url https://openrouter.ai/api/v1 --model anthropic/claude-sonnet-4-20250514
 ```
 
 ---

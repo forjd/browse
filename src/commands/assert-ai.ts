@@ -22,6 +22,7 @@ type AiAssertResult = {
  * Environment variables:
  *   ANTHROPIC_API_KEY — for Claude models (default)
  *   OPENAI_API_KEY — for OpenAI models (with --provider openai)
+ *   OPENAI_BASE_URL — custom base URL for OpenAI-compatible providers (OpenRouter, Groq, Ollama, etc.)
  *
  * The command captures a viewport screenshot, sends it along with the assertion
  * prompt to the vision model, and returns a structured PASS/FAIL with reasoning.
@@ -33,6 +34,7 @@ export async function handleAssertAi(
 	// Parse args
 	let model: string | undefined;
 	let provider: string | undefined;
+	let baseUrl: string | undefined;
 	const positional: string[] = [];
 
 	for (let i = 0; i < args.length; i++) {
@@ -42,6 +44,9 @@ export async function handleAssertAi(
 			i++;
 		} else if (arg === "--provider") {
 			provider = args[i + 1];
+			i++;
+		} else if (arg === "--base-url") {
+			baseUrl = args[i + 1];
 			i++;
 		} else if (!arg.startsWith("--")) {
 			positional.push(arg);
@@ -53,12 +58,14 @@ export async function handleAssertAi(
 		return {
 			ok: false,
 			error:
-				'Usage: browse assert-ai "<assertion>" [--model <model>] [--provider <anthropic|openai>]\n\nExample: browse assert-ai "the page should show a login form with email and password fields"',
+				'Usage: browse assert-ai "<assertion>" [--model <model>] [--provider <anthropic|openai>] [--base-url <url>]\n\nExample: browse assert-ai "the page should show a login form with email and password fields"\n\nFor OpenAI-compatible providers (OpenRouter, Groq, Ollama):\n  browse assert-ai "..." --provider openai --base-url https://openrouter.ai/api/v1',
 		};
 	}
 
 	// Determine provider and API key
-	const resolvedProvider = provider ?? "anthropic";
+	// Auto-select openai provider when --base-url is set without explicit --provider
+	const resolvedProvider = provider ?? (baseUrl ? "openai" : "anthropic");
+	const resolvedBaseUrl = baseUrl ?? process.env.OPENAI_BASE_URL ?? undefined;
 	let apiKey: string | undefined;
 
 	if (resolvedProvider === "anthropic") {
@@ -150,6 +157,7 @@ Please evaluate the screenshot against the assertion and respond with JSON.`;
 				systemPrompt,
 				userPrompt,
 				imageData,
+				resolvedBaseUrl,
 			);
 		}
 
@@ -239,8 +247,10 @@ async function callOpenAI(
 	systemPrompt: string,
 	userPrompt: string,
 	imageBase64: string,
+	baseUrl?: string,
 ): Promise<AiAssertResult> {
-	const response = await fetch("https://api.openai.com/v1/chat/completions", {
+	const apiBase = (baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
+	const response = await fetch(`${apiBase}/chat/completions`, {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
