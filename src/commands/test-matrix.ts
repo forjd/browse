@@ -124,9 +124,10 @@ export async function handleTestMatrix(
 	}
 
 	const promises = roles.map(async (role) => {
-		const envKey = config.environments[envName ? `${envName}-${role}` : ""]
-			? `${envName}-${role}`
-			: role;
+		const envKey =
+			envName && config.environments[`${envName}-${role}`]
+				? `${envName}-${role}`
+				: role;
 
 		let isolatedContext: BrowserContext | undefined;
 		try {
@@ -158,9 +159,35 @@ export async function handleTestMatrix(
 				};
 			}
 
-			// Create buffers for this role's session
+			// Create buffers and attach listeners for this role's session
 			const consoleBuffer = new RingBuffer<ConsoleEntry>(500);
 			const networkBuffer = new RingBuffer<NetworkEntry>(500);
+
+			rolePage.on("console", (msg) => {
+				const loc = msg.location();
+				consoleBuffer.push({
+					level: msg.type(),
+					text: msg.text(),
+					location: {
+						url: loc.url,
+						lineNumber: loc.lineNumber,
+						columnNumber: loc.columnNumber,
+					},
+					timestamp: Date.now(),
+				});
+			});
+
+			rolePage.on("response", (response) => {
+				const status = response.status();
+				if (status >= 400) {
+					networkBuffer.push({
+						status,
+						method: response.request().method(),
+						url: response.url(),
+						timestamp: Date.now(),
+					});
+				}
+			});
 
 			// Run the flow
 			const { results, screenshots } = await runFlow(

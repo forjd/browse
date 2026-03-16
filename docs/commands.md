@@ -1388,7 +1388,7 @@ If `--flow` is specified, extracts goto URLs from the flow steps. Otherwise, use
 ```bash
 browse diff --baseline https://staging.example.com --current https://prod.example.com
 browse diff --baseline https://v1.example.com --current https://v2.example.com --flow smoke-test
-browse diff --baseline https://old.example.com --current https://new.example.com --threshold 0.9
+browse diff --baseline https://old.example.com --current https://new.example.com --threshold 50
 ```
 
 ---
@@ -1402,7 +1402,7 @@ browse replay [session] [--out <path>]
 browse replay list
 ```
 
-Generate an interactive HTML timeline from session screenshots. The replay page includes a clickable timeline, embedded screenshots, auto-play, and keyboard navigation (arrow keys, spacebar).
+Generate an interactive HTML timeline from session screenshots. The replay page includes a clickable timeline, embedded screenshots, autoplay, and keyboard navigation (arrow keys, spacebar).
 
 | Flag | Description |
 |------|-------------|

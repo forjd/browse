@@ -225,8 +225,6 @@ export function generateZshCompletions(): string {
 		}
 	}
 
-	const _cmdList = COMMANDS.map((c) => `'${c}'`).join(" ");
-
 	return `#compdef browse
 # zsh completion for browse
 # Add to ~/.zshrc: eval "$(browse completions zsh)"
