@@ -1,6 +1,6 @@
 ---
 name: browse
-description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include "browse", "check the page", "take a screenshot", "test the UI", "fill the form", "click the button", "QA", "visual check", "healthcheck", and any task requiring a real browser.
+description: "Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include: any mention of 'browse', 'check the page', 'take a screenshot', 'test the UI', 'fill the form', 'click the button', 'QA', 'visual check', 'healthcheck', and any task requiring a real browser."
 allowed-tools: Bash(browse:*)
 ---
 
