@@ -531,7 +531,7 @@ describe("handleHealthcheck — variable interpolation", () => {
 		const page = mockPage();
 		const deps = makeDeps();
 
-		const result = await handleHealthcheck(config, page, [], deps);
+		const _result = await handleHealthcheck(config, page, [], deps);
 
 		// Unresolved template is passed through as-is
 		expect(page.goto).toHaveBeenCalledTimes(1);
