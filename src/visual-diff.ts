@@ -51,6 +51,11 @@ function decodePng(buffer: Uint8Array): {
 		}
 
 		if (type === "IHDR") {
+			if (length !== 13) {
+				throw new Error(
+					`Invalid PNG: IHDR chunk length is ${length}, expected 13`,
+				);
+			}
 			width =
 				(buffer[offset + 8] << 24) |
 				(buffer[offset + 9] << 16) |
@@ -121,6 +126,13 @@ function decodePng(buffer: Uint8Array): {
 	const bytesPerPixel = channels * (bitDepth / 8);
 	const stride = width * bytesPerPixel + 1; // +1 for filter byte
 
+	const expectedSize = stride * height;
+	if (decompressed.length < expectedSize) {
+		throw new Error(
+			`Invalid PNG: decompressed data too short (got ${decompressed.length}, expected ${expectedSize})`,
+		);
+	}
+
 	// Unfilter
 	const pixels = new Uint8Array(width * height * 4);
 
@@ -140,6 +152,11 @@ function decodePng(buffer: Uint8Array): {
 	for (let y = 0; y < height; y++) {
 		const rowStart = y * stride;
 		const filterType = decompressed[rowStart];
+		if (filterType > 4) {
+			throw new Error(
+				`Invalid PNG: unsupported filter type ${filterType} at row ${y} (expected 0-4)`,
+			);
+		}
 		const rawRow = decompressed.slice(rowStart + 1, rowStart + stride);
 
 		// Apply filter
@@ -165,8 +182,6 @@ function decodePng(buffer: Uint8Array): {
 				case 4:
 					curRow[i] = (raw + paethPredictor(a, b, c)) & 0xff;
 					break;
-				default:
-					curRow[i] = raw;
 			}
 		}
 

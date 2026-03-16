@@ -7,6 +7,12 @@ import type { Response } from "./protocol.ts";
 import { sendWithRetry } from "./retry.ts";
 import { formatVersion } from "./version.ts";
 
+function isHeadedMode(): boolean {
+	return (
+		process.env.BROWSE_HEADED === "1" || process.env.BROWSE_HEADED === "true"
+	);
+}
+
 export type ParsedArgs =
 	| {
 			cmd: string;
@@ -173,13 +179,11 @@ async function runCli(): Promise<void> {
 	}
 
 	if ("daemon" in parsed) {
-		const headed =
-			process.env.BROWSE_HEADED === "1" || process.env.BROWSE_HEADED === "true";
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
 			idleTimeoutMs: DEFAULT_CONFIG.idleTimeoutMs,
-			headless: !headed,
+			headless: !isHeadedMode(),
 			configPath: parsed.config,
 		});
 		return;
@@ -261,19 +265,20 @@ async function runCli(): Promise<void> {
 	}
 }
 
-// Only run when executed directly, not when imported by tests
+// Only run when executed directly, not when imported by tests.
+// The daemon path is duplicated here (vs inside runCli) to avoid the
+// dynamic import of daemon.ts on every CLI invocation — the compiled
+// binary short-circuits into the daemon without loading CLI-only modules.
 if (import.meta.main) {
 	const rawArgs = process.argv.slice(2);
 	const parsed = parseArgs(rawArgs);
 
 	if (parsed !== null && "daemon" in parsed) {
-		const headed =
-			process.env.BROWSE_HEADED === "1" || process.env.BROWSE_HEADED === "true";
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
 			idleTimeoutMs: DEFAULT_CONFIG.idleTimeoutMs,
-			headless: !headed,
+			headless: !isHeadedMode(),
 			configPath: parsed.config,
 		});
 	} else {
