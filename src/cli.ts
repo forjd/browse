@@ -57,8 +57,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 	}
 
-	if (filteredArgv2[0] === "--daemon")
-		return { daemon: true, config, listen };
+	if (filteredArgv2[0] === "--daemon") return { daemon: true, config, listen };
 
 	const [cmd, ...rawArgs] = filteredArgv2;
 

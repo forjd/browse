@@ -76,7 +76,13 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	tab: [],
 	flow: ["--var", "--continue-on-error", "--reporter", "--dry-run", "--stream"],
 	assert: ["--var", "--json"],
-	healthcheck: ["--var", "--no-screenshots", "--reporter", "--parallel", "--concurrency"],
+	healthcheck: [
+		"--var",
+		"--no-screenshots",
+		"--reporter",
+		"--parallel",
+		"--concurrency",
+	],
 	wipe: [],
 	benchmark: ["--iterations"],
 	viewport: ["--device", "--preset"],
@@ -120,7 +126,9 @@ export function generateBashCompletions(): string {
 	for (const cmd of COMMANDS) {
 		const flags = [...(KNOWN_FLAGS[cmd] ?? []), ...GLOBAL_FLAGS];
 		if (flags.length > 0) {
-			cases.push(`        ${cmd})\n            COMPREPLY=( $(compgen -W "${flags.join(" ")}" -- "$cur") )`);
+			cases.push(
+				`        ${cmd})\n            COMPREPLY=( $(compgen -W "${flags.join(" ")}" -- "$cur") )`,
+			);
 		}
 	}
 
@@ -192,7 +200,9 @@ export function generateZshCompletions(): string {
 		const flags = [...(KNOWN_FLAGS[cmd] ?? []), ...GLOBAL_FLAGS];
 		if (flags.length > 0) {
 			const flagArgs = flags.map((f) => `'${f}'`).join(" ");
-			flagCases.push(`        ${cmd})\n            _arguments ${flagArgs} && return 0\n            ;;`);
+			flagCases.push(
+				`        ${cmd})\n            _arguments ${flagArgs} && return 0\n            ;;`,
+			);
 		}
 	}
 
@@ -251,7 +261,7 @@ _browse "$@"
 export function generateFishCompletions(): string {
 	const lines: string[] = [
 		"# fish completion for browse",
-		'# Add to fish config: browse completions fish | source',
+		"# Add to fish config: browse completions fish | source",
 		"",
 		"# Disable file completions by default",
 		"complete -c browse -f",
@@ -272,9 +282,7 @@ export function generateFishCompletions(): string {
 
 	// Command completions (only when no subcommand yet)
 	for (const cmd of COMMANDS) {
-		lines.push(
-			`complete -c browse -n __browse_no_subcommand -a '${cmd}'`,
-		);
+		lines.push(`complete -c browse -n __browse_no_subcommand -a '${cmd}'`);
 	}
 
 	lines.push("");

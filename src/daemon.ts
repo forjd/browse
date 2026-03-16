@@ -30,6 +30,7 @@ import { handleGoto } from "./commands/goto.ts";
 import { handleHealthcheck } from "./commands/healthcheck.ts";
 import { handleHover } from "./commands/hover.ts";
 import { handleHtml } from "./commands/html.ts";
+import { handleInit } from "./commands/init.ts";
 import { createInterceptState, handleIntercept } from "./commands/intercept.ts";
 import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
@@ -38,7 +39,9 @@ import { handlePdf } from "./commands/pdf.ts";
 import { handlePress } from "./commands/press.ts";
 import { handleQuit } from "./commands/quit.ts";
 import { handleReload } from "./commands/reload.ts";
+import { handleReport } from "./commands/report.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
+import { handleScreenshots } from "./commands/screenshots.ts";
 import { handleScroll } from "./commands/scroll.ts";
 import { handleSelect } from "./commands/select.ts";
 import {
@@ -51,15 +54,12 @@ import { handleStorage } from "./commands/storage.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleText } from "./commands/text.ts";
 import { handleTitle } from "./commands/title.ts";
+import { createTraceState, handleTrace } from "./commands/trace.ts";
 import { handleUpload } from "./commands/upload.ts";
 import { handleUrl } from "./commands/url.ts";
 import { handleViewport } from "./commands/viewport.ts";
 import { handleWait } from "./commands/wait.ts";
 import { handleWipe } from "./commands/wipe.ts";
-import { handleInit } from "./commands/init.ts";
-import { handleScreenshots } from "./commands/screenshots.ts";
-import { createTraceState, handleTrace } from "./commands/trace.ts";
-import { handleReport } from "./commands/report.ts";
 import { generateCompletions } from "./completions.ts";
 import type { BrowseConfig } from "./config.ts";
 import { loadConfig, resolveConfigPath } from "./config.ts";
@@ -99,7 +99,13 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	tab: [],
 	flow: ["--var", "--continue-on-error", "--reporter", "--dry-run", "--stream"],
 	assert: ["--var", "--json"],
-	healthcheck: ["--var", "--no-screenshots", "--reporter", "--parallel", "--concurrency"],
+	healthcheck: [
+		"--var",
+		"--no-screenshots",
+		"--reporter",
+		"--parallel",
+		"--concurrency",
+	],
 	wipe: [],
 	benchmark: ["--iterations"],
 	viewport: ["--device", "--preset"],
@@ -131,7 +137,6 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	init: ["--force"],
 	screenshots: ["--older-than"],
 	report: ["--out", "--title", "--screenshots"],
-	flow: ["--var", "--continue-on-error", "--reporter", "--dry-run", "--stream"],
 	completions: [],
 };
 
@@ -211,8 +216,19 @@ export async function startServer(
 	const { context, config, stealthOpts, token, tcpListen } = deps;
 	const startTime = Date.now();
 
-	// Trace state for recording sessions
-	const traceState = createTraceState();
+	// Per-context trace state so each BrowserContext has isolated tracing
+	const traceStates = new Map<
+		BrowserContext,
+		ReturnType<typeof createTraceState>
+	>();
+	function getTraceState(ctx: BrowserContext) {
+		let state = traceStates.get(ctx);
+		if (!state) {
+			state = createTraceState();
+			traceStates.set(ctx, state);
+		}
+		return state;
+	}
 
 	// Tab registry for default session
 	const initialTabState: TabState = {
@@ -294,6 +310,7 @@ export async function startServer(
 	async function shutdown() {
 		idleTimer.clear();
 		server.close();
+		tcpServer?.close();
 		await onShutdown();
 		cleanupFiles(lifecycleConfig);
 	}
@@ -570,7 +587,11 @@ export async function startServer(
 					case "element-count":
 						return handleElementCount(page, request.args);
 					case "trace":
-						return handleTrace(sessionContext, traceState, request.args);
+						return handleTrace(
+							sessionContext,
+							getTraceState(sessionContext),
+							request.args,
+						);
 					case "init":
 						return handleInit(request.args);
 					case "screenshots":
@@ -665,7 +686,12 @@ export async function startServer(
 	let tcpServer: Server | undefined;
 	if (tcpListen) {
 		const match = tcpListen.match(/^tcp:\/\/([^:]+):(\d+)$/);
-		if (match) {
+		if (!match) {
+			throw new Error(
+				`Invalid tcpListen: '${tcpListen}'; expected 'tcp://host:port'`,
+			);
+		}
+		{
 			const [, host, portStr] = match;
 			const port = Number.parseInt(portStr, 10);
 
@@ -695,7 +721,11 @@ export async function startServer(
 			});
 
 			await new Promise<void>((resolve, reject) => {
-				tcpServer!.on("error", reject);
+				tcpServer!.on("error", (err) => {
+					// TCP bind failed — roll back the already-open Unix socket
+					server.close();
+					reject(err);
+				});
 				tcpServer!.listen(port, host, () => {
 					resolve();
 				});
@@ -703,7 +733,7 @@ export async function startServer(
 		}
 	}
 
-	return { server, idleTimer, shutdown, tcpServer };
+	return { server, idleTimer, shutdown };
 }
 
 /**

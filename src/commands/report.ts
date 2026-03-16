@@ -1,12 +1,13 @@
 import {
-	readFileSync,
-	writeFileSync,
-	readdirSync,
-	statSync,
 	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	statSync,
+	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join, basename, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { Response } from "../protocol.ts";
 
 function parseArgs(args: string[]): {
@@ -81,9 +82,11 @@ function collectScreenshots(dir: string): ScreenshotEntry[] {
 
 		const ext = file.split(".").pop()?.toLowerCase() ?? "png";
 		const mime =
-			ext === "jpg" || ext === "jpeg" ? "image/jpeg"
-			: ext === "webp" ? "image/webp"
-			: "image/png";
+			ext === "jpg" || ext === "jpeg"
+				? "image/jpeg"
+				: ext === "webp"
+					? "image/webp"
+					: "image/png";
 
 		const raw = readFileSync(filePath);
 		const base64 = `data:${mime};base64,${raw.toString("base64")}`;
@@ -104,13 +107,13 @@ function escapeHtml(text: string): string {
 }
 
 function formatTimestamp(date: Date): string {
-	return date.toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+	return date
+		.toISOString()
+		.replace("T", " ")
+		.replace(/\.\d+Z$/, " UTC");
 }
 
-function generateHtml(
-	title: string,
-	screenshots: ScreenshotEntry[],
-): string {
+function generateHtml(title: string, screenshots: ScreenshotEntry[]): string {
 	const now = new Date();
 
 	const screenshotCards = screenshots
@@ -248,6 +251,7 @@ export async function handleReport(args: string[]): Promise<Response> {
 	const screenshotsDir = resolve(parsed.screenshots);
 
 	try {
+		mkdirSync(dirname(outPath), { recursive: true });
 		const screenshots = collectScreenshots(screenshotsDir);
 		const html = generateHtml(parsed.title, screenshots);
 		writeFileSync(outPath, html, "utf-8");

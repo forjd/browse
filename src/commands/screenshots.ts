@@ -1,9 +1,21 @@
-import { readdirSync, statSync, unlinkSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import type { Response } from "../protocol.ts";
 
 const SCREENSHOTS_DIR = join(homedir(), ".bun-browse", "screenshots");
+const ALLOWED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+
+function isScreenshotFile(filepath: string): boolean {
+	try {
+		return (
+			ALLOWED_EXTENSIONS.has(extname(filepath).toLowerCase()) &&
+			statSync(filepath).isFile()
+		);
+	} catch {
+		return false;
+	}
+}
 
 function parseDuration(duration: string): number | null {
 	const match = duration.match(/^(\d+)([dhm])$/);
@@ -36,20 +48,26 @@ function listScreenshots(): Response {
 	}
 
 	const files = readdirSync(SCREENSHOTS_DIR);
-	if (files.length === 0) {
+
+	const entries = files
+		.filter((name) => isScreenshotFile(join(SCREENSHOTS_DIR, name)))
+		.map((name) => {
+			const filepath = join(SCREENSHOTS_DIR, name);
+			const stat = statSync(filepath);
+			return { name, size: stat.size, mtime: stat.mtimeMs };
+		});
+
+	if (entries.length === 0) {
 		return { ok: true, data: "No screenshots found." };
 	}
-
-	const entries = files.map((name) => {
-		const filepath = join(SCREENSHOTS_DIR, name);
-		const stat = statSync(filepath);
-		return { name, size: stat.size, mtime: stat.mtimeMs };
-	});
 
 	entries.sort((a, b) => b.mtime - a.mtime);
 
 	const lines = entries.map((entry) => {
-		const date = new Date(entry.mtime).toISOString().replace("T", " ").slice(0, 19);
+		const date = new Date(entry.mtime)
+			.toISOString()
+			.replace("T", " ")
+			.slice(0, 19);
 		return `${entry.name}  ${formatBytes(entry.size)}  ${date}`;
 	});
 
@@ -84,6 +102,7 @@ function cleanScreenshots(args: string[]): Response {
 
 	for (const name of files) {
 		const filepath = join(SCREENSHOTS_DIR, name);
+		if (!isScreenshotFile(filepath)) continue;
 		const stat = statSync(filepath);
 
 		if (cutoffMs === null || stat.mtimeMs < cutoffMs) {
@@ -92,7 +111,10 @@ function cleanScreenshots(args: string[]): Response {
 		}
 	}
 
-	return { ok: true, data: `Deleted ${deleted} screenshot${deleted === 1 ? "" : "s"}.` };
+	return {
+		ok: true,
+		data: `Deleted ${deleted} screenshot${deleted === 1 ? "" : "s"}.`,
+	};
 }
 
 function countScreenshots(): Response {
@@ -102,16 +124,19 @@ function countScreenshots(): Response {
 
 	const files = readdirSync(SCREENSHOTS_DIR);
 	let totalSize = 0;
+	let count = 0;
 
 	for (const name of files) {
 		const filepath = join(SCREENSHOTS_DIR, name);
+		if (!isScreenshotFile(filepath)) continue;
 		const stat = statSync(filepath);
 		totalSize += stat.size;
+		count++;
 	}
 
 	return {
 		ok: true,
-		data: `${files.length} screenshot${files.length === 1 ? "" : "s"}, ${formatBytes(totalSize)} total`,
+		data: `${count} screenshot${count === 1 ? "" : "s"}, ${formatBytes(totalSize)} total`,
 	};
 }
 

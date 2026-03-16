@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Response } from "../../src/protocol.ts";
 import {
 	isRetriableError,
-	resetCircuitBreaker,
 	type RetryDeps,
+	resetCircuitBreaker,
 	sendWithRetry,
 } from "../../src/retry.ts";
+
+const noopSleep = () => Promise.resolve();
 
 function makeDeps(overrides: Partial<RetryDeps> = {}): RetryDeps {
 	return {
@@ -14,6 +16,7 @@ function makeDeps(overrides: Partial<RetryDeps> = {}): RetryDeps {
 		),
 		spawnDaemon: mock(() => Promise.resolve()),
 		cleanupStaleFiles: mock(() => {}),
+		sleep: noopSleep,
 		...overrides,
 	};
 }
@@ -145,12 +148,14 @@ describe("sendWithRetry", () => {
 	});
 
 	test("circuit breaker resets after success", async () => {
-		// Fail then succeed
+		// Force consecutiveFailures to increment: initial call fails,
+		// first recovery attempt also fails, second recovery succeeds.
 		let callCount = 0;
 		const deps = makeDeps({
 			sendRequest: mock(() => {
 				callCount++;
-				if (callCount === 1)
+				// Calls 1 (initial) and 2 (first retry) fail; call 3+ succeed
+				if (callCount <= 2)
 					return Promise.reject(new Error("DAEMON_NOT_RUNNING"));
 				return Promise.resolve({ ok: true, data: "ok" } as Response);
 			}),
@@ -159,7 +164,7 @@ describe("sendWithRetry", () => {
 		const result = await sendWithRetry(deps, "text", []);
 		expect(result).toEqual({ ok: true, data: "ok" });
 
-		// Should work fine after reset (not tripped)
+		// Circuit breaker should have been reset — next call works fine
 		const result2 = await sendWithRetry(deps, "text", []);
 		expect(result2).toEqual({ ok: true, data: "ok" });
 	});
