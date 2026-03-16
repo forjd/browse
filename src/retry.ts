@@ -31,7 +31,7 @@ const MAX_RETRIES = 3;
 /**
  * Backoff delays in milliseconds for each retry attempt (1s, 2s, 4s).
  */
-const BACKOFF_DELAYS = [1_000, 2_000];
+const BACKOFF_DELAYS = [1_000, 2_000, 4_000];
 
 /**
  * Circuit breaker: number of consecutive failures before skipping.
