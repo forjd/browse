@@ -103,7 +103,8 @@ export async function handleTrace(
 		if (!traceState.recording) {
 			return {
 				ok: false,
-				error: "No trace recording in progress. Start one with 'browse trace start'.",
+				error:
+					"No trace recording in progress. Start one with 'browse trace start'.",
 			};
 		}
 
@@ -118,10 +119,19 @@ export async function handleTrace(
 
 		const savePath = outPath ?? generateDefaultTracePath();
 
+		// Prepare filesystem before stopping the trace — fail fast without
+		// altering traceState so the recording can be recovered.
 		try {
-			// Ensure parent directory exists
 			mkdirSync(dirname(savePath), { recursive: true });
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return {
+				ok: false,
+				error: `Failed to prepare output directory: ${message}`,
+			};
+		}
 
+		try {
 			await context.tracing.stop({ path: savePath });
 			traceState.recording = false;
 
@@ -142,8 +152,8 @@ export async function handleTrace(
 				data: `Trace saved to ${savePath} (${elapsed}s recording)\nView with: npx playwright show-trace ${savePath}`,
 			};
 		} catch (err) {
-			traceState.recording = false;
-			traceState.startedAt = undefined;
+			// tracing.stop failed — the browser may still be recording,
+			// so leave traceState intact for recovery.
 			const message = err instanceof Error ? err.message : String(err);
 			return {
 				ok: false,

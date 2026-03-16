@@ -5,8 +5,8 @@ import type { LifecycleConfig } from "../../src/lifecycle.ts";
 import { checkStalePid, cleanupFiles } from "../../src/lifecycle.ts";
 import type { Response } from "../../src/protocol.ts";
 import {
-	resetCircuitBreaker,
 	type RetryDeps,
+	resetCircuitBreaker,
 	sendWithRetry,
 } from "../../src/retry.ts";
 

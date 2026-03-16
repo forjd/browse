@@ -384,19 +384,11 @@ export function dryRunFlow(
 
 		// Show conditional/loop metadata if present
 		if ("if" in step) {
-			const ifStep = step as FlowStep & {
-				if: { condition: string };
-			};
-			lines.push(
-				`  ${stepNum}. [conditional] if ${ifStep.if.condition}: ${desc}`,
-			);
+			const condDesc = conditionDescription(step.if.condition);
+			lines.push(`  ${stepNum}. [conditional] if ${condDesc}: ${desc}`);
 		} else if ("while" in step) {
-			const whileStep = step as FlowStep & {
-				while: { condition: string };
-			};
-			lines.push(
-				`  ${stepNum}. [loop] while ${whileStep.while.condition}: ${desc}`,
-			);
+			const condDesc = conditionDescription(step.while.condition);
+			lines.push(`  ${stepNum}. [loop] while ${condDesc}: ${desc}`);
 		} else {
 			lines.push(`  ${stepNum}. ${desc}`);
 		}
@@ -495,20 +487,15 @@ export async function runFlow(
 					deps.page,
 					step.if.condition,
 				);
-				const branchSteps = conditionMet
-					? step.if.then
-					: (step.if.else ?? []);
+				const branchSteps = conditionMet ? step.if.then : (step.if.else ?? []);
 				if (branchSteps.length > 0) {
 					const subFlow: FlowConfig = {
 						steps: branchSteps,
 					};
-					const sub = await runFlow(
-						flowName,
-						subFlow,
-						vars,
-						deps,
-						{ continueOnError, onStep },
-					);
+					const sub = await runFlow(flowName, subFlow, vars, deps, {
+						continueOnError,
+						onStep,
+					});
 					results.push(...sub.results);
 					screenshots.push(...sub.screenshots);
 					if (!continueOnError && sub.results.some((r) => !r.passed)) {
@@ -518,6 +505,7 @@ export async function runFlow(
 			} else if ("while" in step) {
 				const maxIterations = step.while.maxIterations ?? 10;
 				let iteration = 0;
+				let whileFailed = false;
 				while (iteration < maxIterations) {
 					const conditionMet = await evaluateFlowCondition(
 						deps.page,
@@ -527,19 +515,20 @@ export async function runFlow(
 					const subFlow: FlowConfig = {
 						steps: step.while.steps,
 					};
-					const sub = await runFlow(
-						flowName,
-						subFlow,
-						vars,
-						deps,
-						{ continueOnError, onStep },
-					);
+					const sub = await runFlow(flowName, subFlow, vars, deps, {
+						continueOnError,
+						onStep,
+					});
 					results.push(...sub.results);
 					screenshots.push(...sub.screenshots);
 					if (!continueOnError && sub.results.some((r) => !r.passed)) {
+						whileFailed = true;
 						break;
 					}
 					iteration++;
+				}
+				if (whileFailed) {
+					return { results, screenshots };
 				}
 			}
 

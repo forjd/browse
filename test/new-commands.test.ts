@@ -162,8 +162,8 @@ describe("status command", () => {
 			const r = await sendCommand(config.socketPath, "status");
 			expect(r.ok).toBe(true);
 			if (r.ok) {
-				expect(r.data).toContain("sessions:");
-				expect(r.data).toContain("uptime:");
+				expect(r.data).toContain("Sessions:");
+				expect(r.data).toContain("Uptime:");
 				expect(r.data).toContain("default:");
 			}
 		} finally {

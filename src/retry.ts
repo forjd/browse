@@ -10,6 +10,8 @@ export type RetryDeps = {
 	sendRequest: (cmd: string, args: string[]) => Promise<Response>;
 	spawnDaemon: () => Promise<void>;
 	cleanupStaleFiles: () => void;
+	/** Override for the backoff sleep — defaults to setTimeout-based delay. */
+	sleep?: (ms: number) => Promise<void>;
 };
 
 /**
@@ -67,6 +69,10 @@ export async function sendWithRetry(
 		);
 	}
 
+	const sleep =
+		deps.sleep ??
+		((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+
 	try {
 		const response = await deps.sendRequest(cmd, args);
 		resetCircuitBreaker();
@@ -89,10 +95,7 @@ export async function sendWithRetry(
 						`Daemon crashed and recovery failed after ${MAX_RETRIES} attempts. Error: ${detail}`,
 					);
 				}
-				// Wait with exponential backoff before next attempt
-				await new Promise((resolve) =>
-					setTimeout(resolve, BACKOFF_DELAYS[attempt]),
-				);
+				await sleep(BACKOFF_DELAYS[attempt]);
 				continue;
 			}
 
@@ -116,10 +119,7 @@ export async function sendWithRetry(
 						`Daemon crashed and recovery failed after ${MAX_RETRIES} attempts. Error: ${detail}`,
 					);
 				}
-				// Wait with exponential backoff before next attempt
-				await new Promise((resolve) =>
-					setTimeout(resolve, BACKOFF_DELAYS[attempt]),
-				);
+				await sleep(BACKOFF_DELAYS[attempt]);
 			}
 		}
 
