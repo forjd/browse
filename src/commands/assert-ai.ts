@@ -333,6 +333,7 @@ function parseAiResponse(text: string): AiAssertResult {
 	}
 	if (
 		typeof obj.confidence !== "number" ||
+		Number.isNaN(obj.confidence) ||
 		obj.confidence < 0 ||
 		obj.confidence > 1
 	) {
