@@ -110,6 +110,52 @@ describe("handleClick", () => {
 			expect(result.error).toContain("stale");
 		}
 	});
+
+	test("clicks combobox elements with force to bypass actionability checks", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "combobox", name: "Select option...", children: [] }),
+			"default",
+		);
+
+		const clickMock = mock(() => Promise.resolve());
+		const page = {
+			getByRole: mock((_role: string, _opts?: Record<string, unknown>) => ({
+				nth: mock((_n: number) => ({
+					click: clickMock,
+				})),
+				click: clickMock,
+			})),
+		} as never;
+
+		const result = await handleClick(page, ["@e1"]);
+
+		expect(result.ok).toBe(true);
+		expect(clickMock).toHaveBeenCalledWith({ timeout: 10_000, force: true });
+	});
+
+	test("clicks non-combobox elements without force", async () => {
+		clearRefs();
+		assignRefs(
+			makeTree({ role: "button", name: "Submit", children: [] }),
+			"default",
+		);
+
+		const clickMock = mock(() => Promise.resolve());
+		const page = {
+			getByRole: mock((_role: string, _opts?: Record<string, unknown>) => ({
+				nth: mock((_n: number) => ({
+					click: clickMock,
+				})),
+				click: clickMock,
+			})),
+		} as never;
+
+		const result = await handleClick(page, ["@e1"]);
+
+		expect(result.ok).toBe(true);
+		expect(clickMock).toHaveBeenCalledWith({ timeout: 10_000 });
+	});
 });
 
 describe("handleFill", () => {

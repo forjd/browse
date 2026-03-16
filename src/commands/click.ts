@@ -33,7 +33,13 @@ export async function handleClick(
 						exact: true,
 					});
 
-		await locator.click({ timeout: 10_000 });
+		// Combobox elements (reka-ui/Radix/shadcn) fail Playwright's actionability
+		// checks despite being visible and interactive. Force bypasses those checks.
+		const clickOpts: { timeout: number; force?: boolean } = { timeout: 10_000 };
+		if (resolved.role === "combobox") {
+			clickOpts.force = true;
+		}
+		await locator.click(clickOpts);
 
 		return {
 			ok: true,
