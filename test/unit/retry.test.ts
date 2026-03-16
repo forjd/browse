@@ -1,7 +1,8 @@
-import { describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { Response } from "../../src/protocol.ts";
 import {
 	isRetriableError,
+	resetCircuitBreaker,
 	type RetryDeps,
 	sendWithRetry,
 } from "../../src/retry.ts";
@@ -16,6 +17,10 @@ function makeDeps(overrides: Partial<RetryDeps> = {}): RetryDeps {
 		...overrides,
 	};
 }
+
+beforeEach(() => {
+	resetCircuitBreaker();
+});
 
 describe("isRetriableError", () => {
 	test("returns true for DAEMON_NOT_RUNNING", () => {
@@ -86,16 +91,16 @@ describe("sendWithRetry", () => {
 		expect(deps.spawnDaemon).toHaveBeenCalled();
 	});
 
-	test("retry fails — returns error without further retry", async () => {
+	test("retry fails — returns error after 3 attempts", async () => {
 		const deps = makeDeps({
 			sendRequest: mock(() => Promise.reject(new Error("DAEMON_NOT_RUNNING"))),
 		});
 
 		await expect(sendWithRetry(deps, "text", [])).rejects.toThrow(
-			"Daemon crashed and recovery failed",
+			"Daemon crashed and recovery failed after 3 attempts",
 		);
-		// sendRequest called twice: initial + one retry
-		expect(deps.sendRequest).toHaveBeenCalledTimes(2);
+		// sendRequest called: 1 initial + 3 retries = 4
+		expect(deps.sendRequest).toHaveBeenCalledTimes(4);
 	});
 
 	test("application-level error (ok: false) is not retried", async () => {
@@ -112,16 +117,50 @@ describe("sendWithRetry", () => {
 		expect(deps.spawnDaemon).not.toHaveBeenCalled();
 	});
 
-	test("spawn daemon failure returns descriptive error", async () => {
+	test("spawn daemon failure returns descriptive error after retries", async () => {
 		const deps = makeDeps({
 			sendRequest: mock(() => Promise.reject(new Error("DAEMON_NOT_RUNNING"))),
 			spawnDaemon: mock(() => Promise.reject(new Error("spawn failed"))),
 		});
 
 		await expect(sendWithRetry(deps, "text", [])).rejects.toThrow(
+			"Daemon crashed and recovery failed after 3 attempts",
+		);
+	});
+
+	test("circuit breaker opens after consecutive failures", async () => {
+		const deps = makeDeps({
+			sendRequest: mock(() => Promise.reject(new Error("DAEMON_NOT_RUNNING"))),
+		});
+
+		// First call exhausts retries
+		await expect(sendWithRetry(deps, "text", [])).rejects.toThrow(
 			"Daemon crashed and recovery failed",
 		);
-		// Only called once since spawn failed before retry
-		expect(deps.sendRequest).toHaveBeenCalledTimes(1);
+
+		// Circuit breaker should now be open
+		await expect(sendWithRetry(deps, "text", [])).rejects.toThrow(
+			"Circuit breaker open",
+		);
+	});
+
+	test("circuit breaker resets after success", async () => {
+		// Fail then succeed
+		let callCount = 0;
+		const deps = makeDeps({
+			sendRequest: mock(() => {
+				callCount++;
+				if (callCount === 1)
+					return Promise.reject(new Error("DAEMON_NOT_RUNNING"));
+				return Promise.resolve({ ok: true, data: "ok" } as Response);
+			}),
+		});
+
+		const result = await sendWithRetry(deps, "text", []);
+		expect(result).toEqual({ ok: true, data: "ok" });
+
+		// Should work fine after reset (not tripped)
+		const result2 = await sendWithRetry(deps, "text", []);
+		expect(result2).toEqual({ ok: true, data: "ok" });
 	});
 });

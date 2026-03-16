@@ -22,7 +22,7 @@ export type ParsedArgs =
 			json?: boolean;
 			config?: string;
 	  }
-	| { daemon: true; config?: string }
+	| { daemon: true; config?: string; listen?: string }
 	| null;
 
 /**
@@ -44,9 +44,23 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	}
 
 	if (filteredArgv.length === 0) return null;
-	if (filteredArgv[0] === "--daemon") return { daemon: true, config };
 
-	const [cmd, ...rawArgs] = filteredArgv;
+	// Extract --listen for daemon mode
+	let listen: string | undefined;
+	const filteredArgv2: string[] = [];
+	for (let i = 0; i < filteredArgv.length; i++) {
+		if (filteredArgv[i] === "--listen" && i + 1 < filteredArgv.length) {
+			listen = filteredArgv[i + 1];
+			i++;
+		} else {
+			filteredArgv2.push(filteredArgv[i]);
+		}
+	}
+
+	if (filteredArgv2[0] === "--daemon")
+		return { daemon: true, config, listen };
+
+	const [cmd, ...rawArgs] = filteredArgv2;
 
 	// Extract global flags
 	let timeout: number | undefined;
@@ -185,6 +199,7 @@ async function runCli(): Promise<void> {
 			idleTimeoutMs: DEFAULT_CONFIG.idleTimeoutMs,
 			headless: !isHeadedMode(),
 			configPath: parsed.config,
+			tcpListen: parsed.listen,
 		});
 		return;
 	}
@@ -280,6 +295,7 @@ if (import.meta.main) {
 			idleTimeoutMs: DEFAULT_CONFIG.idleTimeoutMs,
 			headless: !isHeadedMode(),
 			configPath: parsed.config,
+			tcpListen: parsed.listen,
 		});
 	} else {
 		await runCli();

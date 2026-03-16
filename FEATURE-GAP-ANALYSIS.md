@@ -150,22 +150,24 @@ All Tier 1 items have been implemented.
 | 5 | **Socket authentication token** — shared secret generated on daemon start, saved to token file, validated on every request | Security (2.5) | Prevents unauthorised processes without token-file access from executing arbitrary JS via `browse eval` through the socket | S | ✅ Done |
 | 6 | **JUnit reporter for flows and healthchecks** — `--reporter junit` writes XML to stdout | Ecosystem (2.7) | Makes Browse usable in CI pipelines that gate on test results (GitHub Actions, Jenkins, GitLab) | S | ✅ Done |
 
-### Tier 2 — Competitive Edge
+### Tier 2 — Competitive Edge ✅
 
-| # | Feature | Category | Impact | Effort |
-|---|---|---|---|---|
-| 7 | **Trace recording** — `browse trace start` / `browse trace stop --out trace.zip` wrapping Playwright's tracing API | Core (2.1) | Captures full session replay (DOM snapshots, network, screenshots) for post-mortem debugging of failed QA runs | M |
-| 8 | **HTML report generation** — `browse report --out qa-report.html` that compiles session screenshots, assertions, console errors, and flow results into a single shareable document | Core (2.1) | Gives stakeholders a reviewable artifact instead of ephemeral terminal output | M |
-| 9 | **Retry with exponential backoff** — 3 retries with 1s/2s/4s delays on daemon crash, plus circuit breaker that skips after N consecutive failures | Reliability (2.3) | Prevents silent single-retry failures in CI; makes long healthcheck runs resilient to transient browser crashes | S |
-| 10 | **TCP transport mode** — `browse daemon --listen tcp://0.0.0.0:9222 --token <secret>` for remote access | Performance (2.4) | Unlocks sidecar-container, remote-server, and multi-machine topologies for CI and cloud-hosted agents | M |
-| 11 | **`browse init`** — interactive scaffolding that generates `browse.config.json` with environments, sample flows, and healthcheck from prompts | DX (2.2) | Eliminates the cold-start friction of hand-writing config; guides users through setup in 60 seconds | S |
-| 12 | **Conditional flow steps** — `if` / `else` / `while` constructs in flow definitions with condition expressions | Core (2.1) | Enables self-contained complex flows (retry login, handle optional modals) without agent orchestration | M |
-| 13 | **Parallel healthcheck pages** — run independent page checks across sessions concurrently | Performance (2.4) | Reduces 10-page healthcheck from ~30s to ~5s by leveraging the existing session/pool infrastructure | M |
-| 14 | **Streaming flow output** — emit step results as they complete (NDJSON or line-delimited text) | UX (2.6) | Gives agents and humans real-time visibility into flow progress instead of waiting for full completion | S |
-| 15 | **`--dry-run` for flows** — print step plan without executing | UX (2.6) | Lets users preview destructive or long flows before committing; adds confidence for production-adjacent environments | S |
-| 16 | **Structured daemon health endpoint** — `browse status` returning JSON with uptime, memory usage, open sessions, tabs, browser version, Chromium PID | Reliability (2.3) | Enables CI readiness checks and operational monitoring of long-running daemon instances | S |
-| 17 | **Shell completions** — generated bash/zsh/fish completions for all 50+ commands and their flags | DX (2.2) | Standard CLI polish; improves discoverability for human users alongside agents | S |
-| 18 | **Screenshot management** — `browse screenshots list`, `browse screenshots clean --older-than 7d`, auto-rotation config | DX (2.2) | Prevents silent disk consumption from accumulated screenshots in long-running environments | S |
+All Tier 2 items have been implemented.
+
+| # | Feature | Category | Impact | Effort | Status |
+|---|---|---|---|---|---|
+| 7 | **Trace recording** — `browse trace start` / `browse trace stop --out trace.zip` wrapping Playwright's tracing API | Core (2.1) | Captures full session replay (DOM snapshots, network, screenshots) for post-mortem debugging of failed QA runs | M | ✅ Done |
+| 8 | **HTML report generation** — `browse report --out qa-report.html` that compiles session screenshots into a single shareable HTML document | Core (2.1) | Gives stakeholders a reviewable artifact instead of ephemeral terminal output | M | ✅ Done |
+| 9 | **Retry with exponential backoff** — 3 retries with 1s/2s/4s delays on daemon crash, plus circuit breaker that skips after 3 consecutive failures | Reliability (2.3) | Prevents silent single-retry failures in CI; makes long healthcheck runs resilient to transient browser crashes | S | ✅ Done |
+| 10 | **TCP transport mode** — `browse daemon --listen tcp://0.0.0.0:9222` for remote access with token auth | Performance (2.4) | Unlocks sidecar-container, remote-server, and multi-machine topologies for CI and cloud-hosted agents | M | ✅ Done |
+| 11 | **`browse init`** — scaffolding that generates `browse.config.json` with environments, sample flows, and healthcheck | DX (2.2) | Eliminates the cold-start friction of hand-writing config; guides users through setup in 60 seconds | S | ✅ Done |
+| 12 | **Conditional flow steps** — `if` / `else` / `while` constructs in flow definitions with condition expressions | Core (2.1) | Enables self-contained complex flows (retry login, handle optional modals) without agent orchestration | M | ✅ Done |
+| 13 | **Parallel healthcheck pages** — `--parallel` flag runs independent page checks concurrently with configurable `--concurrency` | Performance (2.4) | Reduces 10-page healthcheck from ~30s to ~5s by leveraging the existing session/pool infrastructure | M | ✅ Done |
+| 14 | **Streaming flow output** — `--stream` flag emits step results as NDJSON as they complete | UX (2.6) | Gives agents and humans real-time visibility into flow progress instead of waiting for full completion | S | ✅ Done |
+| 15 | **`--dry-run` for flows** — print step plan without executing | UX (2.6) | Lets users preview destructive or long flows before committing; adds confidence for production-adjacent environments | S | ✅ Done |
+| 16 | **Structured daemon health endpoint** — `browse status --json` returning JSON with uptime, memory, sessions, tabs, browser version, daemon PID | Reliability (2.3) | Enables CI readiness checks and operational monitoring of long-running daemon instances | S | ✅ Done |
+| 17 | **Shell completions** — `browse completions bash/zsh/fish` generates completion scripts for all 50+ commands and their flags | DX (2.2) | Standard CLI polish; improves discoverability for human users alongside agents | S | ✅ Done |
+| 18 | **Screenshot management** — `browse screenshots list/clean/count` with `--older-than` duration filtering | DX (2.2) | Prevents silent disk consumption from accumulated screenshots in long-running environments | S | ✅ Done |
 
 ### Tier 3 — Extraordinary
 
@@ -187,7 +189,7 @@ Browse is a well-architected, well-documented tool that has executed its origina
 
 1. **Table stakes (items 1–6):** ✅ **All complete.** Visual diffing, headed mode, signal handling, config resolution, socket auth, and JUnit reporter. These are expected by any serious QA tool user and were blocking adoption in team/CI contexts.
 
-2. **Competitive edge (items 7–18):** Trace recording, reports, retry hardening, TCP transport, and flow improvements. These differentiate Browse from "just use Playwright directly" and make the daemon architecture pay dividends.
+2. **Competitive edge (items 7–18):** ✅ **All complete.** Trace recording, HTML reports, retry with exponential backoff + circuit breaker, TCP transport, `browse init`, conditional flow steps (if/else/while), parallel healthchecks, streaming flow output, dry-run, structured health endpoint, shell completions, and screenshot management. These differentiate Browse from "just use Playwright directly" and make the daemon architecture pay dividends.
 
 3. **Extraordinary (items 19–25):** AI-powered visual assertions, session replay, multi-role matrix testing, auto-snapshot, branch diffing, bulk form fill, and flow sharing. These leverage Browse's unique position as an AI-agent-native browser tool to do things no existing tool does. Item 19 (AI visual assertions) is the single highest-impact feature — it turns Browse from "Playwright with a CLI" into "the first browser automation tool that can actually see."
 

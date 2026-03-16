@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { Page } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import type { RingBuffer } from "../buffers.ts";
 import type { AssertCondition, BrowseConfig } from "../config.ts";
 import { interpolateVars, parseVars } from "../flow-runner.ts";
@@ -21,11 +21,15 @@ const VALID_REPORTERS = ["junit"];
 export function parseHealthcheckArgs(args: string[]): {
 	vars: Record<string, string>;
 	noScreenshots: boolean;
+	parallel: boolean;
+	concurrency: number;
 	reporter?: string;
 	error?: string;
 } {
 	const vars = parseVars(args);
 	const noScreenshots = args.includes("--no-screenshots");
+	const parallel = args.includes("--parallel");
+	let concurrency = 5;
 	let reporter: string | undefined;
 	for (let i = 0; i < args.length; i++) {
 		if (args[i] === "--reporter") {
@@ -33,6 +37,8 @@ export function parseHealthcheckArgs(args: string[]): {
 				return {
 					vars,
 					noScreenshots,
+					parallel,
+					concurrency,
 					error: `Missing value for --reporter. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
 				};
 			}
@@ -41,13 +47,20 @@ export function parseHealthcheckArgs(args: string[]): {
 				return {
 					vars,
 					noScreenshots,
+					parallel,
+					concurrency,
 					error: `Invalid reporter '${reporter}'. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
 				};
 			}
-			break;
+		}
+		if (args[i] === "--concurrency") {
+			const next = args[i + 1];
+			if (next && /^\d+$/.test(next)) {
+				concurrency = Number(next);
+			}
 		}
 	}
-	return { vars, noScreenshots, reporter };
+	return { vars, noScreenshots, parallel, concurrency, reporter };
 }
 
 function slugify(name: string): string {
@@ -94,6 +107,7 @@ export async function handleHealthcheck(
 	page: Page,
 	args: string[],
 	deps: HealthcheckDeps | null,
+	context?: BrowserContext,
 ): Promise<Response> {
 	if (!config) {
 		return {
@@ -117,17 +131,22 @@ export async function handleHealthcheck(
 	if (parsed.error) {
 		return { ok: false, error: parsed.error };
 	}
-	const { vars, noScreenshots, reporter } = parsed;
+	const { vars, noScreenshots, parallel, concurrency, reporter } = parsed;
 	const pages = config.healthcheck.pages;
 	const startTime = Date.now();
 	const results: PageResult[] = [];
 	const allScreenshots: string[] = [];
 
-	for (const pageConfig of pages) {
+	/**
+	 * Check a single page — used by both sequential and parallel modes.
+	 */
+	async function checkPage(
+		checkPageInstance: Page,
+		pageConfig: (typeof pages)[number],
+	): Promise<PageResult> {
 		const url = interpolateVars(pageConfig.url, vars);
 		const name = pageConfig.name ?? url.replace(/^https?:\/\/[^/]+/, "");
 		const shouldScreenshot = !noScreenshots && pageConfig.screenshot !== false;
-		const consoleLevel = pageConfig.console ?? "error";
 
 		const result: PageResult = {
 			name,
@@ -137,14 +156,9 @@ export async function handleHealthcheck(
 			assertionResults: [],
 		};
 
-		// Drain console buffer before navigation
-		if (deps) {
-			deps.consoleBuffer.drain();
-		}
-
 		// Navigate
 		try {
-			await page.goto(url, {
+			await checkPageInstance.goto(url, {
 				waitUntil: "domcontentloaded",
 				timeout: 30_000,
 			});
@@ -152,39 +166,30 @@ export async function handleHealthcheck(
 			const message = err instanceof Error ? err.message : String(err);
 			result.passed = false;
 			result.error = `Navigation failed: ${message}`;
-			results.push(result);
-			continue;
+			return result;
 		}
 
 		// Screenshot
 		if (shouldScreenshot) {
 			try {
 				const screenshotPath = generateHealthcheckScreenshotPath(name);
-				await page.screenshot({ path: screenshotPath, fullPage: true });
+				await checkPageInstance.screenshot({
+					path: screenshotPath,
+					fullPage: true,
+				});
 				result.screenshotPath = screenshotPath;
-				allScreenshots.push(screenshotPath);
 			} catch {
 				// Screenshot failure doesn't fail the page
-			}
-		}
-
-		// Check console
-		if (deps) {
-			// Small delay for console messages to be captured
-			await new Promise((resolve) => setTimeout(resolve, 200));
-			const entries = deps.consoleBuffer.drain(
-				(entry) => entry.level === consoleLevel,
-			);
-			if (entries.length > 0) {
-				result.consoleErrors = entries;
-				result.passed = false;
 			}
 		}
 
 		// Run assertions
 		if (pageConfig.assertions) {
 			for (const condition of pageConfig.assertions) {
-				const assertResult = await evaluateAssertCondition(page, condition);
+				const assertResult = await evaluateAssertCondition(
+					checkPageInstance,
+					condition,
+				);
 				const label = formatAssertLabel(condition);
 				result.assertionResults.push({
 					label,
@@ -197,7 +202,75 @@ export async function handleHealthcheck(
 			}
 		}
 
-		results.push(result);
+		return result;
+	}
+
+	if (parallel && context) {
+		// Parallel mode: check pages concurrently using separate pages
+		const chunks: (typeof pages)[] = [];
+		for (let i = 0; i < pages.length; i += concurrency) {
+			chunks.push(pages.slice(i, i + concurrency));
+		}
+
+		for (const chunk of chunks) {
+			const parallelPages: Page[] = [];
+			try {
+				// Create a new page for each item in the chunk
+				for (let i = 0; i < chunk.length; i++) {
+					parallelPages.push(await context.newPage());
+				}
+
+				const chunkResults = await Promise.all(
+					chunk.map((pageConfig, idx) =>
+						checkPage(parallelPages[idx], pageConfig),
+					),
+				);
+
+				for (const result of chunkResults) {
+					results.push(result);
+					if (result.screenshotPath) {
+						allScreenshots.push(result.screenshotPath);
+					}
+				}
+			} finally {
+				// Close the temporary pages
+				for (const p of parallelPages) {
+					try {
+						await p.close();
+					} catch {
+						// Ignore close errors
+					}
+				}
+			}
+		}
+	} else {
+		// Sequential mode (original behavior)
+		for (const pageConfig of pages) {
+			// Drain console buffer before navigation
+			if (deps) {
+				deps.consoleBuffer.drain();
+			}
+
+			const result = await checkPage(page, pageConfig);
+
+			// Check console (only works in sequential mode with shared buffer)
+			if (deps) {
+				const consoleLevel = pageConfig.console ?? "error";
+				await new Promise((resolve) => setTimeout(resolve, 200));
+				const entries = deps.consoleBuffer.drain(
+					(entry) => entry.level === consoleLevel,
+				);
+				if (entries.length > 0) {
+					result.consoleErrors = entries;
+					result.passed = false;
+				}
+			}
+
+			results.push(result);
+			if (result.screenshotPath) {
+				allScreenshots.push(result.screenshotPath);
+			}
+		}
 	}
 
 	const passedCount = results.filter((r) => r.passed).length;

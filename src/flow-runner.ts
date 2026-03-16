@@ -12,6 +12,7 @@ import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import type {
 	BrowseConfig,
+	FlowCondition,
 	FlowConfig,
 	FlowStep,
 	WaitCondition,
@@ -137,6 +138,28 @@ function stepDescription(step: FlowStep): string {
 	}
 	if ("login" in step) return `login ${step.login}`;
 	if ("snapshot" in step) return "snapshot";
+	if ("if" in step) {
+		const cond = step.if.condition;
+		const condDesc = conditionDescription(cond);
+		return `if ${condDesc} (${step.if.then.length} then${step.if.else ? `, ${step.if.else.length} else` : ""} steps)`;
+	}
+	if ("while" in step) {
+		const cond = step.while.condition;
+		const condDesc = conditionDescription(cond);
+		const max = step.while.maxIterations ?? 10;
+		return `while ${condDesc} (${step.while.steps.length} steps, max ${max})`;
+	}
+	return "unknown";
+}
+
+function conditionDescription(cond: FlowCondition): string {
+	if ("urlContains" in cond) return `urlContains "${cond.urlContains}"`;
+	if ("urlPattern" in cond) return `urlPattern "${cond.urlPattern}"`;
+	if ("elementVisible" in cond)
+		return `elementVisible "${cond.elementVisible}"`;
+	if ("elementNotVisible" in cond)
+		return `elementNotVisible "${cond.elementNotVisible}"`;
+	if ("textVisible" in cond) return `textVisible "${cond.textVisible}"`;
 	return "unknown";
 }
 
@@ -218,6 +241,52 @@ async function waitForCondition(
 	}
 }
 
+/**
+ * Evaluate a flow condition (for if/while constructs).
+ */
+async function evaluateFlowCondition(
+	page: Page,
+	condition: FlowCondition,
+): Promise<boolean> {
+	if ("urlContains" in condition) {
+		return page.url().includes(condition.urlContains);
+	}
+	if ("urlPattern" in condition) {
+		return new RegExp(condition.urlPattern).test(page.url());
+	}
+	if ("elementVisible" in condition) {
+		try {
+			const visible = await page
+				.locator(condition.elementVisible)
+				.first()
+				.isVisible();
+			return visible;
+		} catch {
+			return false;
+		}
+	}
+	if ("elementNotVisible" in condition) {
+		try {
+			const visible = await page
+				.locator(condition.elementNotVisible)
+				.first()
+				.isVisible();
+			return !visible;
+		} catch {
+			return true;
+		}
+	}
+	if ("textVisible" in condition) {
+		try {
+			const bodyText = await page.innerText("body");
+			return bodyText.includes(condition.textVisible);
+		} catch {
+			return false;
+		}
+	}
+	return false;
+}
+
 async function findAndClickByName(page: Page, name: string): Promise<void> {
 	// Try button, then link, then generic clickable
 	for (const role of ["button", "link", "menuitem", "tab"] as const) {
@@ -296,13 +365,73 @@ async function findAndSelectByName(
 	}
 }
 
+/**
+ * Generate a dry-run preview of a flow without executing any steps.
+ */
+export function dryRunFlow(
+	flow: FlowConfig,
+	vars: Record<string, string>,
+): string {
+	const lines: string[] = [];
+	lines.push(`Dry run: ${flow.steps.length} steps`);
+	lines.push("");
+
+	for (let i = 0; i < flow.steps.length; i++) {
+		const rawStep = flow.steps[i];
+		const step = interpolateStep(rawStep, vars);
+		const stepNum = i + 1;
+		const desc = stepDescription(step);
+
+		// Show conditional/loop metadata if present
+		if ("if" in step) {
+			const ifStep = step as FlowStep & {
+				if: { condition: string };
+			};
+			lines.push(
+				`  ${stepNum}. [conditional] if ${ifStep.if.condition}: ${desc}`,
+			);
+		} else if ("while" in step) {
+			const whileStep = step as FlowStep & {
+				while: { condition: string };
+			};
+			lines.push(
+				`  ${stepNum}. [loop] while ${whileStep.while.condition}: ${desc}`,
+			);
+		} else {
+			lines.push(`  ${stepNum}. ${desc}`);
+		}
+	}
+
+	if (Object.keys(vars).length > 0) {
+		lines.push("");
+		lines.push("Variables:");
+		for (const [key, value] of Object.entries(vars)) {
+			lines.push(`  ${key} = ${value}`);
+		}
+	}
+
+	return lines.join("\n");
+}
+
+export type FlowRunOptions = {
+	continueOnError: boolean;
+	/** Callback invoked after each step completes (for streaming output). */
+	onStep?: (result: StepResult) => void;
+};
+
 export async function runFlow(
 	flowName: string,
 	flow: FlowConfig,
 	vars: Record<string, string>,
 	deps: FlowDeps,
-	continueOnError: boolean,
+	optionsOrContinueOnError: boolean | FlowRunOptions,
 ): Promise<{ results: StepResult[]; screenshots: string[] }> {
+	const options: FlowRunOptions =
+		typeof optionsOrContinueOnError === "boolean"
+			? { continueOnError: optionsOrContinueOnError }
+			: optionsOrContinueOnError;
+
+	const { continueOnError, onStep } = options;
 	const results: StepResult[] = [];
 	const screenshots: string[] = [];
 
@@ -361,22 +490,80 @@ export async function runFlow(
 				}
 			} else if ("snapshot" in step) {
 				await handleSnapshot(deps.page, []);
+			} else if ("if" in step) {
+				const conditionMet = await evaluateFlowCondition(
+					deps.page,
+					step.if.condition,
+				);
+				const branchSteps = conditionMet
+					? step.if.then
+					: (step.if.else ?? []);
+				if (branchSteps.length > 0) {
+					const subFlow: FlowConfig = {
+						steps: branchSteps,
+					};
+					const sub = await runFlow(
+						flowName,
+						subFlow,
+						vars,
+						deps,
+						{ continueOnError, onStep },
+					);
+					results.push(...sub.results);
+					screenshots.push(...sub.screenshots);
+					if (!continueOnError && sub.results.some((r) => !r.passed)) {
+						break;
+					}
+				}
+			} else if ("while" in step) {
+				const maxIterations = step.while.maxIterations ?? 10;
+				let iteration = 0;
+				while (iteration < maxIterations) {
+					const conditionMet = await evaluateFlowCondition(
+						deps.page,
+						step.while.condition,
+					);
+					if (!conditionMet) break;
+					const subFlow: FlowConfig = {
+						steps: step.while.steps,
+					};
+					const sub = await runFlow(
+						flowName,
+						subFlow,
+						vars,
+						deps,
+						{ continueOnError, onStep },
+					);
+					results.push(...sub.results);
+					screenshots.push(...sub.screenshots);
+					if (!continueOnError && sub.results.some((r) => !r.passed)) {
+						break;
+					}
+					iteration++;
+				}
 			}
 
-			results.push({
+			const result: StepResult = {
 				stepNum,
 				description: desc,
 				passed: true,
 				screenshotPath,
-			});
+			};
+			// Don't double-report if/while steps (sub-steps are already reported)
+			if (!("if" in step) && !("while" in step)) {
+				results.push(result);
+				onStep?.(result);
+			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			results.push({
+			const result: StepResult = {
 				stepNum,
 				description: desc,
 				passed: false,
 				error: message,
-			});
+			};
+			results.push(result);
+			onStep?.(result);
 
 			if (!continueOnError) break;
 		}

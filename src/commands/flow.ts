@@ -1,7 +1,13 @@
 import type { Page } from "playwright";
 import type { RingBuffer } from "../buffers.ts";
 import type { BrowseConfig } from "../config.ts";
-import { formatFlowReport, parseVars, runFlow } from "../flow-runner.ts";
+import {
+	dryRunFlow,
+	formatFlowReport,
+	parseVars,
+	runFlow,
+	type StepResult,
+} from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import { formatFlowJUnit } from "../reporters.ts";
 import type { ConsoleEntry } from "./console.ts";
@@ -29,7 +35,7 @@ export async function handleFlow(
 		return {
 			ok: false,
 			error:
-				"Usage: browse flow <name> [--var key=value ...] [--continue-on-error]\nbrowse flow list",
+				"Usage: browse flow <name> [--var key=value ...] [--continue-on-error] [--dry-run] [--stream]\nbrowse flow list",
 		};
 	}
 
@@ -69,6 +75,8 @@ export async function handleFlow(
 	const flow = flows[flowName];
 	const vars = parseVars(args.slice(1));
 	const continueOnError = args.includes("--continue-on-error");
+	const dryRun = args.includes("--dry-run");
+	const stream = args.includes("--stream");
 
 	// Parse reporter flag
 	const VALID_REPORTERS = ["junit"];
@@ -104,6 +112,12 @@ export async function handleFlow(
 		}
 	}
 
+	// Dry run mode — preview steps without executing
+	if (dryRun) {
+		const preview = dryRunFlow(flow, vars);
+		return { ok: true, data: preview };
+	}
+
 	if (!deps) {
 		return {
 			ok: false,
@@ -113,6 +127,15 @@ export async function handleFlow(
 	}
 
 	const startTime = Date.now();
+
+	// Streaming mode — collect NDJSON lines as steps complete
+	const streamLines: string[] = [];
+	const onStep = stream
+		? (result: StepResult) => {
+				streamLines.push(JSON.stringify(result));
+			}
+		: undefined;
+
 	const { results, screenshots } = await runFlow(
 		flowName,
 		flow,
@@ -123,11 +146,19 @@ export async function handleFlow(
 			consoleBuffer: deps.consoleBuffer,
 			networkBuffer: deps.networkBuffer,
 		},
-		continueOnError,
+		{ continueOnError, onStep },
 	);
 	const durationMs = Date.now() - startTime;
 
 	const allPassed = results.every((r) => r.passed);
+
+	// Streaming output returns NDJSON
+	if (stream) {
+		const output = streamLines.join("\n");
+		return allPassed
+			? { ok: true, data: output }
+			: { ok: false, error: output };
+	}
 
 	if (reporter === "junit") {
 		const junit = formatFlowJUnit(flowName, results, durationMs);

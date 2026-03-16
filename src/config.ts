@@ -36,6 +36,13 @@ export type AssertCondition =
 	| { elementText: { selector: string; contains: string } }
 	| { elementCount: { selector: string; count: number } };
 
+export type FlowCondition =
+	| { urlContains: string }
+	| { urlPattern: string }
+	| { elementVisible: string }
+	| { elementNotVisible: string }
+	| { textVisible: string };
+
 export type FlowStep =
 	| { goto: string }
 	| { click: string }
@@ -47,7 +54,9 @@ export type FlowStep =
 	| { wait: WaitCondition }
 	| { assert: AssertCondition }
 	| { login: string }
-	| { snapshot: true };
+	| { snapshot: true }
+	| { if: { condition: FlowCondition; then: FlowStep[]; else?: FlowStep[] } }
+	| { while: { condition: FlowCondition; steps: FlowStep[]; maxIterations?: number } };
 
 export type FlowConfig = {
 	description?: string;
@@ -173,6 +182,8 @@ const VALID_FLOW_STEP_KEYS = new Set([
 	"assert",
 	"login",
 	"snapshot",
+	"if",
+	"while",
 ]);
 
 const VALID_ASSERT_CONDITION_KEYS = new Set([
