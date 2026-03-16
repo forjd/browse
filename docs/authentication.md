@@ -156,12 +156,12 @@ Clears all cookies, localStorage, sessionStorage, tabs, and buffers without stop
 The daemon socket is protected by a shared-secret token to prevent unauthorized processes from executing commands. This is separate from web application authentication described above.
 
 - A 256-bit random token is generated at daemon startup
-- The token is stored at `/tmp/browse-daemon.token` with `0o600` permissions (owner-readable only)
+- The token is stored at `~/.local/state/browse/daemon.token` with `0o600` permissions (owner-readable only)
 - The CLI reads this token and includes it in every request
 - The daemon validates the token before processing any command
 - The token file is cleaned up on daemon shutdown
 
-This prevents any local process from executing arbitrary JavaScript via `browse eval` through the Unix socket. No configuration is required — token management is fully automatic.
+This prevents unauthorised users or processes without token-file access from executing arbitrary JavaScript via `browse eval` through the Unix socket. No configuration is required — token management is fully automatic.
 
 ## See Also
 

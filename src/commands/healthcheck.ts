@@ -16,17 +16,34 @@ export type HealthcheckDeps = {
 	networkBuffer: RingBuffer<NetworkEntry>;
 };
 
+const VALID_REPORTERS = ["junit"];
+
 export function parseHealthcheckArgs(args: string[]): {
 	vars: Record<string, string>;
 	noScreenshots: boolean;
 	reporter?: string;
+	error?: string;
 } {
 	const vars = parseVars(args);
 	const noScreenshots = args.includes("--no-screenshots");
 	let reporter: string | undefined;
 	for (let i = 0; i < args.length; i++) {
-		if (args[i] === "--reporter" && i + 1 < args.length) {
+		if (args[i] === "--reporter") {
+			if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
+				return {
+					vars,
+					noScreenshots,
+					error: `Missing value for --reporter. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
+				};
+			}
 			reporter = args[i + 1];
+			if (!VALID_REPORTERS.includes(reporter)) {
+				return {
+					vars,
+					noScreenshots,
+					error: `Invalid reporter '${reporter}'. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
+				};
+			}
 			break;
 		}
 	}
@@ -96,7 +113,11 @@ export async function handleHealthcheck(
 		};
 	}
 
-	const { vars, noScreenshots, reporter } = parseHealthcheckArgs(args);
+	const parsed = parseHealthcheckArgs(args);
+	if (parsed.error) {
+		return { ok: false, error: parsed.error };
+	}
+	const { vars, noScreenshots, reporter } = parsed;
 	const pages = config.healthcheck.pages;
 	const startTime = Date.now();
 	const results: PageResult[] = [];

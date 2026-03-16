@@ -91,7 +91,12 @@ export type BrowseConfig = {
 export function resolveConfigPath(explicitPath?: string): string | null {
 	if (explicitPath) {
 		const resolved = resolve(explicitPath);
-		return existsSync(resolved) ? resolved : resolved; // return even if missing — loadConfig will report the error
+		if (!existsSync(resolved)) {
+			throw new Error(
+				`Config file not found: ${resolved} (specified via --config)`,
+			);
+		}
+		return resolved;
 	}
 
 	// Walk upward from cwd

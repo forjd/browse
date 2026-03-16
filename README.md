@@ -348,7 +348,7 @@ Optional. Create `browse.config.json` in your project root to configure login en
 
 The daemon spawns on first use and stays alive for 30 minutes of inactivity. It owns a single Chromium instance and communicates over a Unix socket at `/tmp/browse-daemon.sock`. The CLI is a thin client that serialises commands as JSON and prints responses. Named sessions allow multiple page groups to share one Chromium process. By default sessions share the browser context; pass `--isolated` to `session create` for a fully separate context with its own cookies, storage, and permissions.
 
-The daemon socket is secured with a shared-secret authentication token generated at startup and stored at `/tmp/browse-daemon.token` (owner-readable only). The CLI reads this token and sends it with every request. SIGTERM and SIGINT are trapped for graceful shutdown — PID files, socket files, and token files are cleaned up automatically.
+The daemon socket is secured with a shared-secret authentication token generated at startup and stored at `~/.local/state/browse/daemon.token` (owner-readable only). The CLI reads this token and sends it with every request. SIGTERM and SIGINT are trapped for graceful shutdown — PID files, socket files, and token files are cleaned up automatically.
 
 > **Note:** Rebuilding the binary does not restart a running daemon. If you rebuild after adding or changing commands, run `browse quit` first so the next call cold-starts with the new binary.
 

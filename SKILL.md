@@ -116,7 +116,7 @@ Use `browse wipe` to clear all session data before switching accounts or at the 
 
 Compare screenshots against a baseline to detect visual regressions:
 
-```
+```bash
 browse screenshot current.png --diff baseline.png
 browse screenshot current.png --diff baseline.png --threshold 5
 ```
@@ -127,7 +127,7 @@ Output includes similarity percentage, diff pixel count, and a path to the diff 
 
 Launch the browser visibly for debugging (set before the daemon starts):
 
-```
+```bash
 BROWSE_HEADED=1 browse goto https://example.com
 ```
 

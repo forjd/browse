@@ -13,7 +13,7 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 - Single-threaded TCP server listening on a Unix socket at `/tmp/browse-daemon.sock`
 - PID file: `/tmp/browse-daemon.pid`
 - Socket permissions: `0o600` (owner-only access)
-- Authentication token: `/tmp/browse-daemon.token` (0o600, validated on every request)
+- Authentication token: `~/.local/state/browse/daemon.token` (0o600, validated on every request)
 - Owns one Chromium instance via Playwright (patchright fork)
 - Uses a persistent browser context at `~/.bun-browse/user-data`
 - Default viewport: 1440x900
@@ -29,7 +29,7 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 
 ## Socket Authentication
 
-The daemon generates a cryptographically random 256-bit token at startup and writes it to `/tmp/browse-daemon.token` with `0o600` permissions. The CLI reads this token file before every request and includes the token in the JSON payload. The daemon validates the token before processing any command.
+The daemon generates a cryptographically random 256-bit token at startup and writes it to `~/.local/state/browse/daemon.token` with `0o600` permissions. The CLI reads this token file before every request and includes the token in the JSON payload. The daemon validates the token before processing any command.
 
 This prevents other local processes from executing arbitrary commands (including `eval` for JavaScript execution) through the unguarded socket. The token file is cleaned up on daemon shutdown, browser crash, and signal-based termination.
 
@@ -121,7 +121,7 @@ Stealth options are propagated to isolated session contexts.
 ## Lifecycle
 
 - The PID file is written at startup with mode `0o600`
-- The auth token is generated and written to `/tmp/browse-daemon.token` with mode `0o600`
+- The auth token is generated and written to `~/.local/state/browse/daemon.token` with mode `0o600`
 - Socket permissions are set to `0o600` after listen
 - The idle timer resets on every incoming request. After 30 minutes of inactivity, `shutdown()` is called
 - SIGTERM/SIGINT are trapped for graceful shutdown

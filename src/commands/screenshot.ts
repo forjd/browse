@@ -65,11 +65,17 @@ function parseArgs(args: string[]): {
 			if (!next || next.startsWith("--")) {
 				return { viewport, error: "Missing value for --threshold." };
 			}
-			const val = Number.parseInt(next, 10);
-			if (Number.isNaN(val) || val < 0 || val > 255) {
+			if (!/^\d+$/.test(next)) {
 				return {
 					viewport,
-					error: "--threshold must be a number between 0 and 255.",
+					error: "--threshold must be an integer between 0 and 255.",
+				};
+			}
+			const val = Number(next);
+			if (val > 255) {
+				return {
+					viewport,
+					error: "--threshold must be an integer between 0 and 255.",
 				};
 			}
 			threshold = val;
