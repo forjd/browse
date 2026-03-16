@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/forjd/browse/compare/browse-v0.8.1...browse-v0.8.2) (2026-03-16)
+
+
+### Bug Fixes
+
+* quote SKILL.md description to produce valid YAML frontmatter ([73745b9](https://github.com/forjd/browse/commit/73745b931c991fbe4d669e6bd2aa1bed391ca3df))
+
 ## [0.8.1](https://github.com/forjd/browse/compare/browse-v0.8.0...browse-v0.8.1) (2026-03-16)
 
 
