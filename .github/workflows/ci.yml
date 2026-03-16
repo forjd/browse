@@ -24,8 +24,13 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Install Playwright browsers
+      - name: Install Playwright browsers (Linux)
+        if: runner.os == 'Linux'
         run: bunx playwright install chrome --with-deps
+
+      - name: Install Playwright browsers (macOS)
+        if: runner.os != 'Linux'
+        run: bunx playwright install chrome
 
       - name: Run tests
         run: bun test
