@@ -40,14 +40,17 @@ export async function handleAssertAi(
 	const unknownFlags: string[] = [];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
-		if (arg === "--model") {
-			model = args[i + 1];
-			i++;
-		} else if (arg === "--provider") {
-			provider = args[i + 1];
-			i++;
-		} else if (arg === "--base-url") {
-			baseUrl = args[i + 1];
+		if (arg === "--model" || arg === "--provider" || arg === "--base-url") {
+			const value = args[i + 1];
+			if (!value || value.startsWith("-")) {
+				return {
+					ok: false,
+					error: `Flag ${arg} requires a value. Run 'browse help assert-ai' for usage.`,
+				};
+			}
+			if (arg === "--model") model = value;
+			else if (arg === "--provider") provider = value;
+			else baseUrl = value;
 			i++;
 		} else if (arg.startsWith("--")) {
 			unknownFlags.push(arg);
@@ -209,6 +212,7 @@ async function callAnthropic(
 			"x-api-key": apiKey,
 			"anthropic-version": "2023-06-01",
 		},
+		signal: AbortSignal.timeout(60_000),
 		body: JSON.stringify({
 			model,
 			max_tokens: 1024,
@@ -268,6 +272,7 @@ async function callOpenAI(
 			"Content-Type": "application/json",
 			Authorization: `Bearer ${apiKey}`,
 		},
+		signal: AbortSignal.timeout(60_000),
 		body: JSON.stringify({
 			model,
 			max_tokens: 1024,
@@ -307,10 +312,43 @@ async function callOpenAI(
 	return parseAiResponse(text);
 }
 
+/** Extract the first balanced JSON object from text. */
+function extractJsonObject(text: string): string | null {
+	const start = text.indexOf("{");
+	if (start === -1) return null;
+
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+
+	for (let i = start; i < text.length; i++) {
+		const ch = text[i];
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+		if (ch === "\\" && inString) {
+			escaped = true;
+			continue;
+		}
+		if (ch === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (inString) continue;
+		if (ch === "{") depth++;
+		else if (ch === "}") {
+			depth--;
+			if (depth === 0) return text.slice(start, i + 1);
+		}
+	}
+	return null;
+}
+
 function parseAiResponse(text: string): AiAssertResult {
-	// Try to extract JSON from the response
-	const jsonMatch = text.match(/\{[\s\S]*?\}/);
-	if (!jsonMatch) {
+	// Extract the first balanced JSON object from the response
+	const jsonStr = extractJsonObject(text);
+	if (!jsonStr) {
 		throw new Error(
 			`Could not parse AI response as JSON: ${text.slice(0, 200)}`,
 		);
@@ -318,17 +356,15 @@ function parseAiResponse(text: string): AiAssertResult {
 
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(jsonMatch[0]);
+		parsed = JSON.parse(jsonStr);
 	} catch {
-		throw new Error(
-			`Invalid JSON in AI response: ${jsonMatch[0].slice(0, 200)}`,
-		);
+		throw new Error(`Invalid JSON in AI response: ${jsonStr.slice(0, 200)}`);
 	}
 
 	const obj = parsed as Record<string, unknown>;
 	if (typeof obj.passed !== "boolean") {
 		throw new Error(
-			`Invalid AI response: 'passed' must be a boolean, got ${typeof obj.passed}: ${jsonMatch[0].slice(0, 200)}`,
+			`Invalid AI response: 'passed' must be a boolean, got ${typeof obj.passed}: ${jsonStr.slice(0, 200)}`,
 		);
 	}
 	if (
@@ -338,12 +374,12 @@ function parseAiResponse(text: string): AiAssertResult {
 		obj.confidence > 1
 	) {
 		throw new Error(
-			`Invalid AI response: 'confidence' must be a number between 0 and 1, got ${String(obj.confidence)}: ${jsonMatch[0].slice(0, 200)}`,
+			`Invalid AI response: 'confidence' must be a number between 0 and 1, got ${String(obj.confidence)}: ${jsonStr.slice(0, 200)}`,
 		);
 	}
 	if (typeof obj.reasoning !== "string" || obj.reasoning.length === 0) {
 		throw new Error(
-			`Invalid AI response: 'reasoning' must be a non-empty string: ${jsonMatch[0].slice(0, 200)}`,
+			`Invalid AI response: 'reasoning' must be a non-empty string: ${jsonStr.slice(0, 200)}`,
 		);
 	}
 	return {
