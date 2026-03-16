@@ -25,6 +25,7 @@ export async function handleForm(
 	let autoSnapshot = false;
 	const positional: string[] = [];
 
+	const unknownFlags: string[] = [];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
 		if (arg === "--data") {
@@ -32,9 +33,18 @@ export async function handleForm(
 			i++;
 		} else if (arg === "--auto-snapshot") {
 			autoSnapshot = true;
-		} else if (!arg.startsWith("--")) {
+		} else if (arg.startsWith("--")) {
+			unknownFlags.push(arg);
+		} else {
 			positional.push(arg);
 		}
+	}
+
+	if (unknownFlags.length > 0) {
+		return {
+			ok: false,
+			error: `Unknown flag${unknownFlags.length > 1 ? "s" : ""}: ${unknownFlags.join(", ")}. Run 'browse help form' for usage.`,
+		};
 	}
 
 	if (!dataStr) {
