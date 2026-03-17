@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { type BrowserContext, chromium, type Page } from "playwright";
 import { cleanupToken, generateToken } from "./auth.ts";
 import { RingBuffer } from "./buffers.ts";
+import { attachCDPConsoleCapture } from "./cdp-console.ts";
 import { handleA11y } from "./commands/a11y.ts";
 import { handleAssert } from "./commands/assert.ts";
 import { handleAssertAi } from "./commands/assert-ai.ts";
@@ -197,12 +198,20 @@ function attachPageListeners(page: Page, tabState: TabState): void {
 		}
 	});
 
-	page.on("console", (msg) => {
-		tabState.consoleBuffer.push({
-			level: msg.type(),
-			text: msg.text(),
-			location: msg.location(),
-			timestamp: Date.now(),
+	// Console capture via CDP — Patchright omits the Runtime.enable call
+	// that standard Playwright makes, silently dropping all
+	// Runtime.consoleAPICalled events. attachCDPConsoleCapture opens its
+	// own CDP session with Runtime + Log enabled so user-triggered
+	// console.log/warn/error messages are captured reliably.
+	attachCDPConsoleCapture(page, tabState.consoleBuffer).catch(() => {
+		// Fallback: if CDP session fails, use Playwright's (partial) listener
+		page.on("console", (msg) => {
+			tabState.consoleBuffer.push({
+				level: msg.type(),
+				text: msg.text(),
+				location: msg.location(),
+				timestamp: Date.now(),
+			});
 		});
 	});
 
