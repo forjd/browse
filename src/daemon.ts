@@ -1,4 +1,4 @@
-import { chmodSync, statSync } from "node:fs";
+import { chmodSync, rmSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -229,10 +229,16 @@ function attachPageListeners(page: Page, tabState: TabState): void {
  * Start a daemon socket server with injected dependencies.
  * This is the testable core — no browser launch.
  */
+export type ServerOptions = {
+	/** Called after quit-triggered shutdown completes. Defaults to process.exit(0). */
+	onExit?: () => void;
+};
+
 export async function startServer(
 	deps: ServerDeps,
 	lifecycleConfig: LifecycleConfig,
 	onShutdown: () => Promise<void>,
+	options?: ServerOptions,
 ): Promise<{
 	server: Server;
 	idleTimer: IdleTimer;
@@ -242,6 +248,7 @@ export async function startServer(
 	let idleTimer: IdleTimer;
 
 	const { context, config, stealthOpts, token, tcpListen } = deps;
+	const exitFn = options?.onExit ?? (() => process.exit(0));
 	const startTime = Date.now();
 
 	// Per-context trace state so each BrowserContext has isolated tracing
@@ -334,6 +341,8 @@ export async function startServer(
 		attachPageListeners(newPage, tabState);
 		return tabState;
 	}
+
+	let quitRequested = false;
 
 	async function shutdown() {
 		idleTimer.clear();
@@ -699,7 +708,7 @@ export async function startServer(
 						return handleFlowShare(config, request.args);
 					case "quit": {
 						const response = await handleQuit();
-						setTimeout(() => shutdown(), 50);
+						quitRequested = true;
 						return response;
 					}
 					default:
@@ -739,7 +748,13 @@ export async function startServer(
 
 			handleConnection(line).then(
 				(responseStr) => {
-					socket.end(responseStr);
+					socket.end(responseStr, () => {
+						if (quitRequested) {
+							shutdown()
+								.catch(() => cleanupFiles(lifecycleConfig))
+								.finally(exitFn);
+						}
+					});
 				},
 				(err) => {
 					const errResponse = serialiseResponse({
@@ -902,6 +917,13 @@ export async function startDaemon(
 				await context.close();
 			} catch {
 				// Browser may already be closed
+			}
+			// Remove Chrome's SingletonLock — left behind if the browser
+			// doesn't shut down cleanly, blocking subsequent launches.
+			try {
+				rmSync(join(userDataDir, "SingletonLock"), { force: true });
+			} catch {
+				// Best effort
 			}
 		},
 	);
