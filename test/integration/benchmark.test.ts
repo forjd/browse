@@ -36,6 +36,7 @@ function mockPage(overrides: Record<string, unknown> = {}) {
 			ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
 		})),
 		evaluate: mock(() => Promise.resolve(500)),
+		close: mock(() => Promise.resolve()),
 		...overrides,
 	} as never;
 }
@@ -151,6 +152,73 @@ describe("integration: benchmark", () => {
 				expect(response.data).toContain("p95:");
 				expect(response.data).toContain("p99:");
 			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("back navigates correctly after benchmark (issue #52)", async () => {
+		const config = testPaths();
+		const history: string[] = [];
+		let currentIndex = -1;
+
+		const page = mockPage({
+			goto: mock((url: string) => {
+				// Trim history forward on new navigation (browser behaviour)
+				history.splice(currentIndex + 1);
+				history.push(url);
+				currentIndex = history.length - 1;
+				return Promise.resolve();
+			}),
+			goBack: mock(() => {
+				if (currentIndex <= 0) return Promise.resolve(null);
+				currentIndex--;
+				return Promise.resolve({});
+			}),
+			title: mock(() => {
+				const url = history[currentIndex] ?? "";
+				return Promise.resolve(`Title: ${url}`);
+			}),
+			url: mock(() => history[currentIndex] ?? "about:blank"),
+		});
+
+		// The context's newPage returns a separate temp page for benchmark
+		const tempPage = mockPage();
+		const ctx = mockContext({
+			newPage: mock(() => Promise.resolve(tempPage)),
+		});
+
+		const { shutdown } = await startServer(
+			{ page, context: ctx, config: null },
+			config,
+			async () => {},
+		);
+
+		try {
+			// Navigate to two pages
+			await sendCommand(config.socketPath, "goto", [
+				"https://page1.example.com",
+			]);
+			await sendCommand(config.socketPath, "goto", [
+				"https://page2.example.com",
+			]);
+
+			// Run benchmark — should NOT affect main page's history
+			const benchResult = await sendCommand(config.socketPath, "benchmark", [
+				"--iterations",
+				"1",
+			]);
+			expect(benchResult.ok).toBe(true);
+
+			// Back should return to page1, not a data:text/html benchmark page
+			const backResult = await sendCommand(config.socketPath, "back");
+			expect(backResult.ok).toBe(true);
+			if (backResult.ok) {
+				expect(backResult.data).toContain("page1.example.com");
+			}
+
+			// Main page's goto should only have been called for the two user navigations
+			expect(page.goto).toHaveBeenCalledTimes(2);
 		} finally {
 			await shutdown();
 		}
