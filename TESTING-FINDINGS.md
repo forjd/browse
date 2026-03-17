@@ -4,18 +4,42 @@
 **Date:** 2026-03-16
 **Test suite:** 711 tests, all passing
 
+**macOS replication:** 2026-03-17, darwin-arm64, Chrome 146.0.7680.80
+
 ---
 
 ## Summary
 
 Comprehensive testing of all 57 CLI commands revealed **17 bugs** across 5 severity categories. The tool is well-built with good error messages and solid core functionality (navigation, snapshot/ref system, form interactions, accessibility auditing). However, there are several issues in flag parsing, JSON output, daemon lifecycle, and flow variable interpolation that affect usability.
 
-| Severity | Count |
-|----------|-------|
-| Critical | 2 |
-| High     | 4 |
-| Medium   | 6 |
-| Low      | 5 |
+| Severity | Count | macOS confirmed |
+|----------|-------|-----------------|
+| Critical | 2     | 2               |
+| High     | 4     | 3               |
+| Medium   | 6     | 3               |
+| Low      | 5     | 3               |
+
+### macOS Replication Summary
+
+| # | Finding | macOS Status |
+|---|---------|-------------|
+| 1 | Global flags before command | **Confirmed** |
+| 2 | Flow variable interpolation with spaces | **Confirmed** |
+| 3 | `--json` flag not implemented | **Confirmed** |
+| 4 | Screenshot visual diff broken | **Confirmed** |
+| 5 | Console messages not captured | **Confirmed** |
+| 6 | `quit` doesn't shut down daemon | **Confirmed** |
+| 7 | `back` command unreliable | Not reproduced — works correctly |
+| 8 | Healthcheck fails on console errors | Not reproduced — console capture broken (Finding 5), so healthcheck always shows "Console: clean" |
+| 9 | `form` command field matching | Not reproduced — `form` command not registered in CLI |
+| 10 | Config validation errors shown as "not found" | **Confirmed** |
+| 11 | `press` can silently break page state | **Confirmed** |
+| 12 | No-args exits with code 1 | **Confirmed** |
+| 13 | `help help` says Unknown command | **Confirmed** |
+| 14 | `login --env nonexistent` shows "Available: ." | **Confirmed** |
+| 15 | `snapshot -f` identical to `snapshot -i` | **Confirmed** |
+| 16 | `forward` with no history returns success | Not reproduced — correctly returns error |
+| 17 | `screenshots clean` lacks confirmation | **Confirmed** (design suggestion) |
 
 ---
 
@@ -37,6 +61,8 @@ browse --json status             # Error: Unknown command: --json
 **Root cause:** Line 62: `const [cmd, ...rawArgs] = filteredArgv2` unconditionally treats the first non-config/non-listen arg as the command name. The `--timeout`, `--session`, and `--json` flags are only extracted from `rawArgs` (lines 70-88), which comes after the command.
 
 **Impact:** Any user or AI agent that places global flags before the command (a natural CLI convention) will get cryptic errors. The help text advertises these as "Global flags" suggesting they work anywhere.
+
+> **macOS (2026-03-17):** Confirmed. `browse --timeout 5000 ping` → "Error: Unknown command: --timeout". `browse --json status` → "Error: Unknown command: --json".
 
 ---
 
@@ -61,6 +87,8 @@ browse flow my-flow --var "url=https://example.com"
 
 **Impact:** Any config file using the common `{{ variable }}` syntax (with spaces) will silently fail to interpolate variables. This is the convention in Mustache, Jinja2, Handlebars, etc.
 
+> **macOS (2026-03-17):** Confirmed. `--dry-run` output shows `{{url}}` resolves to the value but `{{ url }}` stays as the literal string.
+
 ---
 
 ## High Severity Issues
@@ -80,6 +108,8 @@ Several commands advertise `--json` support in their KNOWN_FLAGS but never imple
 
 **Impact:** AI agents and CI pipelines relying on structured JSON output will get unparseable plain text instead.
 
+> **macOS (2026-03-17):** Confirmed. `snapshot --json` outputs plain text tree. `cookies --json` outputs "No cookies." (not `[]`). `console --json` and `a11y --json` also output plain text.
+
 ---
 
 ### 4. Screenshot visual diff broken
@@ -97,6 +127,8 @@ browse screenshot /tmp/current.png --diff /tmp/baseline.png
 
 **Impact:** The `--diff` feature for visual regression testing is completely non-functional.
 
+> **macOS (2026-03-17):** Confirmed. Same error: "diff failed: invalid stored block lengths".
+
 ---
 
 ### 5. Console messages from user JavaScript not captured
@@ -113,6 +145,8 @@ browse console --keep
 ```
 
 **Impact:** The `console` command is ineffective for debugging JavaScript behavior triggered by user interactions. Only pre-existing resource errors appear.
+
+> **macOS (2026-03-17):** Confirmed. Clicked buttons with `console.log()`, `console.warn()`, `console.error()` handlers, then `browse console --keep` → "No console messages."
 
 ---
 
@@ -132,6 +166,8 @@ Additionally, after eventual shutdown:
 
 **Root cause:** The quit handler returns immediately, and `shutdown()` is scheduled via `setTimeout(..., 50)` which may be too short or may not execute properly.
 
+> **macOS (2026-03-17):** Confirmed. `browse quit` → "Daemon stopped." then `browse ping` → "pong". SingletonLock issue not tested.
+
 ---
 
 ## Medium Severity Issues
@@ -149,6 +185,8 @@ browse back
 
 **Root cause:** The `benchmark` command creates `data:text/html` pages in the same session, polluting the navigation history stack.
 
+> **macOS (2026-03-17):** Not reproduced. `goto page1 → goto page2 → back` navigated correctly to page1. The benchmark pollution scenario was not tested.
+
 ---
 
 ### 8. Healthcheck fails on console errors even when all assertions pass
@@ -165,6 +203,8 @@ A page with all assertions passing is marked as FAILED because of unrelated reso
 
 **Suggestion:** Console errors should be warnings, not failure conditions, unless explicitly configured.
 
+> **macOS (2026-03-17):** Not reproduced. Because console messages from user JS are not captured at all (Finding 5), the healthcheck always reports "Console: clean" — even on pages with `console.error()` and `throw new Error()`. The original finding may have involved network-level resource errors captured differently on Linux.
+
 ---
 
 ### 9. `form` command field matching is fragile
@@ -179,6 +219,8 @@ browse form --data '{"username":"testuser"}'
 
 The form command only matches by input `name` attribute, not by label text, placeholder, or accessible name. The field matching mechanism doesn't align with how users typically describe form fields.
 
+> **macOS (2026-03-17):** Not reproduced. The `form` command is not registered in the CLI command list — `browse form` returns "Error: Unknown command: form". The command exists in `src/commands/form.ts` and is handled by the daemon (`daemon.ts:639`) but is not exposed to users.
+
 ---
 
 ### 10. Config validation errors shown as "not found"
@@ -192,6 +234,8 @@ browse flow list
 
 The config file IS found, but validation fails. The error message is misleading — it should say "Config found but invalid" with details about what's wrong.
 
+> **macOS (2026-03-17):** Confirmed. A config with only `flows` (missing required `environments` object) causes validation to fail. The daemon logs a warning at stderr (e.g. "Warning: Invalid browse.config.json: missing 'environments' object.") but the client receives "No browse.config.json found." Similarly, invalid assertion keys cause validation failure with the same misleading "not found" message.
+
 ---
 
 ### 11. `press` command can silently break page state
@@ -199,6 +243,8 @@ The config file IS found, but validation fails. The error message is misleading 
 Pressing Enter or other keys can trigger form submissions or navigation, which silently invalidates refs without notification. The next command using a ref fails with "Refs are stale" but the user doesn't know why.
 
 **Suggestion:** Detect navigation after `press` and include a warning in the response.
+
+> **macOS (2026-03-17):** Confirmed. `browse press Enter` on a form with `action="https://example.com/submit"` navigated to the new page. The response only says "Pressed Enter" with no mention of the navigation. Old snapshot refs silently became stale.
 
 ---
 
@@ -211,6 +257,8 @@ browse
 ```
 
 Running with no arguments should arguably exit 0 since displaying help is a valid action. Many CLI tools (git, docker) exit 0 when showing help.
+
+> **macOS (2026-03-17):** Confirmed. Shows help text, exit code 1.
 
 ---
 
@@ -225,6 +273,8 @@ browse help help
 
 The `help` command is handled client-side but not registered in the COMMANDS map in `help.ts`, so `formatCommandHelp("help")` returns null.
 
+> **macOS (2026-03-17):** Confirmed. `browse help help` → "Unknown command: help".
+
 ---
 
 ### 14. `login --env nonexistent` shows "Available: ."
@@ -236,11 +286,15 @@ browse login --env nonexistent
 
 When no environments are configured, the available list is empty and joins as an empty string followed by a period, producing "Available: .". Should show "Available: (none)" or similar.
 
+> **macOS (2026-03-17):** Confirmed. With empty `environments: {}` in config, `browse login --env nonexistent` → "Unknown environment: 'nonexistent'. Available: ."
+
 ---
 
 ### 15. `snapshot -f` output identical to `snapshot -i`
 
 In testing, the "full" mode (`-f`) produced the same output as the "inclusive" mode (`-i`). The distinction between these modes is unclear from the output.
+
+> **macOS (2026-03-17):** Confirmed. `diff` of `snapshot -f` and `snapshot -i` outputs shows zero differences.
 
 ---
 
@@ -256,11 +310,15 @@ browse forward
 
 **Update:** On subsequent tests this was inconsistent — sometimes it correctly returned an error.
 
+> **macOS (2026-03-17):** Not reproduced. After `browse wipe && browse goto <page>`, `browse forward` correctly returns "Error: No next page in history" with exit code 1.
+
 ---
 
 ### 17. `screenshots clean` not tested but lacks confirmation
 
 The `screenshots clean --older-than 1h` command could delete screenshots without confirmation. A `--dry-run` flag or confirmation prompt would be safer.
+
+> **macOS (2026-03-17):** Confirmed. `browse help screenshots` shows no `--dry-run` flag or confirmation mechanism.
 
 ---
 
@@ -286,7 +344,13 @@ The `screenshots clean --older-than 1h` command could delete screenshots without
 
 ## Test Environment
 
+### Original (2026-03-16)
 - Platform: Linux x86_64
 - Bun: 1.3.9
 - Browser: Chromium 141.0.7390.37
 - Binary: compiled via `bun build --compile`
+
+### macOS Replication (2026-03-17)
+- Platform: Darwin arm64 (macOS 25.2.0)
+- Browser: Chrome 146.0.7680.80
+- Binary: compiled via `bun build --compile` (Mach-O arm64)
