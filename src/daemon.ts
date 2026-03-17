@@ -230,7 +230,7 @@ function attachPageListeners(page: Page, tabState: TabState): void {
  * This is the testable core — no browser launch.
  */
 export type ServerOptions = {
-	/** Called after quit-triggered shutdown completes. Defaults to process.exit(0). */
+	/** Called after shutdown completes (quit or idle timeout). Defaults to process.exit(0). */
 	onExit?: () => void;
 };
 
