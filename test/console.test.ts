@@ -127,6 +127,44 @@ describe("console command", () => {
 			);
 		}
 	});
+
+	test("returns JSON array when json option is true", () => {
+		buffer.push(makeEntry({ level: "error", text: "Something broke" }));
+		buffer.push(makeEntry({ level: "log", text: "User loaded" }));
+
+		const res = handleConsole(buffer, [], { json: true });
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			const parsed = JSON.parse(res.data);
+			expect(Array.isArray(parsed)).toBe(true);
+			expect(parsed).toHaveLength(2);
+			expect(parsed[0].level).toBe("error");
+			expect(parsed[0].text).toBe("Something broke");
+			expect(parsed[1].level).toBe("log");
+		}
+	});
+
+	test("returns empty JSON array when no messages and json is true", () => {
+		const res = handleConsole(buffer, [], { json: true });
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			const parsed = JSON.parse(res.data);
+			expect(parsed).toEqual([]);
+		}
+	});
+
+	test("JSON output respects --level filter", () => {
+		buffer.push(makeEntry({ level: "error", text: "Error msg" }));
+		buffer.push(makeEntry({ level: "log", text: "Log msg" }));
+
+		const res = handleConsole(buffer, ["--level", "error"], { json: true });
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			const parsed = JSON.parse(res.data);
+			expect(parsed).toHaveLength(1);
+			expect(parsed[0].level).toBe("error");
+		}
+	});
 });
 
 describe("formatConsoleEntries", () => {

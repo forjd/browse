@@ -156,6 +156,37 @@ describe("handleSnapshot", () => {
 		}
 	});
 
+	test("returns JSON when json option is true", async () => {
+		clearRefs();
+		const page = mockPage(
+			`- link "Home"\n- button "Submit"\n- textbox "Email"`,
+		);
+
+		const result = await handleSnapshot(page, [], { json: true });
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const parsed = JSON.parse(result.data);
+			expect(parsed.title).toBe("Test Page");
+			expect(Array.isArray(parsed.nodes)).toBe(true);
+			expect(parsed.nodes.length).toBeGreaterThan(0);
+		}
+	});
+
+	test("returns JSON with mode flags", async () => {
+		clearRefs();
+		const page = mockPage(`- heading "Title" [level=1]\n- button "OK"`);
+
+		const result = await handleSnapshot(page, ["-i"], { json: true });
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const parsed = JSON.parse(result.data);
+			expect(parsed.title).toBe("Test Page");
+			expect(Array.isArray(parsed.nodes)).toBe(true);
+		}
+	});
+
 	test("returns error when ariaSnapshot fails", async () => {
 		clearRefs();
 		const page = {

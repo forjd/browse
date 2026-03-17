@@ -17,6 +17,7 @@ function formatNetworkEntries(entries: NetworkEntry[]): string {
 export function handleNetwork(
 	buffer: RingBuffer<NetworkEntry>,
 	args: string[],
+	options?: { json?: boolean },
 ): Response {
 	let all = false;
 	let keep = false;
@@ -29,6 +30,10 @@ export function handleNetwork(
 	const filter = all ? undefined : (entry: NetworkEntry) => entry.status >= 400;
 
 	const entries = keep ? buffer.peek(filter) : buffer.drain(filter);
+
+	if (options?.json) {
+		return { ok: true, data: JSON.stringify(entries) };
+	}
 
 	if (entries.length === 0) {
 		return { ok: true, data: all ? "No requests." : "No failed requests." };

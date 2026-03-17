@@ -41,9 +41,10 @@ export async function handleA11y(
 	args: string[],
 	axeFactory: AxeBuilderFactory = (opts) =>
 		new AxeBuilder(opts) as ReturnType<AxeBuilderFactory>,
+	options?: { json?: boolean },
 ): Promise<Response> {
 	let standard: string | undefined;
-	let jsonOutput = false;
+	const jsonOutput = options?.json ?? false;
 	let includeSelector: string | undefined;
 	let excludeSelector: string | undefined;
 	let refArg: string | undefined;
@@ -68,8 +69,6 @@ export async function handleA11y(
 			}
 			standard = value;
 			i++;
-		} else if (arg === "--json") {
-			jsonOutput = true;
 		} else if (arg === "--include") {
 			const value = args[i + 1];
 			if (!value || value.startsWith("-")) {

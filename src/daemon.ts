@@ -515,7 +515,9 @@ export async function startServer(
 					case "text":
 						return handleText(page);
 					case "snapshot":
-						return handleSnapshot(page, request.args);
+						return handleSnapshot(page, request.args, {
+							json: request.json,
+						});
 					case "click":
 						return handleClick(page, request.args, {
 							autoSnapshot: request.args.includes("--auto-snapshot"),
@@ -533,9 +535,21 @@ export async function startServer(
 					case "screenshot":
 						return handleScreenshot(page, request.args);
 					case "console":
-						return handleConsole(getActiveConsoleBuffer(session), request.args);
+						return handleConsole(
+							getActiveConsoleBuffer(session),
+							request.args,
+							{
+								json: request.json,
+							},
+						);
 					case "network":
-						return handleNetwork(getActiveNetworkBuffer(session), request.args);
+						return handleNetwork(
+							getActiveNetworkBuffer(session),
+							request.args,
+							{
+								json: request.json,
+							},
+						);
 					case "auth-state":
 						return handleAuthState(sessionContext, page, request.args);
 					case "login":
@@ -590,7 +604,9 @@ export async function startServer(
 					case "upload":
 						return handleUpload(page, request.args);
 					case "a11y":
-						return handleA11y(page, request.args);
+						return handleA11y(page, request.args, undefined, {
+							json: request.json,
+						});
 					case "benchmark":
 						return handleBenchmark({ page }, request.args);
 					case "dialog":
@@ -602,9 +618,13 @@ export async function startServer(
 					case "intercept":
 						return handleIntercept(page, request.args, session.interceptState);
 					case "cookies":
-						return handleCookies(sessionContext, request.args);
+						return handleCookies(sessionContext, request.args, {
+							json: request.json,
+						});
 					case "storage":
-						return handleStorage(page, request.args);
+						return handleStorage(page, request.args, {
+							json: request.json,
+						});
 					case "html":
 						return handleHtml(page, request.args);
 					case "title":

@@ -24,6 +24,7 @@ export function formatConsoleEntries(entries: ConsoleEntry[]): string {
 export function handleConsole(
 	buffer: RingBuffer<ConsoleEntry>,
 	args: string[],
+	options?: { json?: boolean },
 ): Response {
 	let levelFilter: string | undefined;
 	let keep = false;
@@ -53,6 +54,10 @@ export function handleConsole(
 		: undefined;
 
 	const entries = keep ? buffer.peek(filter) : buffer.drain(filter);
+
+	if (options?.json) {
+		return { ok: true, data: JSON.stringify(entries) };
+	}
 
 	if (entries.length === 0) {
 		return { ok: true, data: "No console messages." };

@@ -137,12 +137,14 @@ describe("handleA11y", () => {
 		}
 	});
 
-	test("returns JSON when --json flag is used", async () => {
+	test("returns JSON when json option is true", async () => {
 		const violation = sampleViolation();
 		const axe = createMockAxeBuilder([violation]);
 		const page = {} as never;
 
-		const result = await handleA11y(page, ["--json"], axe.constructor);
+		const result = await handleA11y(page, [], axe.constructor, {
+			json: true,
+		});
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -157,7 +159,9 @@ describe("handleA11y", () => {
 		const axe = createMockAxeBuilder([]);
 		const page = {} as never;
 
-		const result = await handleA11y(page, ["--json"], axe.constructor);
+		const result = await handleA11y(page, [], axe.constructor, {
+			json: true,
+		});
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -315,26 +319,25 @@ describe("handleA11y", () => {
 		}
 	});
 
-	test("combines multiple flags", async () => {
+	test("combines multiple flags with json option", async () => {
 		const axe = createMockAxeBuilder([]);
 		const page = {} as never;
 
-		await handleA11y(
+		const result = await handleA11y(
 			page,
-			[
-				"--standard",
-				"wcag2aa",
-				"--include",
-				".main",
-				"--exclude",
-				".ad",
-				"--json",
-			],
+			["--standard", "wcag2aa", "--include", ".main", "--exclude", ".ad"],
 			axe.constructor,
+			{ json: true },
 		);
 
 		expect(axe.instance.withTags).toHaveBeenCalledWith(["wcag2aa"]);
 		expect(axe.instance.include).toHaveBeenCalledWith(".main");
 		expect(axe.instance.exclude).toHaveBeenCalledWith(".ad");
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const parsed = JSON.parse(result.data);
+			expect(parsed.violations).toBeDefined();
+			expect(parsed.summary).toBeDefined();
+		}
 	});
 });

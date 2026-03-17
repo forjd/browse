@@ -35,6 +35,36 @@ function shouldIncludeNode(
 	return false;
 }
 
+type JsonNode = {
+	role: string;
+	name: string;
+	level?: number;
+	children?: JsonNode[];
+};
+
+function filterNodes(
+	nodes: AccessibilityNode[],
+	mode: SnapshotMode,
+): JsonNode[] {
+	const result: JsonNode[] = [];
+
+	for (const node of nodes) {
+		if (shouldIncludeNode(node, mode)) {
+			const jsonNode: JsonNode = { role: node.role, name: node.name };
+			if (node.level) jsonNode.level = node.level;
+			if (node.children) {
+				const children = filterNodes(node.children, mode);
+				if (children.length > 0) jsonNode.children = children;
+			}
+			result.push(jsonNode);
+		} else if (node.children) {
+			result.push(...filterNodes(node.children, mode));
+		}
+	}
+
+	return result;
+}
+
 function formatTree(
 	nodes: AccessibilityNode[],
 	refMap: Map<string, RefEntry>,
@@ -118,6 +148,7 @@ function formatTree(
 export async function handleSnapshot(
 	page: Page,
 	args: string[],
+	options?: { json?: boolean },
 ): Promise<Response> {
 	const mode = parseMode(args);
 
@@ -129,8 +160,19 @@ export async function handleSnapshot(
 		// Assign refs to interactive elements
 		const refs = assignRefs(nodes, mode);
 
-		// Format the tree
 		const title = await page.title();
+
+		if (options?.json) {
+			return {
+				ok: true,
+				data: JSON.stringify({
+					title,
+					nodes: filterNodes(nodes, mode),
+				}),
+			};
+		}
+
+		// Format the tree
 		const lines = formatTree(nodes, refs, mode);
 
 		// Build output with page header

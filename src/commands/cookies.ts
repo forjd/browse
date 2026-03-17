@@ -4,6 +4,7 @@ import type { Response } from "../protocol.ts";
 export async function handleCookies(
 	context: BrowserContext,
 	args: string[],
+	options?: { json?: boolean },
 ): Promise<Response> {
 	let domain: string | undefined;
 
@@ -28,6 +29,10 @@ export async function handleCookies(
 						(c.domain.startsWith(".") && domain.endsWith(c.domain.slice(1))),
 				)
 			: cookies;
+
+		if (options?.json) {
+			return { ok: true, data: JSON.stringify(filtered) };
+		}
 
 		if (filtered.length === 0) {
 			return {
