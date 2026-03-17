@@ -154,15 +154,47 @@ describe("daemon server", () => {
 		writeFileSync(config.pidPath, "12345");
 		const page = mockPage();
 		const shutdownCb = mock(() => Promise.resolve());
-		await startServer(mockDeps(page), config, shutdownCb);
+		const exitCb = mock(() => {});
+		await startServer(mockDeps(page), config, shutdownCb, {
+			onExit: exitCb,
+		});
 
 		const response = await sendCommand(config.socketPath, "quit");
 		expect(response).toEqual({ ok: true, data: "Daemon stopped." });
 
-		// Give it a moment to run the scheduled shutdown
-		await Bun.sleep(200);
+		// Shutdown fires after the response is flushed to the socket.
+		const deadline = Date.now() + 2000;
+		while (Date.now() < deadline && !shutdownCb.mock.calls.length) {
+			await Bun.sleep(20);
+		}
 		expect(shutdownCb).toHaveBeenCalled();
+		expect(exitCb).toHaveBeenCalled();
 		expect(existsSync(config.socketPath)).toBe(false);
+		expect(existsSync(config.pidPath)).toBe(false);
+	});
+
+	test("quit makes server unreachable after shutdown completes", async () => {
+		const config = testPaths();
+		writeFileSync(config.pidPath, "12345");
+		const page = mockPage();
+		const shutdownCb = mock(() => Promise.resolve());
+		await startServer(mockDeps(page), config, shutdownCb, {
+			onExit: () => {},
+		});
+
+		await sendCommand(config.socketPath, "quit");
+
+		// Wait for shutdown to complete
+		const deadline = Date.now() + 2000;
+		while (Date.now() < deadline && !shutdownCb.mock.calls.length) {
+			await Bun.sleep(20);
+		}
+
+		// Server should be closed — new connections should fail
+		const err = await sendCommand(config.socketPath, "ping").catch(
+			(e: Error) => e,
+		);
+		expect(err).toBeInstanceOf(Error);
 	});
 
 	test("cleans up socket and pid on shutdown", async () => {
