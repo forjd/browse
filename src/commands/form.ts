@@ -6,6 +6,12 @@ const FILLABLE_ROLES = ["textbox", "searchbox", "spinbutton", "combobox"];
 const SELECTABLE_ROLES = ["combobox", "listbox"];
 const CHECKABLE_ROLES = ["checkbox", "radio", "switch"];
 
+/** Strip trailing colons/punctuation and trim whitespace so users can write
+ *  keys like "Username:" or " Email " and still match the accessible name. */
+function normaliseKey(key: string): string {
+	return key.replace(/[:]+$/, "").trim();
+}
+
 /**
  * Bulk form fill: fill multiple fields in one command.
  *
@@ -77,6 +83,7 @@ export async function handleForm(
 	const errors: string[] = [];
 
 	for (const [fieldName, value] of Object.entries(data)) {
+		const matchName = normaliseKey(fieldName);
 		try {
 			if (typeof value === "boolean") {
 				// Handle checkbox/switch/radio
@@ -84,7 +91,7 @@ export async function handleForm(
 				for (const role of CHECKABLE_ROLES) {
 					const locator = page.getByRole(
 						role as Parameters<Page["getByRole"]>[0],
-						{ name: fieldName },
+						{ name: matchName },
 					);
 					if ((await locator.count()) > 0) {
 						if (value) {
@@ -111,7 +118,7 @@ export async function handleForm(
 			for (const role of FILLABLE_ROLES) {
 				const locator = page.getByRole(
 					role as Parameters<Page["getByRole"]>[0],
-					{ name: fieldName },
+					{ name: matchName },
 				);
 				if ((await locator.count()) > 0) {
 					await locator.first().fill(String(value), { timeout: 5_000 });
@@ -127,7 +134,7 @@ export async function handleForm(
 			for (const role of SELECTABLE_ROLES) {
 				const locator = page.getByRole(
 					role as Parameters<Page["getByRole"]>[0],
-					{ name: fieldName },
+					{ name: matchName },
 				);
 				if ((await locator.count()) > 0) {
 					await locator.first().selectOption(String(value), { timeout: 5_000 });
@@ -140,7 +147,7 @@ export async function handleForm(
 			if (fieldFilled) continue;
 
 			// Try by label as fallback
-			const labelLocator = page.getByLabel(fieldName);
+			const labelLocator = page.getByLabel(matchName);
 			if ((await labelLocator.count()) > 0) {
 				const tagName = await labelLocator
 					.first()
@@ -153,6 +160,26 @@ export async function handleForm(
 				} else {
 					await labelLocator.first().fill(String(value), { timeout: 5_000 });
 					filled.push(`${fieldName}: "${value}" (by label)`);
+				}
+				continue;
+			}
+
+			// Try by placeholder as final fallback
+			const placeholderLocator = page.getByPlaceholder(matchName);
+			if ((await placeholderLocator.count()) > 0) {
+				const tagName = await placeholderLocator
+					.first()
+					.evaluate((el) => el.tagName.toLowerCase());
+				if (tagName === "select") {
+					await placeholderLocator
+						.first()
+						.selectOption(String(value), { timeout: 5_000 });
+					filled.push(`${fieldName}: "${value}" (select by placeholder)`);
+				} else {
+					await placeholderLocator
+						.first()
+						.fill(String(value), { timeout: 5_000 });
+					filled.push(`${fieldName}: "${value}" (by placeholder)`);
 				}
 				continue;
 			}
