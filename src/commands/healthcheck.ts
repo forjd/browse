@@ -98,6 +98,7 @@ type PageResult = {
 	passed: boolean;
 	screenshotPath?: string;
 	consoleErrors: ConsoleEntry[];
+	consoleWarnings: ConsoleEntry[];
 	assertionResults: { label: string; passed: boolean; reason?: string }[];
 	error?: string;
 };
@@ -153,6 +154,7 @@ export async function handleHealthcheck(
 			url,
 			passed: true,
 			consoleErrors: [],
+			consoleWarnings: [],
 			assertionResults: [],
 		};
 
@@ -261,8 +263,14 @@ export async function handleHealthcheck(
 					(entry) => entry.level === consoleLevel,
 				);
 				if (entries.length > 0) {
-					result.consoleErrors = entries;
-					result.passed = false;
+					if (pageConfig.console !== undefined) {
+						// Explicitly configured: console errors fail the page
+						result.consoleErrors = entries;
+						result.passed = false;
+					} else {
+						// Not configured: report as warnings, don't fail
+						result.consoleWarnings = entries;
+					}
 				}
 			}
 
@@ -348,6 +356,12 @@ function formatHealthcheckReport(
 		if (result.consoleErrors.length > 0) {
 			lines.push("    Console errors:");
 			const formatted = formatConsoleEntries(result.consoleErrors);
+			for (const line of formatted.split("\n")) {
+				lines.push(`      ${line}`);
+			}
+		} else if (result.consoleWarnings.length > 0) {
+			lines.push("    Console warnings:");
+			const formatted = formatConsoleEntries(result.consoleWarnings);
 			for (const line of formatted.split("\n")) {
 				lines.push(`      ${line}`);
 			}
