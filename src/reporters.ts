@@ -61,6 +61,7 @@ export type HealthcheckPageResult = {
 	error?: string;
 	assertionResults: { label: string; passed: boolean; reason?: string }[];
 	consoleErrors: { text: string }[];
+	consoleWarnings: { text: string }[];
 };
 
 /**

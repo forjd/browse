@@ -308,7 +308,7 @@ describe("handleHealthcheck — screenshots", () => {
 });
 
 describe("handleHealthcheck — console errors", () => {
-	test("fails when console buffer contains errors", async () => {
+	test("passes with console warnings when console is not explicitly configured", async () => {
 		const config = singlePageConfig();
 		const page = mockPage();
 		const deps = makeDeps();
@@ -317,12 +317,34 @@ describe("handleHealthcheck — console errors", () => {
 		const originalGoto = page.goto;
 		page.goto = mock(async (...args: any[]) => {
 			await originalGoto(...args);
-			// Simulate console error arriving after navigation
 			deps.consoleBuffer.push(makeConsoleEntry());
 		});
 
 		const result = await handleHealthcheck(config, page, [], deps);
 
+		// Page should PASS — console errors are warnings by default
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Console warnings:");
+			expect(result.data).toContain("Uncaught TypeError");
+			expect(result.data).not.toContain("Console errors:");
+		}
+	});
+
+	test("fails when console is explicitly configured and buffer has errors", async () => {
+		const config = singlePageConfig({ console: "error" });
+		const page = mockPage();
+		const deps = makeDeps();
+
+		const originalGoto = page.goto;
+		page.goto = mock(async (...args: any[]) => {
+			await originalGoto(...args);
+			deps.consoleBuffer.push(makeConsoleEntry());
+		});
+
+		const result = await handleHealthcheck(config, page, [], deps);
+
+		// Page should FAIL — console checking was explicitly opted into
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error).toContain("Console errors:");
@@ -353,6 +375,32 @@ describe("handleHealthcheck — console errors", () => {
 		const result = await handleHealthcheck(config, page, [], deps);
 
 		expect(result.ok).toBe(true);
+	});
+
+	test("shows Console: clean when no console entries and console not configured", async () => {
+		const config = singlePageConfig();
+		const page = mockPage();
+		const deps = makeDeps();
+
+		const result = await handleHealthcheck(config, page, [], deps);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Console: clean");
+		}
+	});
+
+	test("shows Console: clean when console explicitly configured but buffer empty", async () => {
+		const config = singlePageConfig({ console: "error" });
+		const page = mockPage();
+		const deps = makeDeps();
+
+		const result = await handleHealthcheck(config, page, [], deps);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Console: clean");
+		}
 	});
 });
 
