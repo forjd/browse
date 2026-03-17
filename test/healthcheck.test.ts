@@ -352,6 +352,29 @@ describe("handleHealthcheck — console errors", () => {
 		}
 	});
 
+	test("fails when console: warning is explicitly configured and buffer has warnings", async () => {
+		const config = singlePageConfig({ console: "warning" });
+		const page = mockPage();
+		const deps = makeDeps();
+
+		const originalGoto = page.goto;
+		page.goto = mock(async (...args: any[]) => {
+			await originalGoto(...args);
+			deps.consoleBuffer.push(
+				makeConsoleEntry({ level: "warning", text: "Deprecated API usage" }),
+			);
+		});
+
+		const result = await handleHealthcheck(config, page, [], deps);
+
+		// Page should FAIL — console checking was explicitly opted into
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Console warnings:");
+			expect(result.error).toContain("Deprecated API usage");
+		}
+	});
+
 	test("passes when console buffer is empty", async () => {
 		const config = singlePageConfig();
 		const page = mockPage();

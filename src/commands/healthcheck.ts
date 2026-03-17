@@ -264,8 +264,12 @@ export async function handleHealthcheck(
 				);
 				if (entries.length > 0) {
 					if (pageConfig.console !== undefined) {
-						// Explicitly configured: console errors fail the page
-						result.consoleErrors = entries;
+						// Explicitly configured: fail the page
+						if (pageConfig.console === "error") {
+							result.consoleErrors = entries;
+						} else {
+							result.consoleWarnings = entries;
+						}
 						result.passed = false;
 					} else {
 						// Not configured: report as warnings, don't fail
