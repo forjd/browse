@@ -342,14 +342,21 @@ export async function startServer(
 		return tabState;
 	}
 
-	let quitRequested = false;
-
 	async function shutdown() {
 		idleTimer.clear();
 		server.close();
 		tcpServer?.close();
 		await onShutdown();
 		cleanupFiles(lifecycleConfig);
+	}
+
+	let shutdownStarted = false;
+	function shutdownOnce() {
+		if (shutdownStarted) return;
+		shutdownStarted = true;
+		shutdown()
+			.catch(() => cleanupFiles(lifecycleConfig))
+			.finally(exitFn);
 	}
 
 	idleTimer = createIdleTimer(lifecycleConfig, () => {
@@ -374,7 +381,12 @@ export async function startServer(
 		"diff",
 	]);
 
-	async function handleConnection(data: string): Promise<string> {
+	type ConnectionResult = { responseStr: string; quit: boolean };
+	function reply(responseStr: string, quit = false): ConnectionResult {
+		return { responseStr, quit };
+	}
+
+	async function handleConnection(data: string): Promise<ConnectionResult> {
 		idleTimer.reset();
 
 		try {
@@ -382,10 +394,12 @@ export async function startServer(
 
 			// Validate auth token if the daemon has one
 			if (token && request.token !== token) {
-				return serialiseResponse({
-					ok: false,
-					error: "Authentication failed: invalid or missing token.",
-				});
+				return reply(
+					serialiseResponse({
+						ok: false,
+						error: "Authentication failed: invalid or missing token.",
+					}),
+				);
 			}
 
 			// Session management commands are handled globally
@@ -412,12 +426,12 @@ export async function startServer(
 					defaultContext: context,
 					attachListeners: attachPageListeners,
 				});
-				return serialiseResponse(response);
+				return reply(serialiseResponse(response));
 			}
 
 			// Ping/status don't need session routing
 			if (request.cmd === "ping") {
-				return serialiseResponse({ ok: true, data: "pong" });
+				return reply(serialiseResponse({ ok: true, data: "pong" }));
 			}
 
 			if (request.cmd === "status") {
@@ -472,10 +486,12 @@ export async function startServer(
 						daemonPid: process.pid,
 						sessionsDetail: sessionsInfo,
 					};
-					return serialiseResponse({
-						ok: true,
-						data: JSON.stringify(jsonData, null, 2),
-					});
+					return reply(
+						serialiseResponse({
+							ok: true,
+							data: JSON.stringify(jsonData, null, 2),
+						}),
+					);
 				}
 
 				const statusData = [
@@ -492,19 +508,23 @@ export async function startServer(
 						`  ${name}: ${info.url} (${info.tabs} tab${info.tabs !== 1 ? "s" : ""}${info.isolated ? ", isolated" : ""})`,
 					);
 				}
-				return serialiseResponse({
-					ok: true,
-					data: statusData.join("\n"),
-				});
+				return reply(
+					serialiseResponse({
+						ok: true,
+						data: statusData.join("\n"),
+					}),
+				);
 			}
 
 			// Resolve session for this request
 			const session = resolveSession(request.session);
 			if ("error" in session) {
-				return serialiseResponse({
-					ok: false,
-					error: session.error,
-				});
+				return reply(
+					serialiseResponse({
+						ok: false,
+						error: session.error,
+					}),
+				);
 			}
 
 			const page = getActivePage(session);
@@ -517,10 +537,12 @@ export async function startServer(
 			if (knownFlags) {
 				const unknown = checkUnknownFlags(request.args, knownFlags);
 				if (unknown.length > 0) {
-					return serialiseResponse({
-						ok: false,
-						error: unknownFlagsError(request.cmd, unknown),
-					});
+					return reply(
+						serialiseResponse({
+							ok: false,
+							error: unknownFlagsError(request.cmd, unknown),
+						}),
+					);
 				}
 			}
 
@@ -706,11 +728,8 @@ export async function startServer(
 						);
 					case "flow-share":
 						return handleFlowShare(config, request.args);
-					case "quit": {
-						const response = await handleQuit();
-						quitRequested = true;
-						return response;
-					}
+					case "quit":
+						return handleQuit();
 					default:
 						return {
 							ok: false,
@@ -727,10 +746,10 @@ export async function startServer(
 				response = await withTimeout(executeCommand, timeoutMs);
 			}
 
-			return serialiseResponse(response);
+			return reply(serialiseResponse(response), request.cmd === "quit");
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
-			return serialiseResponse({ ok: false, error: message });
+			return reply(serialiseResponse({ ok: false, error: message }));
 		}
 	}
 
@@ -747,13 +766,9 @@ export async function startServer(
 			buffer = buffer.slice(newlineIndex + 1);
 
 			handleConnection(line).then(
-				(responseStr) => {
-					socket.end(responseStr, () => {
-						if (quitRequested) {
-							shutdown()
-								.catch(() => cleanupFiles(lifecycleConfig))
-								.finally(exitFn);
-						}
+				(result) => {
+					socket.end(result.responseStr, () => {
+						if (result.quit) shutdownOnce();
 					});
 				},
 				(err) => {
@@ -809,8 +824,10 @@ export async function startServer(
 					tcpBuffer = tcpBuffer.slice(newlineIndex + 1);
 
 					handleConnection(line).then(
-						(responseStr) => {
-							socket.end(responseStr);
+						(result) => {
+							socket.end(result.responseStr, () => {
+								if (result.quit) shutdownOnce();
+							});
 						},
 						(err) => {
 							const errResponse = serialiseResponse({
