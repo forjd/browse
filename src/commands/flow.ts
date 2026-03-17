@@ -1,6 +1,6 @@
 import type { Page } from "playwright";
 import type { RingBuffer } from "../buffers.ts";
-import type { BrowseConfig } from "../config.ts";
+import type { BrowseConfig, ConfigContext } from "../config.ts";
 import {
 	dryRunFlow,
 	formatFlowReport,
@@ -23,11 +23,14 @@ export async function handleFlow(
 	page: Page,
 	args: string[],
 	deps?: FlowDeps,
+	configCtx?: ConfigContext,
 ): Promise<Response> {
 	if (!config) {
 		return {
 			ok: false,
-			error: "No browse.config.json found. Create one with flow definitions.",
+			error:
+				configCtx?.configError ??
+				"No browse.config.json found. Create one with flow definitions.",
 		};
 	}
 

@@ -60,6 +60,18 @@ describe("handleFlow — flow list", () => {
 			expect(result.error).toContain("browse.config.json");
 		}
 	});
+
+	test("returns validation error when config is invalid", async () => {
+		const result = await handleFlow(null, null as any, ["list"], undefined, {
+			configError: "Invalid browse.config.json: missing 'environments' object.",
+		});
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Invalid browse.config.json");
+			expect(result.error).toContain("missing 'environments' object");
+			expect(result.error).not.toContain("No browse.config.json found");
+		}
+	});
 });
 
 describe("handleFlow — missing flow", () => {

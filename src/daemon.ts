@@ -185,6 +185,8 @@ export type ServerDeps = {
 	page: Page;
 	context: BrowserContext;
 	config: BrowseConfig | null;
+	/** Validation error when config file exists but is invalid. */
+	configError?: string | null;
 	stealthOpts?: StealthOpts;
 	token?: string;
 	/** Optional TCP listen address, e.g. "tcp://0.0.0.0:9222" */
@@ -247,7 +249,8 @@ export async function startServer(
 	let server: Server;
 	let idleTimer: IdleTimer;
 
-	const { context, config, stealthOpts, token, tcpListen } = deps;
+	const { context, config, configError, stealthOpts, token, tcpListen } = deps;
+	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
 	const startTime = Date.now();
 
@@ -593,17 +596,23 @@ export async function startServer(
 					case "auth-state":
 						return handleAuthState(sessionContext, page, request.args);
 					case "login":
-						return handleLogin(config, page, request.args);
+						return handleLogin(config, page, request.args, configCtx);
 					case "tab":
 						return handleTab(tabRegistry, request.args, {
 							clearRefs,
 							createTab: () => createTab(sessionContext),
 						});
 					case "flow":
-						return handleFlow(config, page, request.args, {
-							consoleBuffer: getActiveConsoleBuffer(session),
-							networkBuffer: getActiveNetworkBuffer(session),
-						});
+						return handleFlow(
+							config,
+							page,
+							request.args,
+							{
+								consoleBuffer: getActiveConsoleBuffer(session),
+								networkBuffer: getActiveNetworkBuffer(session),
+							},
+							configCtx,
+						);
 					case "assert":
 						return handleAssert(config, page, request.args);
 					case "healthcheck":
@@ -616,6 +625,7 @@ export async function startServer(
 								networkBuffer: getActiveNetworkBuffer(session),
 							},
 							sessionContext,
+							configCtx,
 						);
 					case "wipe":
 						return handleWipe({
@@ -710,6 +720,7 @@ export async function startServer(
 							sessionContext,
 							context,
 							stealthOpts,
+							configCtx,
 						);
 					case "assert-ai":
 						return handleAssertAi(page, request.args);
@@ -904,12 +915,13 @@ export async function startDaemon(
 	// Load config: explicit path > upward search > global fallback
 	const resolvedConfigPath = resolveConfigPath(options.configPath);
 	let config: BrowseConfig | null = null;
+	let configError: string | null = null;
 	if (resolvedConfigPath) {
-		const { config: loaded, error: configError } =
-			loadConfig(resolvedConfigPath);
+		const { config: loaded, error: loadError } = loadConfig(resolvedConfigPath);
 		config = loaded;
-		if (configError) {
-			console.error(`Warning: ${configError}`);
+		configError = loadError;
+		if (loadError) {
+			console.error(`Warning: ${loadError}`);
 		}
 	}
 
@@ -923,6 +935,7 @@ export async function startDaemon(
 			page,
 			context,
 			config,
+			configError,
 			stealthOpts: { userAgent, navigatorPlatform, chromeMajor },
 			token,
 			tcpListen: options.tcpListen,
