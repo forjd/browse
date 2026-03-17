@@ -65,6 +65,18 @@ afterEach(() => {
 	rmSync(TEST_DIR, { recursive: true, force: true });
 });
 
+/** Poll until the given mock has been called, or the timeout expires. */
+async function waitUntilCalled(
+	mockFn: { mock: { calls: unknown[] } },
+	timeoutMs = 2000,
+): Promise<boolean> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline && !mockFn.mock.calls.length) {
+		await Bun.sleep(20);
+	}
+	return mockFn.mock.calls.length > 0;
+}
+
 function sendCommand(
 	socketPath: string,
 	cmd: string,
@@ -163,10 +175,7 @@ describe("daemon server", () => {
 		expect(response).toEqual({ ok: true, data: "Daemon stopped." });
 
 		// Shutdown fires after the response is flushed to the socket.
-		const deadline = Date.now() + 2000;
-		while (Date.now() < deadline && !shutdownCb.mock.calls.length) {
-			await Bun.sleep(20);
-		}
+		await waitUntilCalled(shutdownCb);
 		expect(shutdownCb).toHaveBeenCalled();
 		expect(exitCb).toHaveBeenCalled();
 		expect(existsSync(config.socketPath)).toBe(false);
@@ -185,10 +194,7 @@ describe("daemon server", () => {
 		await sendCommand(config.socketPath, "quit");
 
 		// Wait for shutdown to complete
-		const deadline = Date.now() + 2000;
-		while (Date.now() < deadline && !shutdownCb.mock.calls.length) {
-			await Bun.sleep(20);
-		}
+		await waitUntilCalled(shutdownCb);
 
 		// Server should be closed — new connections should fail
 		const err = await sendCommand(config.socketPath, "ping").catch(
@@ -231,10 +237,7 @@ describe("daemon server", () => {
 			}
 		}
 
-		const deadline = Date.now() + 2000;
-		while (Date.now() < deadline && !exitCb.mock.calls.length) {
-			await Bun.sleep(20);
-		}
+		await waitUntilCalled(exitCb);
 
 		// shutdownOnce guard ensures shutdown runs exactly once
 		expect(shutdownCb).toHaveBeenCalledTimes(1);
