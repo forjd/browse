@@ -89,6 +89,41 @@ describe("interpolateVars", () => {
 		const result = interpolateVars("{{key}}", {});
 		expect(result).toBe("{{key}}");
 	});
+
+	test("replaces {{ key }} with spaces inside braces", () => {
+		const result = interpolateVars("{{ base_url }}/login", {
+			base_url: "https://example.com",
+		});
+		expect(result).toBe("https://example.com/login");
+	});
+
+	test("replaces {{key }} with trailing space", () => {
+		const result = interpolateVars("{{url }}/page", {
+			url: "https://example.com",
+		});
+		expect(result).toBe("https://example.com/page");
+	});
+
+	test("replaces {{ key}} with leading space", () => {
+		const result = interpolateVars("{{ url}}/page", {
+			url: "https://example.com",
+		});
+		expect(result).toBe("https://example.com/page");
+	});
+
+	test("replaces spaced variables with multiple spaces", () => {
+		const result = interpolateVars("{{  url  }}/page", {
+			url: "https://example.com",
+		});
+		expect(result).toBe("https://example.com/page");
+	});
+
+	test("leaves unmatched spaced variables as literal", () => {
+		const result = interpolateVars("{{ known }} and {{ unknown }}", {
+			known: "OK",
+		});
+		expect(result).toBe("OK and {{ unknown }}");
+	});
 });
 
 // --- Helpers for runFlow tests ---
