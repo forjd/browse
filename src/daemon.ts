@@ -117,7 +117,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	benchmark: ["--iterations"],
 	viewport: ["--device", "--preset"],
 	scroll: [],
-	press: [],
+	press: ["--auto-snapshot"],
 	wait: [],
 	url: [],
 	back: [],
@@ -574,7 +574,9 @@ export async function startServer(
 					case "scroll":
 						return handleScroll(page, request.args);
 					case "press":
-						return handlePress(page, request.args);
+						return handlePress(page, request.args, {
+							autoSnapshot: request.args.includes("--auto-snapshot"),
+						});
 					case "screenshot":
 						return handleScreenshot(page, request.args);
 					case "console":
