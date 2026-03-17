@@ -74,17 +74,24 @@ describe("formatBenchmarkResults", () => {
 });
 
 describe("handleBenchmark", () => {
-	function makeDeps(): BenchmarkDeps {
+	function mockTempPage() {
 		return {
-			page: {
-				goto: mock(() => Promise.resolve()),
-				title: mock(() => Promise.resolve("Test")),
-				screenshot: mock(() => Promise.resolve(Buffer.from(""))),
-				locator: mock(() => ({
-					click: mock(() => Promise.resolve()),
-					fill: mock(() => Promise.resolve()),
-					ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
-				})),
+			goto: mock(() => Promise.resolve()),
+			title: mock(() => Promise.resolve("Test")),
+			screenshot: mock(() => Promise.resolve(Buffer.from(""))),
+			locator: mock(() => ({
+				click: mock(() => Promise.resolve()),
+				fill: mock(() => Promise.resolve()),
+				ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
+			})),
+			close: mock(() => Promise.resolve()),
+		};
+	}
+
+	function makeDeps(tempPage = mockTempPage()): BenchmarkDeps {
+		return {
+			context: {
+				newPage: mock(() => Promise.resolve(tempPage)),
 			} as never,
 		};
 	}
@@ -130,5 +137,53 @@ describe("handleBenchmark", () => {
 		if (result.ok) {
 			expect(result.data).toContain("3 iterations");
 		}
+	});
+
+	test("uses a temporary page from context, not the main page", async () => {
+		const tempPage = {
+			goto: mock(() => Promise.resolve()),
+			screenshot: mock(() => Promise.resolve(Buffer.from(""))),
+			locator: mock(() => ({
+				click: mock(() => Promise.resolve()),
+				fill: mock(() => Promise.resolve()),
+				ariaSnapshot: mock(() => Promise.resolve('- button "Test"')),
+			})),
+			close: mock(() => Promise.resolve()),
+		};
+		const contextMock = {
+			newPage: mock(() => Promise.resolve(tempPage)),
+		};
+		const deps: BenchmarkDeps = {
+			context: contextMock as never,
+		};
+
+		const result = await handleBenchmark(deps, ["--iterations", "2"]);
+
+		expect(result.ok).toBe(true);
+		// Should have created a new page from context
+		expect(contextMock.newPage).toHaveBeenCalled();
+		// Should have used the temp page for navigation
+		expect(tempPage.goto).toHaveBeenCalled();
+		// Should have closed the temp page after benchmark
+		expect(tempPage.close).toHaveBeenCalled();
+	});
+
+	test("closes temporary page even when benchmark fails", async () => {
+		const tempPage = {
+			goto: mock(() => Promise.reject(new Error("goto failed"))),
+			close: mock(() => Promise.resolve()),
+		};
+		const contextMock = {
+			newPage: mock(() => Promise.resolve(tempPage)),
+		};
+		const deps: BenchmarkDeps = {
+			context: contextMock as never,
+		};
+
+		const result = await handleBenchmark(deps, ["--iterations", "1"]);
+
+		expect(result.ok).toBe(false);
+		// Must close temp page even on failure
+		expect(tempPage.close).toHaveBeenCalled();
 	});
 });

@@ -1,11 +1,11 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Page } from "playwright";
+import type { BrowserContext } from "playwright";
 import type { Response } from "../protocol.ts";
 import { assignRefs, parseAriaSnapshot } from "../refs.ts";
 
 export type BenchmarkDeps = {
-	page: Page;
+	context: BrowserContext;
 };
 
 const TEST_PAGE = `data:text/html,<html><body>
@@ -76,9 +76,13 @@ export async function handleBenchmark(
 	deps: BenchmarkDeps,
 	args: string[],
 ): Promise<Response> {
-	const { page } = deps;
+	const { context } = deps;
 	const iterations = parseIterations(args);
 	const screenshotPath = join(tmpdir(), "browse-benchmark.png");
+
+	// Create a temporary page so benchmark navigation doesn't pollute
+	// the main page's history stack (see issue #52).
+	const page = await context.newPage();
 
 	try {
 		// Navigate to test page
@@ -131,5 +135,7 @@ export async function handleBenchmark(
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: `Benchmark failed: ${message}` };
+	} finally {
+		await page.close().catch(() => {});
 	}
 }

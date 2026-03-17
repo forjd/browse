@@ -648,7 +648,7 @@ export async function startServer(
 							json: request.json,
 						});
 					case "benchmark":
-						return handleBenchmark({ page }, request.args);
+						return handleBenchmark({ context: sessionContext }, request.args);
 					case "dialog":
 						return handleDialog(session.dialogState, request.args);
 					case "download":
