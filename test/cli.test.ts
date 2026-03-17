@@ -294,6 +294,95 @@ describe("parseArgs", () => {
 			json: false,
 		});
 	});
+
+	// Issue #46: Global flags placed before the command name
+	test("--timeout before command is parsed correctly", () => {
+		const result = parseArgs(["--timeout", "5000", "ping"]);
+		expect(result).toEqual({
+			cmd: "ping",
+			args: [],
+			timeout: 5000,
+			session: undefined,
+			json: false,
+		});
+	});
+
+	test("--session before command is parsed correctly", () => {
+		const result = parseArgs(["--session", "mysession", "url"]);
+		expect(result).toEqual({
+			cmd: "url",
+			args: [],
+			timeout: undefined,
+			session: "mysession",
+			json: false,
+		});
+	});
+
+	test("--json before command is parsed correctly", () => {
+		const result = parseArgs(["--json", "status"]);
+		expect(result).toEqual({
+			cmd: "status",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: true,
+		});
+	});
+
+	test("all global flags before command", () => {
+		const result = parseArgs([
+			"--timeout",
+			"5000",
+			"--session",
+			"s1",
+			"--json",
+			"goto",
+			"https://example.com",
+		]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com"],
+			timeout: 5000,
+			session: "s1",
+			json: true,
+		});
+	});
+
+	test("global flags mixed before and after command", () => {
+		const result = parseArgs([
+			"--timeout",
+			"3000",
+			"screenshot",
+			"--session",
+			"s2",
+			"/tmp/shot.png",
+		]);
+		expect(result).toEqual({
+			cmd: "screenshot",
+			args: ["/tmp/shot.png"],
+			timeout: 3000,
+			session: "s2",
+			json: false,
+		});
+	});
+
+	test("--config and --timeout both before command", () => {
+		const result = parseArgs([
+			"--config",
+			"/tmp/cfg.json",
+			"--timeout",
+			"8000",
+			"ping",
+		]);
+		expect(result).toEqual({
+			cmd: "ping",
+			args: [],
+			timeout: 8000,
+			session: undefined,
+			json: false,
+			config: "/tmp/cfg.json",
+		});
+	});
 });
 
 describe("formatOutput", () => {
