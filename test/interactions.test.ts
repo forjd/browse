@@ -20,6 +20,10 @@ function mockPage() {
 		keyboard: {
 			press: mock((_key: string) => Promise.resolve()),
 		},
+		url: mock(() => "https://example.com"),
+		waitForURL: mock(async () => {
+			throw new Error("timeout");
+		}),
 		getByRole: mock((_role: string, _opts?: Record<string, unknown>) => ({
 			nth: mock((_n: number) => ({
 				click: mock(() => Promise.resolve()),
@@ -463,6 +467,39 @@ describe("handlePress", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error).toContain("Unknown key");
+		}
+	});
+
+	test("detects navigation after key press and includes warning", async () => {
+		let currentUrl = "https://example.com/form";
+		const page = {
+			...mockPage(),
+			url: mock(() => currentUrl),
+			waitForURL: mock(async () => {
+				// Simulate navigation completing during waitForURL
+				currentUrl = "https://example.com/submitted";
+			}),
+		} as never;
+
+		const result = await handlePress(page, ["Enter"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Pressed Enter");
+			expect(result.data).toContain("Navigated to:");
+			expect(result.data).toContain("https://example.com/submitted");
+		}
+	});
+
+	test("does not report navigation when URL is unchanged", async () => {
+		const page = mockPage();
+
+		const result = await handlePress(page, ["Tab"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toBe("Pressed Tab");
+			expect(result.data).not.toContain("Navigated");
 		}
 	});
 });
