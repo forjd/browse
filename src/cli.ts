@@ -59,33 +59,35 @@ export function parseArgs(argv: string[]): ParsedArgs {
 
 	if (filteredArgv2[0] === "--daemon") return { daemon: true, config, listen };
 
-	const [cmd, ...rawArgs] = filteredArgv2;
-
-	// Extract global flags
+	// Extract global flags (--timeout, --session, --json) from anywhere in argv
 	let timeout: number | undefined;
 	let session: string | undefined;
 	let json = false;
-	const args: string[] = [];
+	const remaining: string[] = [];
 
-	for (let i = 0; i < rawArgs.length; i++) {
-		if (rawArgs[i] === "--timeout" && i + 1 < rawArgs.length) {
-			const val = Number.parseInt(rawArgs[i + 1], 10);
+	for (let i = 0; i < filteredArgv2.length; i++) {
+		if (filteredArgv2[i] === "--timeout" && i + 1 < filteredArgv2.length) {
+			const val = Number.parseInt(filteredArgv2[i + 1], 10);
 			if (!Number.isNaN(val) && val > 0) {
 				timeout = val;
 			}
 			i++; // skip the value
-		} else if (rawArgs[i] === "--session") {
-			if (i + 1 < rawArgs.length) {
-				session = rawArgs[i + 1];
+		} else if (filteredArgv2[i] === "--session") {
+			if (i + 1 < filteredArgv2.length) {
+				session = filteredArgv2[i + 1];
 				i++; // skip the value
 			}
 			// Missing value: --session flag is silently ignored (same as --timeout)
-		} else if (rawArgs[i] === "--json") {
+		} else if (filteredArgv2[i] === "--json") {
 			json = true;
 		} else {
-			args.push(rawArgs[i]);
+			remaining.push(filteredArgv2[i]);
 		}
 	}
+
+	if (remaining.length === 0) return null;
+
+	const [cmd, ...args] = remaining;
 
 	return { cmd: cmd as string, args, timeout, session, json, config };
 }
