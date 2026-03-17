@@ -197,6 +197,35 @@ describe("daemon server", () => {
 		expect(err).toBeInstanceOf(Error);
 	});
 
+	test("concurrent quit commands only trigger shutdown once", async () => {
+		const config = testPaths();
+		writeFileSync(config.pidPath, "12345");
+		const page = mockPage();
+		const shutdownCb = mock(() => Promise.resolve());
+		const exitCb = mock(() => {});
+		await startServer(mockDeps(page), config, shutdownCb, {
+			onExit: exitCb,
+		});
+
+		// Fire two quit commands concurrently
+		const [r1, r2] = await Promise.all([
+			sendCommand(config.socketPath, "quit"),
+			sendCommand(config.socketPath, "quit"),
+		]);
+
+		expect(r1).toEqual({ ok: true, data: "Daemon stopped." });
+		expect(r2).toEqual({ ok: true, data: "Daemon stopped." });
+
+		const deadline = Date.now() + 2000;
+		while (Date.now() < deadline && !exitCb.mock.calls.length) {
+			await Bun.sleep(20);
+		}
+
+		// shutdownOnce guard ensures shutdown runs exactly once
+		expect(shutdownCb).toHaveBeenCalledTimes(1);
+		expect(exitCb).toHaveBeenCalledTimes(1);
+	});
+
 	test("cleans up socket and pid on shutdown", async () => {
 		const config = testPaths();
 		const page = mockPage();
