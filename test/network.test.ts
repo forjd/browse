@@ -116,6 +116,55 @@ describe("network command", () => {
 		}
 	});
 
+	test("returns JSON array when json option is true", () => {
+		buffer.push(
+			makeEntry({
+				status: 404,
+				method: "GET",
+				url: "https://example.com/missing",
+			}),
+		);
+		buffer.push(
+			makeEntry({
+				status: 500,
+				method: "POST",
+				url: "https://example.com/error",
+			}),
+		);
+
+		const res = handleNetwork(buffer, [], { json: true });
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			const parsed = JSON.parse(res.data);
+			expect(Array.isArray(parsed)).toBe(true);
+			expect(parsed).toHaveLength(2);
+			expect(parsed[0].status).toBe(404);
+			expect(parsed[0].method).toBe("GET");
+			expect(parsed[0].url).toBe("https://example.com/missing");
+		}
+	});
+
+	test("returns empty JSON array when no entries and json is true", () => {
+		const res = handleNetwork(buffer, [], { json: true });
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			const parsed = JSON.parse(res.data);
+			expect(parsed).toEqual([]);
+		}
+	});
+
+	test("JSON output respects --all flag", () => {
+		buffer.push(makeEntry({ status: 200, url: "https://example.com/ok" }));
+		buffer.push(makeEntry({ status: 404, url: "https://example.com/err" }));
+
+		const res = handleNetwork(buffer, ["--all"], { json: true });
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			const parsed = JSON.parse(res.data);
+			expect(parsed).toHaveLength(2);
+		}
+	});
+
 	test("formats entries as [STATUS] METHOD URL", () => {
 		buffer.push(
 			makeEntry({

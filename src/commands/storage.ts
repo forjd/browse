@@ -4,6 +4,7 @@ import type { Response } from "../protocol.ts";
 export async function handleStorage(
 	page: Page,
 	args: string[],
+	options?: { json?: boolean },
 ): Promise<Response> {
 	const subcommand = args[0];
 
@@ -29,6 +30,10 @@ export async function handleStorage(
 			}
 			return result;
 		}, storageType);
+
+		if (options?.json) {
+			return { ok: true, data: JSON.stringify(entries) };
+		}
 
 		const keys = Object.keys(entries);
 		if (keys.length === 0) {
