@@ -360,7 +360,7 @@ export async function startServer(
 	}
 
 	idleTimer = createIdleTimer(lifecycleConfig, () => {
-		shutdown();
+		shutdownOnce();
 	});
 
 	// Commands exempt from timeout
