@@ -100,9 +100,21 @@ export function formatHealthcheckJUnit(
 					`Console errors: ${result.consoleErrors.map((e) => e.text).join("; ")}`,
 				);
 			}
+			if (result.consoleWarnings.length > 0) {
+				failureMessages.push(
+					`Console warnings: ${result.consoleWarnings.map((e) => e.text).join("; ")}`,
+				);
+			}
 			const message = failureMessages.join("; ");
 			lines.push(
 				`      <failure message="${escapeXml(message)}">${escapeXml(message)}</failure>`,
+			);
+		}
+
+		if (result.consoleWarnings.length > 0 && result.passed) {
+			const warningText = result.consoleWarnings.map((e) => e.text).join("\n");
+			lines.push(
+				`      <system-out>${escapeXml(`Console warnings:\n${warningText}`)}</system-out>`,
 			);
 		}
 
