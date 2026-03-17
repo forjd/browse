@@ -1,5 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import {
+	deflateSync as zlibDeflateSync,
+	inflateSync as zlibInflateSync,
+} from "node:zlib";
 
 /**
  * Minimal PNG decoder that extracts raw RGBA pixel data.
@@ -119,7 +123,7 @@ function decodePng(buffer: Uint8Array): {
 		pos += chunk.length;
 	}
 
-	const decompressed = Bun.inflateSync(compressed);
+	const decompressed = new Uint8Array(zlibInflateSync(compressed));
 
 	// Channels per pixel
 	const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : 4;
@@ -243,7 +247,7 @@ function encodePng(
 		);
 	}
 
-	const compressed = Bun.deflateSync(raw);
+	const compressed = new Uint8Array(zlibDeflateSync(raw));
 
 	// Build PNG file
 	const chunks: Uint8Array[] = [];
