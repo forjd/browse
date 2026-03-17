@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { RingBuffer } from "../src/buffers.ts";
 import {
+	handleCDPConsoleEvent,
+	handleCDPLogEvent,
+} from "../src/cdp-console.ts";
+import {
 	type ConsoleEntry,
 	formatConsoleEntries,
 	handleConsole,
@@ -182,5 +186,229 @@ describe("formatConsoleEntries", () => {
 		];
 		const formatted = formatConsoleEntries(entries);
 		expect(formatted).toContain("\n\n");
+	});
+});
+
+describe("CDP console capture", () => {
+	let buffer: RingBuffer<ConsoleEntry>;
+
+	beforeEach(() => {
+		buffer = new RingBuffer<ConsoleEntry>(500);
+	});
+
+	describe("handleCDPConsoleEvent", () => {
+		test("captures console.log with string argument", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "log",
+					args: [{ type: "string", value: "Hello world" }],
+					stackTrace: {
+						callFrames: [
+							{
+								url: "https://example.com/app.js",
+								lineNumber: 10,
+								columnNumber: 5,
+							},
+						],
+					},
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].level).toBe("log");
+			expect(entries[0].text).toBe("Hello world");
+			expect(entries[0].location.url).toBe("https://example.com/app.js");
+			expect(entries[0].location.lineNumber).toBe(10);
+			expect(entries[0].location.columnNumber).toBe(5);
+		});
+
+		test("captures console.warn", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "warning",
+					args: [{ type: "string", value: "Warning message" }],
+					stackTrace: { callFrames: [] },
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].level).toBe("warning");
+			expect(entries[0].text).toBe("Warning message");
+		});
+
+		test("captures console.error", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "error",
+					args: [{ type: "string", value: "Error message" }],
+					stackTrace: { callFrames: [] },
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].level).toBe("error");
+			expect(entries[0].text).toBe("Error message");
+		});
+
+		test("joins multiple arguments with spaces", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "log",
+					args: [
+						{ type: "string", value: "count:" },
+						{ type: "number", value: 42, description: "42" },
+					],
+					stackTrace: { callFrames: [] },
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries[0].text).toBe("count: 42");
+		});
+
+		test("uses description for object arguments", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "log",
+					args: [
+						{
+							type: "object",
+							description: "Object",
+							className: "Object",
+						},
+					],
+					stackTrace: { callFrames: [] },
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries[0].text).toBe("Object");
+		});
+
+		test("handles missing stackTrace gracefully", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "log",
+					args: [{ type: "string", value: "no stack" }],
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].text).toBe("no stack");
+			expect(entries[0].location.url).toBe("");
+			expect(entries[0].location.lineNumber).toBe(0);
+		});
+
+		test("handles empty args array", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "log",
+					args: [],
+					stackTrace: { callFrames: [] },
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].text).toBe("");
+		});
+
+		test("uses value for boolean and undefined args", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "log",
+					args: [{ type: "boolean", value: true }, { type: "undefined" }],
+					stackTrace: { callFrames: [] },
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries[0].text).toBe("true undefined");
+		});
+
+		test("prefers value over description for primitives", () => {
+			handleCDPConsoleEvent(
+				{
+					type: "log",
+					args: [{ type: "number", value: 3.14, description: "3.14" }],
+					stackTrace: { callFrames: [] },
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries[0].text).toBe("3.14");
+		});
+	});
+
+	describe("handleCDPLogEvent", () => {
+		test("captures resource errors", () => {
+			handleCDPLogEvent(
+				{
+					entry: {
+						level: "error",
+						text: "Failed to load resource: 404",
+						source: "network",
+						url: "https://example.com/missing.js",
+						lineNumber: 0,
+					},
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].level).toBe("error");
+			expect(entries[0].text).toBe("Failed to load resource: 404");
+			expect(entries[0].location.url).toBe("https://example.com/missing.js");
+		});
+
+		test("ignores worker source entries", () => {
+			handleCDPLogEvent(
+				{
+					entry: {
+						level: "error",
+						text: "Worker error",
+						source: "worker",
+						url: "",
+						lineNumber: 0,
+					},
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(0);
+		});
+
+		test("handles missing url and lineNumber", () => {
+			handleCDPLogEvent(
+				{
+					entry: {
+						level: "warning",
+						text: "Deprecation warning",
+						source: "deprecation",
+					},
+				},
+				buffer,
+			);
+
+			const entries = buffer.peek();
+			expect(entries).toHaveLength(1);
+			expect(entries[0].location.url).toBe("");
+			expect(entries[0].location.lineNumber).toBe(0);
+		});
 	});
 });
