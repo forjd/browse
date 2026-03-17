@@ -67,6 +67,19 @@ describe("login command", () => {
 		}
 	});
 
+	test("returns validation error when config is invalid", async () => {
+		const res = await handleLogin(null, mockPage(), ["--env", "staging"], {
+			configError:
+				"Invalid browse.config.json: environment 'staging' is missing 'loginUrl'.",
+		});
+		expect(res.ok).toBe(false);
+		if (!res.ok) {
+			expect(res.error).toContain("Invalid browse.config.json");
+			expect(res.error).toContain("missing 'loginUrl'");
+			expect(res.error).not.toContain("No browse.config.json found");
+		}
+	});
+
 	test("returns error when --env flag is missing", async () => {
 		const res = await handleLogin(VALID_CONFIG, mockPage(), []);
 		expect(res.ok).toBe(false);

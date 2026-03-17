@@ -1,5 +1,9 @@
 import type { Page } from "playwright";
-import type { BrowseConfig, EnvironmentConfig } from "../config.ts";
+import type {
+	BrowseConfig,
+	ConfigContext,
+	EnvironmentConfig,
+} from "../config.ts";
 import type { Response } from "../protocol.ts";
 import { compileSafePattern } from "../safe-pattern.ts";
 
@@ -11,11 +15,13 @@ export async function handleLogin(
 	config: BrowseConfig | null,
 	page: Page,
 	args: string[],
+	configCtx?: ConfigContext,
 ): Promise<Response> {
 	if (!config) {
 		return {
 			ok: false,
 			error:
+				configCtx?.configError ??
 				"No browse.config.json found. Create one with login environments or use goto + fill + click manually.",
 		};
 	}

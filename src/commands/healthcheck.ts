@@ -3,7 +3,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import type { RingBuffer } from "../buffers.ts";
-import type { AssertCondition, BrowseConfig } from "../config.ts";
+import type {
+	AssertCondition,
+	BrowseConfig,
+	ConfigContext,
+} from "../config.ts";
 import { interpolateVars, parseVars } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import { formatHealthcheckJUnit } from "../reporters.ts";
@@ -109,11 +113,14 @@ export async function handleHealthcheck(
 	args: string[],
 	deps: HealthcheckDeps | null,
 	context?: BrowserContext,
+	configCtx?: ConfigContext,
 ): Promise<Response> {
 	if (!config) {
 		return {
 			ok: false,
-			error: "No browse.config.json found. Create one with healthcheck pages.",
+			error:
+				configCtx?.configError ??
+				"No browse.config.json found. Create one with healthcheck pages.",
 		};
 	}
 

@@ -846,6 +846,30 @@ describe("daemon server", () => {
 		}
 	});
 
+	test("propagates config validation error to flow command", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, {
+				configError:
+					"Invalid browse.config.json: missing 'environments' object.",
+			}),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(config.socketPath, "flow", ["list"]);
+			expect(response.ok).toBe(false);
+			if (!response.ok) {
+				expect(response.error).toContain("Invalid browse.config.json");
+				expect(response.error).not.toContain("No browse.config.json found");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
 	test("handles assert command with missing args", async () => {
 		const config = testPaths();
 		const page = mockPage();

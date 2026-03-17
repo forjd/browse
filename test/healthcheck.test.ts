@@ -62,6 +62,26 @@ describe("handleHealthcheck — validation", () => {
 		}
 	});
 
+	test("returns validation error when config is invalid", async () => {
+		const result = await handleHealthcheck(
+			null,
+			null as any,
+			[],
+			null as any,
+			undefined,
+			{
+				configError:
+					"Invalid browse.config.json: 'healthcheck' must be an object.",
+			},
+		);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Invalid browse.config.json");
+			expect(result.error).toContain("'healthcheck' must be an object");
+			expect(result.error).not.toContain("No browse.config.json found");
+		}
+	});
+
 	test("returns error when no healthcheck config", async () => {
 		const configNoHc: BrowseConfig = {
 			environments: BASE_CONFIG.environments,

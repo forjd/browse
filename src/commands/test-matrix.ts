@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from "playwright";
 import { RingBuffer } from "../buffers.ts";
-import type { BrowseConfig } from "../config.ts";
+import type { BrowseConfig, ConfigContext } from "../config.ts";
 import type { StealthOpts } from "../daemon.ts";
 import { parseVars, runFlow, type StepResult } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
@@ -39,11 +39,13 @@ export async function handleTestMatrix(
 	_sessionContext: BrowserContext,
 	defaultContext: BrowserContext,
 	stealthOpts?: StealthOpts,
+	configCtx?: ConfigContext,
 ): Promise<Response> {
 	if (!config) {
 		return {
 			ok: false,
 			error:
+				configCtx?.configError ??
 				"No browse.config.json found. Create one with flow and environment definitions.",
 		};
 	}

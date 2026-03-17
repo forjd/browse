@@ -96,6 +96,11 @@ export type BrowseConfig = {
 	timeout?: number;
 };
 
+/** Passed alongside config so commands can distinguish "not found" from "invalid". */
+export type ConfigContext = {
+	configError?: string | null;
+};
+
 /**
  * Resolve the config file path using the following precedence:
  * 1. Explicit path (from --config flag)
