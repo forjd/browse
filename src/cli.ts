@@ -22,14 +22,20 @@ export type ParsedArgs =
 			json?: boolean;
 			config?: string;
 	  }
-	| { daemon: true; config?: string; listen?: string }
-	| null;
+	| { daemon: true; config?: string; listen?: string };
 
 /**
  * Parse CLI arguments, extracting global flags (--timeout, --session, --json) from args.
  */
 export function parseArgs(argv: string[]): ParsedArgs {
-	if (argv.length === 0) return null;
+	if (argv.length === 0)
+		return {
+			cmd: "help",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		};
 
 	// Extract --config from anywhere in argv (it's a global flag)
 	let config: string | undefined;
@@ -43,7 +49,15 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 	}
 
-	if (filteredArgv.length === 0) return null;
+	if (filteredArgv.length === 0)
+		return {
+			cmd: "help",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+			config,
+		};
 
 	// Extract --listen for daemon mode
 	let listen: string | undefined;
@@ -85,7 +99,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 	}
 
-	if (remaining.length === 0) return null;
+	if (remaining.length === 0)
+		return { cmd: "help", args: [], timeout, session, json, config };
 
 	const [cmd, ...args] = remaining;
 
@@ -187,11 +202,6 @@ async function spawnDaemon(configPath?: string): Promise<void> {
 async function runCli(): Promise<void> {
 	const rawArgs = process.argv.slice(2);
 	const parsed = parseArgs(rawArgs);
-
-	if (parsed === null) {
-		process.stderr.write(`${formatOverview()}\n`);
-		process.exit(1);
-	}
 
 	if ("daemon" in parsed) {
 		await startDaemon({
