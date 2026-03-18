@@ -1463,7 +1463,7 @@ These flags work with any command.
 |------|-------------|
 | `--timeout <ms>` | Override the default timeout (30s) |
 | `--session <name>` | Route the command to a named session |
-| `--json` | Request JSON output (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`) |
+| `--json` | Request JSON output (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`, `status`) |
 | `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
 | `--auto-snapshot` | Auto-snapshot after navigation (supported by: `goto`, `click`, `form`) |
 | `--help` | Show help for any command |

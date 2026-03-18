@@ -37,8 +37,9 @@ src/
 ├── flow-runner.ts      # Flow execution engine, variable interpolation, conditionals
 ├── completions.ts      # Shell completion generators (bash, zsh, fish)
 ├── reporters.ts        # JUnit XML reporter for CI
-└── commands/           # One file per command (48 total)
+└── commands/           # One file per command (53 total)
     ├── a11y.ts
+    ├── assert-ai.ts      # AI-powered visual assertions
     ├── assert.ts
     ├── attr.ts
     ├── auth-state.ts
@@ -48,17 +49,21 @@ src/
     ├── console.ts
     ├── cookies.ts
     ├── dialog.ts
+    ├── diff.ts           # Visual diff across deployments
     ├── download.ts
     ├── element-count.ts
     ├── eval.ts
     ├── fill.ts
+    ├── flow-share.ts     # Flow sharing (export, import, publish)
     ├── flow.ts
+    ├── form.ts           # Bulk form filling
     ├── forward.ts
     ├── frame.ts
     ├── goto.ts
     ├── healthcheck.ts    # --parallel, --concurrency support
     ├── hover.ts
     ├── html.ts
+    ├── init.ts           # Config template generator
     ├── intercept.ts
     ├── login.ts
     ├── network.ts
@@ -67,24 +72,25 @@ src/
     ├── press.ts
     ├── quit.ts
     ├── reload.ts
+    ├── replay.ts         # Session replay HTML generator
+    ├── report.ts         # HTML report generator
     ├── screenshot.ts
+    ├── screenshots.ts    # Screenshot management (list, clean, count)
     ├── scroll.ts
     ├── select.ts
     ├── session.ts
     ├── snapshot.ts
     ├── storage.ts
     ├── tab.ts
+    ├── test-matrix.ts    # Multi-role parallel testing
     ├── text.ts
     ├── title.ts
+    ├── trace.ts          # Playwright trace recording
     ├── upload.ts
     ├── url.ts
     ├── viewport.ts
     ├── wait.ts
-    ├── wipe.ts
-    ├── init.ts           # Config template generator
-    ├── trace.ts          # Playwright trace recording
-    ├── screenshots.ts    # Screenshot management (list, clean, count)
-    └── report.ts         # HTML report generator
+    └── wipe.ts
 test/
 ├── *.test.ts           # Unit/integration tests
 ├── unit/               # Isolated unit tests
