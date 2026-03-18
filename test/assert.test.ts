@@ -519,6 +519,24 @@ describe("handleAssert", () => {
 		}
 	});
 
+	test("shows '(none)' when permissions object is empty", async () => {
+		const page = createMockPage({});
+		const configEmptyPerms: BrowseConfig = {
+			environments: PERM_CONFIG.environments,
+			permissions: {},
+		};
+		const result = await handleAssert(configEmptyPerms, page, [
+			"permission",
+			"Nonexistent",
+			"granted",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("(none)");
+			expect(result.error).not.toEndWith("Available: .");
+		}
+	});
+
 	test("permission granted assertion passes", async () => {
 		const page = createMockPage({
 			visibleSelectors: new Set([".admin-panel"]),

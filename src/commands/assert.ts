@@ -285,7 +285,8 @@ export async function handleAssert(
 
 		const permConfig = config.permissions[parsed.permission.name];
 		if (!permConfig) {
-			const available = Object.keys(config.permissions).join(", ");
+			const keys = Object.keys(config.permissions);
+			const available = keys.length > 0 ? keys.join(", ") : "(none)";
 			return {
 				ok: false,
 				error: `Unknown permission: '${parsed.permission.name}'. Available: ${available}.`,

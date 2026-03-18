@@ -44,7 +44,8 @@ export async function handleLogin(
 
 	const envConfig = config.environments[envName];
 	if (!envConfig) {
-		const available = Object.keys(config.environments).join(", ");
+		const keys = Object.keys(config.environments);
+		const available = keys.length > 0 ? keys.join(", ") : "(none)";
 		return {
 			ok: false,
 			error: `Unknown environment: '${envName}'. Available: ${available}.`,

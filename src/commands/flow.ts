@@ -68,7 +68,8 @@ export async function handleFlow(
 	const flows = config.flows ?? {};
 
 	if (!(flowName in flows)) {
-		const available = Object.keys(flows).join(", ");
+		const keys = Object.keys(flows);
+		const available = keys.length > 0 ? keys.join(", ") : "(none)";
 		return {
 			ok: false,
 			error: `Unknown flow: '${flowName}'. Available: ${available}.`,
