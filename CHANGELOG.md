@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/forjd/browse/compare/browse-v0.9.0...browse-v0.9.1) (2026-03-18)
+
+
+### Bug Fixes
+
+* install.sh should install chrome, not chromium ([c150e1d](https://github.com/forjd/browse/commit/c150e1da9ee766ab6f23d1fcebea687b1806c99b))
+
 ## [0.9.0](https://github.com/forjd/browse/compare/browse-v0.8.2...browse-v0.9.0) (2026-03-18)
 
 
