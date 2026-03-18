@@ -711,8 +711,15 @@ describe("daemon server", () => {
 
 	test("handles back command", async () => {
 		const config = testPaths();
+		const cdpClient = {
+			send: mock(() => Promise.resolve({ currentIndex: 1, entries: [{}, {}] })),
+			detach: mock(() => Promise.resolve()),
+		};
 		const page = mockPage({
 			goBack: mock(() => Promise.resolve()),
+			context: () => ({
+				newCDPSession: mock(() => Promise.resolve(cdpClient)),
+			}),
 		});
 		const { shutdown } = await startServer(
 			mockDeps(page),
@@ -730,8 +737,15 @@ describe("daemon server", () => {
 
 	test("handles forward command", async () => {
 		const config = testPaths();
+		const cdpClient = {
+			send: mock(() => Promise.resolve({ currentIndex: 0, entries: [{}, {}] })),
+			detach: mock(() => Promise.resolve()),
+		};
 		const page = mockPage({
 			goForward: mock(() => Promise.resolve()),
+			context: () => ({
+				newCDPSession: mock(() => Promise.resolve(cdpClient)),
+			}),
 		});
 		const { shutdown } = await startServer(
 			mockDeps(page),
