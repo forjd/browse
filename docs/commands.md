@@ -295,10 +295,14 @@ browse hover @e2 --duration 2000
 ### press
 
 ```
-browse press <key> [key ...]
+browse press <key> [key ...] [--auto-snapshot]
 ```
 
 Send keyboard key presses. Supports single keys, combinations with `+`, and multiple sequential keys. Key names follow Playwright conventions (`Tab`, `Enter`, `Escape`, `ArrowDown`, etc.).
+
+| Flag | Description |
+|------|-------------|
+| `--auto-snapshot` | Automatically snapshot after the key press completes |
 
 **Examples:**
 
@@ -307,6 +311,7 @@ browse press Tab
 browse press Enter
 browse press Control+a
 browse press Tab Tab Enter
+browse press Enter --auto-snapshot
 ```
 
 ### scroll
