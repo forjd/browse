@@ -4,8 +4,12 @@ import type { Response } from "../protocol.ts";
 export async function handleBack(page: Page): Promise<Response> {
 	try {
 		const client = await page.context().newCDPSession(page);
-		const { currentIndex } = await client.send("Page.getNavigationHistory");
-		await client.detach();
+		let currentIndex: number;
+		try {
+			({ currentIndex } = await client.send("Page.getNavigationHistory"));
+		} finally {
+			await client.detach();
+		}
 
 		if (currentIndex <= 0) {
 			return { ok: false, error: "No previous page in history" };
