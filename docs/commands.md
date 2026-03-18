@@ -90,7 +90,7 @@ Return the visible text content of the page.
 ### snapshot
 
 ```
-browse snapshot [-i] [-f]
+browse snapshot [-i] [-f] [--json]
 ```
 
 Show page elements with refs (`@e1`, `@e2`, etc.). By default, only interactive elements are shown.
@@ -1471,9 +1471,9 @@ These flags work with any command.
 |------|-------------|
 | `--timeout <ms>` | Override the default timeout (30s) |
 | `--session <name>` | Route the command to a named session |
-| `--json` | Request JSON output (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`, `status`) |
+| `--json` | Output results in JSON (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`, `status`) |
 | `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
-| `--auto-snapshot` | Auto-snapshot after navigation (supported by: `goto`, `click`, `press`, `form`) |
+| `--auto-snapshot` | Auto-snapshot after action/interaction (supported by: `goto`, `click`, `press`, `form`) |
 | `--help` | Show help for any command |
 
 ## Environment Variables
