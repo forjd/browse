@@ -1,5 +1,47 @@
 # Changelog
 
+## [0.9.0](https://github.com/forjd/browse/compare/browse-v0.8.2...browse-v0.9.0) (2026-03-18)
+
+
+### Features
+
+* add --base-url support to assert-ai for OpenAI-compatible providers ([3e776d9](https://github.com/forjd/browse/commit/3e776d9077e54f24bdc7a0c34212e836a9ac9377))
+* add --dry-run flag to screenshots clean ([9de3eb5](https://github.com/forjd/browse/commit/9de3eb5bb88a43fa9fcb017e8fe4060522401d06)), closes [#62](https://github.com/forjd/browse/issues/62)
+* implement all Tier 3 extraordinary features ([#19](https://github.com/forjd/browse/issues/19)-[#25](https://github.com/forjd/browse/issues/25)) ([a727577](https://github.com/forjd/browse/commit/a727577afc51f7bce266a138604f70be86c32755))
+
+
+### Bug Fixes
+
+* ad-hoc codesign macOS binaries after Bun compile ([1092d94](https://github.com/forjd/browse/commit/1092d943bfc2bb5ac0f467acec2fdfb4f44f5e29))
+* add --data to form command's KNOWN_FLAGS ([36472b8](https://github.com/forjd/browse/commit/36472b842b2d68cb77e5c4795ccb3348916106e2))
+* address CodeRabbit review feedback on Tier 3 features ([223974d](https://github.com/forjd/browse/commit/223974d931f5fb125e51238878d044bf9c0ecc6d))
+* address remaining CodeRabbit inline, duplicate, and nitpick comments ([506dff8](https://github.com/forjd/browse/commit/506dff8760a11f32d0e953a31a37de2ca41d57ef))
+* address review — correct stale comment and validate CDP response ([3829e5e](https://github.com/forjd/browse/commit/3829e5e1258023c9f45cecb2c9dbf9f8e9ec07d1))
+* allow spaces in flow variable interpolation syntax ([a75b250](https://github.com/forjd/browse/commit/a75b25089bd5c8702e64cd6c2a2949ee58691c1b)), closes [#47](https://github.com/forjd/browse/issues/47)
+* capture console messages from user JavaScript via CDP ([ef738f0](https://github.com/forjd/browse/commit/ef738f03845f435a6a3ffd7683ca129b97a6713f)), closes [#50](https://github.com/forjd/browse/issues/50)
+* correct onExit JSDoc and extract test poll helper ([6527874](https://github.com/forjd/browse/commit/6527874dd76c81433a941e76a18239c4d4949a1a))
+* detect navigation after press and warn in response ([ec29173](https://github.com/forjd/browse/commit/ec2917353cd982b5c4d8790de7f0e7981f0a88f4)), closes [#56](https://github.com/forjd/browse/issues/56)
+* exit 0 when showing help for no-args invocation ([3b096a7](https://github.com/forjd/browse/commit/3b096a71b1a4c7b933c6d764d8b7618eea3a5669))
+* extract global flags before command name in parseArgs ([6123ec0](https://github.com/forjd/browse/commit/6123ec007ebde8168e8070f7ffc6906f5ced7f12))
+* guard against duplicate shutdown and add TCP quit support ([6e01f00](https://github.com/forjd/browse/commit/6e01f00ff1f85055223a88cb93511ca813b0446c))
+* harden assert-ai flag validation, JSON parsing, and fetch timeouts ([cef73a6](https://github.com/forjd/browse/commit/cef73a6cb6e033bcab52b7bff5b3dd9775c5ef7b))
+* harden assert-ai screenshot I/O and page.title() error handling ([49c7d96](https://github.com/forjd/browse/commit/49c7d9645c834ba0c9cd968ef7a3bf63a81c577a))
+* implement --json flag for snapshot, console, network, cookies, storage, and a11y commands ([7e18591](https://github.com/forjd/browse/commit/7e18591a6649356019d236fa645e54430c55d06f)), closes [#48](https://github.com/forjd/browse/issues/48)
+* normalise form field keys and add placeholder fallback ([b6f6050](https://github.com/forjd/browse/commit/b6f6050345f0967f7f86d502868d85b4b2547bbf)), closes [#54](https://github.com/forjd/browse/issues/54)
+* prevent CDP session leak when history check fails ([c9fa177](https://github.com/forjd/browse/commit/c9fa177e441f880246fef8383c7d90aac3f11367))
+* properly shut down daemon on quit and clean up SingletonLock ([9f95054](https://github.com/forjd/browse/commit/9f95054fad2681afa2633cd455883bed233781a1)), closes [#51](https://github.com/forjd/browse/issues/51)
+* register help command in COMMANDS map ([94c3f06](https://github.com/forjd/browse/commit/94c3f0608230daebc874add8a6a676795bd7da5e)), closes [#58](https://github.com/forjd/browse/issues/58)
+* reject NaN confidence in assert-ai, reject unknown flags in form ([c922b50](https://github.com/forjd/browse/commit/c922b50d687ee867d868d453291539902ec5147d))
+* report actual validation error instead of 'not found' for invalid config ([448c3e8](https://github.com/forjd/browse/commit/448c3e8a86904673f7b17d4187a5c065cde6bbba)), closes [#55](https://github.com/forjd/browse/issues/55)
+* route explicit console: warning to consoleWarnings and render in JUnit ([4ac5a9c](https://github.com/forjd/browse/commit/4ac5a9c870f001b05a6a31de0a7845eea99d3f13))
+* route idle-timer through shutdownOnce and harden concurrent quit test ([5f4902f](https://github.com/forjd/browse/commit/5f4902f3dfc3c6d4d3461f14465024927a7f5de5))
+* run benchmark on temporary page to prevent history pollution ([35424dc](https://github.com/forjd/browse/commit/35424dcd37d0e50d1ac096bfcaf56504a8c80d73)), closes [#52](https://github.com/forjd/browse/issues/52)
+* show '(none)' instead of empty string in available list ([e70eb08](https://github.com/forjd/browse/commit/e70eb0838e6b7b872d8bc788a9db4566478ab34a)), closes [#59](https://github.com/forjd/browse/issues/59)
+* treat console errors as warnings unless explicitly configured ([310d555](https://github.com/forjd/browse/commit/310d555754d7452a9064d1e915c1a023f2f7c553)), closes [#53](https://github.com/forjd/browse/issues/53)
+* use CDP full tree for snapshot -f to differentiate from -i ([781e06b](https://github.com/forjd/browse/commit/781e06b0ebc064ebf4a96cce407608d3f405693c)), closes [#60](https://github.com/forjd/browse/issues/60)
+* use CDP history check for forward/back to ensure cross-platform reliability ([495e129](https://github.com/forjd/browse/commit/495e12950168c80f6fa9b5688ff07c1c60458455)), closes [#61](https://github.com/forjd/browse/issues/61)
+* use node:zlib for PNG IDAT decompression to handle zlib-wrapped data ([46aa06d](https://github.com/forjd/browse/commit/46aa06dc9460d63aded1fa880a2beda7b998d86f)), closes [#49](https://github.com/forjd/browse/issues/49)
+
 ## [0.8.2](https://github.com/forjd/browse/compare/browse-v0.8.1...browse-v0.8.2) (2026-03-16)
 
 
