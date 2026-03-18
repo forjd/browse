@@ -67,7 +67,7 @@ All 13 step types are listed below.
 | `login` | Log in via environment | `{ "login": "staging" }` |
 | `snapshot` | Take accessibility snapshot | `{ "snapshot": true }` |
 | `if` | Conditional branch | `{ "if": { "condition": { "elementVisible": ".modal" }, "then": [...], "else": [...] } }` |
-| `while` | Loop while condition holds | `{ "while": { "condition": { "elementVisible": ".next" }, "steps": [...] } }` |
+| `while` | Loop while condition holds | `{ "while": { "condition": { "elementVisible": ".next" }, "steps": [...], "maxIterations": 100 } }` |
 
 **Important**: `click` and `fill` in flows use **accessible names** (not CSS selectors or refs). The flow runner looks for elements by role:
 
@@ -149,7 +149,8 @@ Flows support `if`/`else` branching and `while` loops using `FlowCondition`:
         "steps": [
           { "click": "Load more" },
           { "wait": { "timeout": 1000 } }
-        ]
+        ],
+        "maxIterations": 100
       }
     }
   ]
@@ -166,7 +167,7 @@ Flows support `if`/`else` branching and `while` loops using `FlowCondition`:
 | `elementNotVisible` | CSS selector matches no visible element |
 | `textVisible` | Page text includes string |
 
-`while` loops have a built-in safety limit of 10 iterations to prevent infinite loops.
+`while` loops have a built-in safety limit of 10 iterations to prevent infinite loops. Set `maxIterations` to tune this limit.
 
 ### Dry Run
 
