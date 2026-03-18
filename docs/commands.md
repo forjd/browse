@@ -228,15 +228,20 @@ browse element-count @e5
 ### click
 
 ```
-browse click <@ref>
+browse click <@ref> [--auto-snapshot]
 ```
 
 Click an element by its ref.
+
+| Flag | Description |
+|------|-------------|
+| `--auto-snapshot` | Automatically snapshot after the click completes |
 
 **Examples:**
 
 ```bash
 browse click @e4
+browse click @e4 --auto-snapshot
 ```
 
 ### fill
@@ -1201,7 +1206,7 @@ List all saved screenshots sorted by date.
 ### screenshots clean
 
 ```
-browse screenshots clean [--older-than <duration>]
+browse screenshots clean [--older-than <duration>] [--dry-run]
 ```
 
 Delete screenshots older than the specified duration.
@@ -1209,12 +1214,14 @@ Delete screenshots older than the specified duration.
 | Flag | Description |
 |------|-------------|
 | `--older-than <duration>` | Duration threshold (e.g. `7d`, `24h`, `30m`) |
+| `--dry-run` | Preview which files would be deleted without removing them |
 
 **Examples:**
 
 ```bash
 browse screenshots clean --older-than 7d
 browse screenshots clean --older-than 24h
+browse screenshots clean --older-than 7d --dry-run
 ```
 
 ### screenshots count
