@@ -4,10 +4,15 @@ import type { Response } from "../protocol.ts";
 export async function handleForward(page: Page): Promise<Response> {
 	try {
 		const client = await page.context().newCDPSession(page);
-		const { currentIndex, entries } = await client.send(
-			"Page.getNavigationHistory",
-		);
-		await client.detach();
+		let currentIndex: number;
+		let entries: unknown[];
+		try {
+			({ currentIndex, entries } = await client.send(
+				"Page.getNavigationHistory",
+			));
+		} finally {
+			await client.detach();
+		}
 
 		if (currentIndex >= entries.length - 1) {
 			return { ok: false, error: "No next page in history" };

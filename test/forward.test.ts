@@ -74,4 +74,21 @@ describe("handleForward", () => {
 		await handleForward(page as never);
 		expect(page._cdpClient.detach).toHaveBeenCalled();
 	});
+
+	test("detaches CDP session even when client.send rejects", async () => {
+		const cdpClient = {
+			send: mock(() => Promise.reject(new Error("CDP failure"))),
+			detach: mock(() => Promise.resolve()),
+		};
+		const page = {
+			goForward: mock(() => Promise.resolve({})),
+			title: mock(() => Promise.resolve("Next Page")),
+			context: () => ({
+				newCDPSession: mock(() => Promise.resolve(cdpClient)),
+			}),
+		};
+		const result = await handleForward(page as never);
+		expect(result).toEqual({ ok: false, error: "CDP failure" });
+		expect(cdpClient.detach).toHaveBeenCalled();
+	});
 });
