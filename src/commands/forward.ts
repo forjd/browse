@@ -3,10 +3,17 @@ import type { Response } from "../protocol.ts";
 
 export async function handleForward(page: Page): Promise<Response> {
 	try {
-		const response = await page.goForward({ waitUntil: "domcontentloaded" });
-		if (response === null) {
+		const client = await page.context().newCDPSession(page);
+		const { currentIndex, entries } = await client.send(
+			"Page.getNavigationHistory",
+		);
+		await client.detach();
+
+		if (currentIndex >= entries.length - 1) {
 			return { ok: false, error: "No next page in history" };
 		}
+
+		await page.goForward({ waitUntil: "domcontentloaded" });
 		const title = await page.title();
 		return { ok: true, data: title };
 	} catch (err) {

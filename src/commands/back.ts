@@ -3,10 +3,15 @@ import type { Response } from "../protocol.ts";
 
 export async function handleBack(page: Page): Promise<Response> {
 	try {
-		const response = await page.goBack({ waitUntil: "domcontentloaded" });
-		if (response === null) {
+		const client = await page.context().newCDPSession(page);
+		const { currentIndex } = await client.send("Page.getNavigationHistory");
+		await client.detach();
+
+		if (currentIndex <= 0) {
 			return { ok: false, error: "No previous page in history" };
 		}
+
+		await page.goBack({ waitUntil: "domcontentloaded" });
 		const title = await page.title();
 		return { ok: true, data: title };
 	} catch (err) {
