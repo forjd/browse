@@ -325,6 +325,29 @@ describe("handleSnapshot", () => {
 		expect(ctx.detach).toHaveBeenCalled();
 	});
 
+	test("-f handles malformed CDP response gracefully", async () => {
+		clearRefs();
+		const mockClient = {
+			send: mock(() => Promise.resolve({ unexpected: "shape" })),
+			detach: mock(() => Promise.resolve()),
+		};
+		const page = {
+			context: mock(() => ({
+				newCDPSession: mock(() => Promise.resolve(mockClient)),
+			})),
+			title: mock(() => Promise.resolve("Test Page")),
+		} as never;
+
+		const result = await handleSnapshot(page, ["-f"]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			// Should return just the page header with no nodes
+			expect(result.data).toBe('[page] "Test Page"');
+		}
+		expect(mockClient.detach).toHaveBeenCalled();
+	});
+
 	test("returns error when ariaSnapshot fails", async () => {
 		clearRefs();
 		const page = {
