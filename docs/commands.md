@@ -99,6 +99,7 @@ Show page elements with refs (`@e1`, `@e2`, etc.). By default, only interactive 
 |------|-------------|
 | `-i` | Inclusive mode — include structural nodes that have names |
 | `-f` | Full mode — include all nodes |
+| `--json` | Output as JSON |
 
 **Examples:**
 
@@ -757,7 +758,7 @@ Run a healthcheck across configured pages defined in `browse.config.json`.
 | `--no-screenshots` | Skip screenshots during the healthcheck |
 | `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
 | `--parallel` | Check pages concurrently instead of sequentially |
-| `--concurrency N` | Max concurrent pages when `--parallel` is set (default: 4) |
+| `--concurrency N` | Max concurrent pages when `--parallel` is set (default: 5) |
 
 **Examples:**
 
@@ -1239,7 +1240,7 @@ Generate a self-contained HTML report from saved screenshots. Images are embedde
 | Flag | Description |
 |------|-------------|
 | `--out <path>` | Required. Output path for the HTML file |
-| `--title <title>` | Report title (default: "Browse Report") |
+| `--title <title>` | Report title (default: "Browse QA Report") |
 | `--screenshots <dir>` | Screenshot directory to scan (default: `~/.bun-browse/screenshots`) |
 
 **Examples:**
@@ -1465,7 +1466,7 @@ These flags work with any command.
 | `--session <name>` | Route the command to a named session |
 | `--json` | Request JSON output (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`, `status`) |
 | `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
-| `--auto-snapshot` | Auto-snapshot after navigation (supported by: `goto`, `click`, `form`) |
+| `--auto-snapshot` | Auto-snapshot after navigation (supported by: `goto`, `click`, `press`, `form`) |
 | `--help` | Show help for any command |
 
 ## Environment Variables

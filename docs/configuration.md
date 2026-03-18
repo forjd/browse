@@ -106,8 +106,8 @@ type FlowStep =
   | { assert: AssertCondition }
   | { login: string }                    // environment name
   | { snapshot: true }
-  | { if: FlowCondition; then: FlowStep[]; else?: FlowStep[] }
-  | { while: FlowCondition; do: FlowStep[] };
+  | { if: { condition: FlowCondition; then: FlowStep[]; else?: FlowStep[] } }
+  | { while: { condition: FlowCondition; steps: FlowStep[]; maxIterations?: number } };
 
 type FlowCondition =
   | { urlContains: string }

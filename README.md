@@ -327,9 +327,9 @@ Optional. Create `browse.config.json` in your project root to configure login en
       "loginUrl": "https://staging.example.com/login",
       "userEnvVar": "STAGING_USER",
       "passEnvVar": "STAGING_PASS",
-      "usernameField": "input[name=email]",
-      "passwordField": "input[name=password]",
-      "submitButton": "button[type=submit]",
+      "usernameField": "Email",
+      "passwordField": "Password",
+      "submitButton": "Sign in",
       "successCondition": { "urlContains": "/dashboard" }
     }
   },

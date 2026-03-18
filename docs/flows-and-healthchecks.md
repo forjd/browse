@@ -66,8 +66,8 @@ All 13 step types are listed below.
 | `assert` | Assert condition | `{ "assert": { "visible": ".success-message" } }` |
 | `login` | Log in via environment | `{ "login": "staging" }` |
 | `snapshot` | Take accessibility snapshot | `{ "snapshot": true }` |
-| `if` | Conditional branch | `{ "if": { "elementVisible": ".modal" }, "then": [...], "else": [...] }` |
-| `while` | Loop while condition holds | `{ "while": { "elementVisible": ".next" }, "do": [...] }` |
+| `if` | Conditional branch | `{ "if": { "condition": { "elementVisible": ".modal" }, "then": [...], "else": [...] } }` |
+| `while` | Loop while condition holds | `{ "while": { "condition": { "elementVisible": ".next" }, "steps": [...] } }` |
 
 **Important**: `click` and `fill` in flows use **accessible names** (not CSS selectors or refs). The flow runner looks for elements by role:
 
@@ -136,17 +136,21 @@ Flows support `if`/`else` branching and `while` loops using `FlowCondition`:
   "steps": [
     { "goto": "{{base_url}}" },
     {
-      "if": { "elementVisible": ".cookie-banner" },
-      "then": [
-        { "click": "Accept cookies" }
-      ]
+      "if": {
+        "condition": { "elementVisible": ".cookie-banner" },
+        "then": [
+          { "click": "Accept cookies" }
+        ]
+      }
     },
     {
-      "while": { "elementVisible": ".load-more" },
-      "do": [
-        { "click": "Load more" },
-        { "wait": { "timeout": 1000 } }
-      ]
+      "while": {
+        "condition": { "elementVisible": ".load-more" },
+        "steps": [
+          { "click": "Load more" },
+          { "wait": { "timeout": 1000 } }
+        ]
+      }
     }
   ]
 }
@@ -251,7 +255,7 @@ browse healthcheck --parallel --concurrency 4                    # check pages c
 - `--no-screenshots` -- Skip screenshot capture
 - `--reporter junit` -- Output results as JUnit XML for CI integration
 - `--parallel` -- Check pages concurrently instead of sequentially
-- `--concurrency N` -- Max concurrent pages when `--parallel` is set (default: 4)
+- `--concurrency N` -- Max concurrent pages when `--parallel` is set (default: 5)
 
 ## See Also
 

@@ -27,6 +27,7 @@ src/
 ├── config.ts           # Config file loading and validation (browse.config.json)
 ├── pool.ts             # Multi-session pool manager (library API)
 ├── lifecycle.ts        # PID/socket file management, idle timer
+├── auth.ts             # Daemon socket authentication token management
 ├── help.ts             # Command help text and formatting
 ├── flags.ts            # Flag validation per command
 ├── timeout.ts          # Timeout wrapper and resolution
@@ -37,6 +38,10 @@ src/
 ├── flow-runner.ts      # Flow execution engine, variable interpolation, conditionals
 ├── completions.ts      # Shell completion generators (bash, zsh, fish)
 ├── reporters.ts        # JUnit XML reporter for CI
+├── cdp-accessibility.ts # CDP accessibility tree fetching for full snapshot mode
+├── cdp-console.ts      # CDP console message capture
+├── visual-diff.ts      # Screenshot visual diff implementation
+├── safe-pattern.ts     # Safe regex pattern handling
 └── commands/           # One file per command (53 total)
     ├── a11y.ts
     ├── assert-ai.ts      # AI-powered visual assertions
