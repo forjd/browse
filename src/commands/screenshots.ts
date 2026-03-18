@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { extname, join } from "node:path";
 import type { Response } from "../protocol.ts";
 
-const SCREENSHOTS_DIR = join(homedir(), ".bun-browse", "screenshots");
+const DEFAULT_SCREENSHOTS_DIR = join(homedir(), ".bun-browse", "screenshots");
 const ALLOWED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 
 function isScreenshotFile(filepath: string): boolean {
@@ -42,17 +42,17 @@ function formatBytes(bytes: number): string {
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function listScreenshots(): Response {
-	if (!existsSync(SCREENSHOTS_DIR)) {
+function listScreenshots(dir: string): Response {
+	if (!existsSync(dir)) {
 		return { ok: true, data: "No screenshots directory found." };
 	}
 
-	const files = readdirSync(SCREENSHOTS_DIR);
+	const files = readdirSync(dir);
 
 	const entries = files
-		.filter((name) => isScreenshotFile(join(SCREENSHOTS_DIR, name)))
+		.filter((name) => isScreenshotFile(join(dir, name)))
 		.map((name) => {
-			const filepath = join(SCREENSHOTS_DIR, name);
+			const filepath = join(dir, name);
 			const stat = statSync(filepath);
 			return { name, size: stat.size, mtime: stat.mtimeMs };
 		});
@@ -74,12 +74,13 @@ function listScreenshots(): Response {
 	return { ok: true, data: lines.join("\n") };
 }
 
-function cleanScreenshots(args: string[]): Response {
-	if (!existsSync(SCREENSHOTS_DIR)) {
+function cleanScreenshots(args: string[], dir: string): Response {
+	if (!existsSync(dir)) {
 		return { ok: true, data: "No screenshots directory found." };
 	}
 
 	const olderThanIdx = args.indexOf("--older-than");
+	const dryRun = args.includes("--dry-run");
 	let cutoffMs: number | null = null;
 
 	if (olderThanIdx !== -1) {
@@ -97,37 +98,51 @@ function cleanScreenshots(args: string[]): Response {
 		cutoffMs = Date.now() - duration;
 	}
 
-	const files = readdirSync(SCREENSHOTS_DIR);
-	let deleted = 0;
+	const files = readdirSync(dir);
+	const matched: { name: string; size: number }[] = [];
 
 	for (const name of files) {
-		const filepath = join(SCREENSHOTS_DIR, name);
+		const filepath = join(dir, name);
 		if (!isScreenshotFile(filepath)) continue;
 		const stat = statSync(filepath);
 
 		if (cutoffMs === null || stat.mtimeMs < cutoffMs) {
-			unlinkSync(filepath);
-			deleted++;
+			if (dryRun) {
+				matched.push({ name, size: stat.size });
+			} else {
+				unlinkSync(filepath);
+				matched.push({ name, size: stat.size });
+			}
 		}
+	}
+
+	if (dryRun) {
+		const totalSize = matched.reduce((sum, f) => sum + f.size, 0);
+		const listing = matched.map((f) => `  ${f.name}  ${formatBytes(f.size)}`);
+		const summary = `Would delete ${matched.length} screenshot${matched.length === 1 ? "" : "s"} (${formatBytes(totalSize)}).`;
+		if (listing.length > 0) {
+			return { ok: true, data: `${summary}\n${listing.join("\n")}` };
+		}
+		return { ok: true, data: summary };
 	}
 
 	return {
 		ok: true,
-		data: `Deleted ${deleted} screenshot${deleted === 1 ? "" : "s"}.`,
+		data: `Deleted ${matched.length} screenshot${matched.length === 1 ? "" : "s"}.`,
 	};
 }
 
-function countScreenshots(): Response {
-	if (!existsSync(SCREENSHOTS_DIR)) {
+function countScreenshots(dir: string): Response {
+	if (!existsSync(dir)) {
 		return { ok: true, data: "No screenshots directory found." };
 	}
 
-	const files = readdirSync(SCREENSHOTS_DIR);
+	const files = readdirSync(dir);
 	let totalSize = 0;
 	let count = 0;
 
 	for (const name of files) {
-		const filepath = join(SCREENSHOTS_DIR, name);
+		const filepath = join(dir, name);
 		if (!isScreenshotFile(filepath)) continue;
 		const stat = statSync(filepath);
 		totalSize += stat.size;
@@ -140,16 +155,20 @@ function countScreenshots(): Response {
 	};
 }
 
-export async function handleScreenshots(args: string[]): Promise<Response> {
+export async function handleScreenshots(
+	args: string[],
+	screenshotsDir?: string,
+): Promise<Response> {
+	const dir = screenshotsDir ?? DEFAULT_SCREENSHOTS_DIR;
 	const subcommand = args[0];
 
 	switch (subcommand) {
 		case "list":
-			return listScreenshots();
+			return listScreenshots(dir);
 		case "clean":
-			return cleanScreenshots(args.slice(1));
+			return cleanScreenshots(args.slice(1), dir);
 		case "count":
-			return countScreenshots();
+			return countScreenshots(dir);
 		default:
 			return {
 				ok: false,
