@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import type { CDPAXNode } from "../src/cdp-accessibility.ts";
 import { handleSnapshot } from "../src/commands/snapshot.ts";
 import { clearRefs, getRefs } from "../src/refs.ts";
 
@@ -9,6 +10,28 @@ function mockPage(ariaOutput: string) {
 		})),
 		title: mock(() => Promise.resolve("Test Page")),
 	} as never;
+}
+
+/** Mock page that provides CDP session for -f mode. */
+function mockPageWithCDP(cdpNodes: CDPAXNode[]) {
+	const mockClient = {
+		send: mock((_method: string) => Promise.resolve({ nodes: cdpNodes })),
+		detach: mock(() => Promise.resolve()),
+	};
+	const mockContext = {
+		newCDPSession: mock(() => Promise.resolve(mockClient)),
+	};
+	return {
+		context: mock(() => mockContext),
+		title: mock(() => Promise.resolve("Test Page")),
+		_mockClient: mockClient,
+	} as never;
+}
+
+function cdpNode(
+	overrides: Partial<CDPAXNode> & { nodeId: string },
+): CDPAXNode {
+	return { ignored: false, ...overrides };
 }
 
 describe("handleSnapshot", () => {
@@ -61,11 +84,32 @@ describe("handleSnapshot", () => {
 		}
 	});
 
-	test("includes all nodes in -f mode", async () => {
+	test("includes all nodes in -f mode via CDP", async () => {
 		clearRefs();
-		const page = mockPage(
-			`- navigation "Main":\n  - link "Home"\n- generic: stuff`,
-		);
+		const page = mockPageWithCDP([
+			cdpNode({
+				nodeId: "1",
+				role: { type: "role", value: "RootWebArea" },
+				name: { type: "computedString", value: "Test Page" },
+				childIds: ["2", "3"],
+			}),
+			cdpNode({
+				nodeId: "2",
+				role: { type: "role", value: "navigation" },
+				name: { type: "computedString", value: "Main" },
+				childIds: ["4"],
+			}),
+			cdpNode({
+				nodeId: "4",
+				role: { type: "role", value: "link" },
+				name: { type: "computedString", value: "Home" },
+			}),
+			cdpNode({
+				nodeId: "3",
+				role: { type: "role", value: "generic" },
+				name: { type: "computedString", value: "stuff" },
+			}),
+		]);
 
 		const result = await handleSnapshot(page, ["-f"]);
 
@@ -77,11 +121,31 @@ describe("handleSnapshot", () => {
 		}
 	});
 
-	test("indents nested elements", async () => {
+	test("indents nested elements in -f mode", async () => {
 		clearRefs();
-		const page = mockPage(
-			`- navigation "Nav":\n  - link "Home"\n  - link "About"`,
-		);
+		const page = mockPageWithCDP([
+			cdpNode({
+				nodeId: "1",
+				role: { type: "role", value: "RootWebArea" },
+				childIds: ["2"],
+			}),
+			cdpNode({
+				nodeId: "2",
+				role: { type: "role", value: "navigation" },
+				name: { type: "computedString", value: "Nav" },
+				childIds: ["3", "4"],
+			}),
+			cdpNode({
+				nodeId: "3",
+				role: { type: "role", value: "link" },
+				name: { type: "computedString", value: "Home" },
+			}),
+			cdpNode({
+				nodeId: "4",
+				role: { type: "role", value: "link" },
+				name: { type: "computedString", value: "About" },
+			}),
+		]);
 
 		const result = await handleSnapshot(page, ["-f"]);
 
@@ -185,6 +249,80 @@ describe("handleSnapshot", () => {
 			expect(parsed.title).toBe("Test Page");
 			expect(Array.isArray(parsed.nodes)).toBe(true);
 		}
+	});
+
+	test("-f (CDP) includes generic containers that -i excludes", async () => {
+		clearRefs();
+
+		// CDP tree for -f: includes generic containers wrapping everything
+		const cdpPage = mockPageWithCDP([
+			cdpNode({
+				nodeId: "1",
+				role: { type: "role", value: "RootWebArea" },
+				childIds: ["2"],
+			}),
+			cdpNode({
+				nodeId: "2",
+				role: { type: "role", value: "generic" },
+				name: { type: "computedString", value: "" },
+				childIds: ["3", "4"],
+			}),
+			cdpNode({
+				nodeId: "3",
+				role: { type: "role", value: "heading" },
+				name: { type: "computedString", value: "Welcome" },
+				properties: [{ name: "level", value: { type: "integer", value: 1 } }],
+			}),
+			cdpNode({
+				nodeId: "4",
+				role: { type: "role", value: "button" },
+				name: { type: "computedString", value: "Submit" },
+			}),
+		]);
+
+		// Playwright ariaSnapshot for -i: same page but no generic container
+		const ariaPage = mockPage(
+			'- heading "Welcome" [level=1]\n- button "Submit"',
+		);
+
+		const fullResult = await handleSnapshot(cdpPage, ["-f"]);
+		const inclusiveResult = await handleSnapshot(ariaPage, ["-i"]);
+
+		expect(fullResult.ok).toBe(true);
+		expect(inclusiveResult.ok).toBe(true);
+		if (!fullResult.ok || !inclusiveResult.ok) return;
+
+		// Full mode shows the generic container
+		expect(fullResult.data).toContain("[generic]");
+		expect(inclusiveResult.data).not.toContain("generic");
+
+		// Both include the heading and button
+		expect(fullResult.data).toContain('[heading, level=1] "Welcome"');
+		expect(inclusiveResult.data).toContain('[heading, level=1] "Welcome"');
+		expect(fullResult.data).toContain('@e1 [button] "Submit"');
+		expect(inclusiveResult.data).toContain('@e1 [button] "Submit"');
+
+		// Outputs must differ
+		expect(fullResult.data).not.toBe(inclusiveResult.data);
+	});
+
+	test("-f detaches CDP session", async () => {
+		clearRefs();
+		const page = mockPageWithCDP([
+			cdpNode({
+				nodeId: "1",
+				role: { type: "role", value: "RootWebArea" },
+				childIds: [],
+			}),
+		]);
+
+		await handleSnapshot(page, ["-f"]);
+
+		// Verify session was detached
+		const ctx = (
+			page as unknown as { _mockClient: { detach: ReturnType<typeof mock> } }
+		)._mockClient;
+		expect(ctx.detach).toHaveBeenCalled();
 	});
 
 	test("returns error when ariaSnapshot fails", async () => {

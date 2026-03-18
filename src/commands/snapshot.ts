@@ -1,4 +1,5 @@
 import type { Page } from "playwright";
+import { getFullAXTreeViaCDP } from "../cdp-accessibility.ts";
 import type { Response } from "../protocol.ts";
 import {
 	type AccessibilityNode,
@@ -153,9 +154,15 @@ export async function handleSnapshot(
 	const mode = parseMode(args);
 
 	try {
-		const rawSnapshot = await page.locator("body").ariaSnapshot();
-
-		const nodes = parseAriaSnapshot(rawSnapshot);
+		// Full mode uses CDP to capture all nodes including generic containers.
+		// Other modes use Playwright's ariaSnapshot which is more compact.
+		let nodes: AccessibilityNode[];
+		if (mode === "full") {
+			nodes = await getFullAXTreeViaCDP(page);
+		} else {
+			const rawSnapshot = await page.locator("body").ariaSnapshot();
+			nodes = parseAriaSnapshot(rawSnapshot);
+		}
 
 		// Assign refs to interactive elements
 		const refs = assignRefs(nodes, mode);
