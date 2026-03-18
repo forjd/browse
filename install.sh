@@ -75,11 +75,11 @@ fi
 
 echo "  binary: ${BIN_DIR}/browse"
 
-# Install Playwright Chromium
+# Install Chrome for Testing (matches setup.sh and CI)
 echo ""
-echo "Installing Chromium..."
-bunx playwright install chromium
-echo "  Chromium installed"
+echo "Installing Chrome..."
+bunx playwright install chrome
+echo "  Chrome installed"
 
 # Check PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -q "$BIN_DIR"; then
