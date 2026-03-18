@@ -142,7 +142,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	"element-count": [],
 	trace: ["--screenshots", "--snapshots", "--out"],
 	init: ["--force"],
-	screenshots: ["--older-than"],
+	screenshots: ["--older-than", "--dry-run"],
 	report: ["--out", "--title", "--screenshots"],
 	completions: [],
 	form: ["--data", "--auto-snapshot"],

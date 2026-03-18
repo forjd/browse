@@ -442,11 +442,12 @@ flows, and healthcheck configuration.`,
 	screenshots: {
 		summary: "Manage screenshot files",
 		usage: `browse screenshots list                    List all screenshots
-browse screenshots clean [--older-than <duration>]   Delete screenshots
+browse screenshots clean [--older-than <duration>] [--dry-run]   Delete screenshots
 browse screenshots count                  Show count and total size
 
 Flags:
-  --older-than <duration>   Only delete screenshots older than duration (e.g. 7d, 24h, 30m)`,
+  --older-than <duration>   Only delete screenshots older than duration (e.g. 7d, 24h, 30m)
+  --dry-run                 Show what would be deleted without removing files`,
 	},
 	report: {
 		summary: "Generate an HTML QA report",
