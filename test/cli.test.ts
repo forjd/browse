@@ -35,9 +35,15 @@ describe("parseArgs", () => {
 		});
 	});
 
-	test("returns null for empty args", () => {
+	test("returns help command for empty args", () => {
 		const result = parseArgs([]);
-		expect(result).toBeNull();
+		expect(result).toEqual({
+			cmd: "help",
+			args: [],
+			timeout: undefined,
+			session: undefined,
+			json: false,
+		});
 	});
 
 	test("detects --daemon flag", () => {
