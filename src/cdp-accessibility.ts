@@ -42,9 +42,10 @@ const TEXT_ROLES = new Set(["StaticText"]);
 /**
  * Convert a flat CDP AXNode array into an AccessibilityNode tree.
  *
- * - Nodes with `ignored: true` are dropped entirely (including subtrees).
- * - Nodes whose role is in SKIP_ROLES are removed but their children are
- *   promoted into the parent.
+ * - Nodes with `ignored: true` are removed but their children are promoted
+ *   into the parent (they may contain non-ignored descendants).
+ * - Nodes whose role is in SKIP_ROLES receive the same treatment: removed
+ *   with children promoted into the parent.
  */
 export function buildTree(cdpNodes: CDPAXNode[]): AccessibilityNode[] {
 	if (cdpNodes.length === 0) return [];
@@ -139,7 +140,11 @@ export async function getFullAXTreeViaCDP(
 	const client = await page.context().newCDPSession(page);
 	try {
 		const result = await client.send("Accessibility.getFullAXTree");
-		return buildTree((result as { nodes: CDPAXNode[] }).nodes);
+		const nodes = (result as Record<string, unknown>)?.nodes;
+		if (!Array.isArray(nodes)) {
+			return [];
+		}
+		return buildTree(nodes as CDPAXNode[]);
 	} finally {
 		await client.detach();
 	}
