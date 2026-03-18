@@ -295,6 +295,13 @@ Examples:
   browse a11y --standard wcag21aa    WCAG 2.1 AA
   browse a11y --json                 Machine-readable output`,
 	},
+	help: {
+		summary: "Show help for a command",
+		usage: `browse help [command]
+
+Without arguments, shows an overview of all commands.
+With a command name, shows detailed usage for that command.`,
+	},
 	quit: {
 		summary: "Shut down the daemon",
 		usage: "browse quit",

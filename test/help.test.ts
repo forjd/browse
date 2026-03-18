@@ -30,6 +30,7 @@ describe("COMMANDS registry", () => {
 			"benchmark",
 			"viewport",
 			"quit",
+			"help",
 		];
 		for (const cmd of expected) {
 			expect(COMMANDS).toHaveProperty(cmd);
@@ -77,5 +78,11 @@ describe("formatCommandHelp", () => {
 	test("includes the command usage block", () => {
 		const help = formatCommandHelp("tab");
 		expect(help).toContain(COMMANDS.tab.usage);
+	});
+
+	test("returns help text for the help command itself", () => {
+		const help = formatCommandHelp("help");
+		expect(help).not.toBeNull();
+		expect(help).toContain("help");
 	});
 });
