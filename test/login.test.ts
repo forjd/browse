@@ -106,6 +106,19 @@ describe("login command", () => {
 		}
 	});
 
+	test("shows '(none)' when no environments are configured", async () => {
+		const emptyConfig: BrowseConfig = { environments: {} };
+		const res = await handleLogin(emptyConfig, mockPage(), [
+			"--env",
+			"nonexistent",
+		]);
+		expect(res.ok).toBe(false);
+		if (!res.ok) {
+			expect(res.error).toContain("(none)");
+			expect(res.error).not.toEndWith("Available: .");
+		}
+	});
+
 	test("returns error when credentials env vars are missing", async () => {
 		delete process.env.BROWSE_STAGING_USER;
 		delete process.env.BROWSE_STAGING_PASS;

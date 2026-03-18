@@ -84,6 +84,21 @@ describe("handleFlow — missing flow", () => {
 			expect(result.error).toContain("simple");
 		}
 	});
+
+	test("shows '(none)' when no flows are configured", async () => {
+		const configNoFlows: BrowseConfig = {
+			environments: BASE_CONFIG.environments,
+			flows: {},
+		};
+		const result = await handleFlow(configNoFlows, null as any, [
+			"nonexistent",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("(none)");
+			expect(result.error).not.toEndWith("Available: .");
+		}
+	});
 });
 
 describe("handleFlow — missing variables", () => {
