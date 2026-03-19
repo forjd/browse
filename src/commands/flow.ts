@@ -10,6 +10,11 @@ import {
 } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import { formatFlowJUnit } from "../reporters.ts";
+import {
+	formatFlowWebhookPayload,
+	parseWebhookFlag,
+	sendWebhook,
+} from "../webhook.ts";
 import type { ConsoleEntry } from "./console.ts";
 import type { NetworkEntry } from "./network.ts";
 
@@ -104,6 +109,13 @@ export async function handleFlow(
 		}
 	}
 
+	// Parse webhook flag
+	const webhookResult = parseWebhookFlag(args.slice(1));
+	if (webhookResult.error) {
+		return { ok: false, error: webhookResult.error };
+	}
+	const webhookUrl = webhookResult.url;
+
 	// Validate required variables
 	if (flow.variables && flow.variables.length > 0) {
 		const missing = flow.variables.filter((v) => !(v in vars));
@@ -155,6 +167,12 @@ export async function handleFlow(
 	const durationMs = Date.now() - startTime;
 
 	const allPassed = results.every((r) => r.passed);
+
+	// Fire webhook notification (non-blocking)
+	if (webhookUrl) {
+		const payload = formatFlowWebhookPayload(flowName, results, durationMs);
+		sendWebhook(webhookUrl, payload);
+	}
 
 	// Streaming output returns NDJSON
 	if (stream) {

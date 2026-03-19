@@ -189,6 +189,41 @@ browse flow smoke-test --stream
 
 Each line is a JSON object with step index, description, status, and timing.
 
+### Webhook Notifications
+
+Send results to an external URL on completion:
+
+```sh
+browse flow smoke-test --webhook https://hooks.slack.com/services/T.../B.../xxx
+browse flow checkout --webhook https://your-ci.example.com/callback --continue-on-error
+```
+
+The `--webhook` flag POSTs a JSON payload when the flow finishes:
+
+```json
+{
+  "type": "flow",
+  "name": "smoke-test",
+  "status": "passed",
+  "summary": { "total": 5, "passed": 5, "failed": 0 },
+  "duration_ms": 1234,
+  "failures": [],
+  "timestamp": "2026-03-19T12:00:00.000Z"
+}
+```
+
+Failed flows include failure details:
+
+```json
+{
+  "failures": [
+    { "step": 3, "error": "Assertion failed: expected 'Dashboard' in title" }
+  ]
+}
+```
+
+The webhook is fire-and-forget — network errors or non-2xx responses are silently ignored so they never block command output.
+
 ### Error Handling
 
 - By default, a flow stops on the first failure
@@ -257,6 +292,30 @@ browse healthcheck --parallel --concurrency 4                    # check pages c
 - `--reporter junit` -- Output results as JUnit XML for CI integration
 - `--parallel` -- Check pages concurrently instead of sequentially
 - `--concurrency N` -- Max concurrent pages when `--parallel` is set (default: 5)
+- `--webhook <url>` -- POST a JSON result payload to the URL on completion
+
+### Webhook Notifications
+
+Send healthcheck results to an external URL on completion:
+
+```sh
+browse healthcheck --var base_url=https://staging.example.com --webhook https://hooks.slack.com/services/T.../B.../xxx
+```
+
+The `--webhook` flag POSTs a JSON payload when the healthcheck finishes:
+
+```json
+{
+  "type": "healthcheck",
+  "status": "failed",
+  "summary": { "total": 3, "passed": 2, "failed": 1 },
+  "duration_ms": 2500,
+  "failures": [
+    { "page": "API Health", "error": "Navigation failed: net::ERR_CONNECTION_REFUSED" }
+  ],
+  "timestamp": "2026-03-19T12:00:00.000Z"
+}
+```
 
 ## See Also
 
