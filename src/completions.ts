@@ -60,6 +60,7 @@ const COMMANDS = [
 	"replay",
 	"diff",
 	"flow-share",
+	"video",
 ];
 
 const GLOBAL_FLAGS = ["--timeout", "--session", "--json", "--config"];
@@ -140,6 +141,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--no-screenshots",
 	],
 	"flow-share": [],
+	video: ["--size", "--out"],
 };
 
 export function generateBashCompletions(): string {

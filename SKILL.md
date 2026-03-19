@@ -67,6 +67,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit\|json\|markdown`, `--dry-run`, `--stream`, `--webhook <url>`), `healthcheck` (`--reporter junit\|json\|markdown`, `--parallel`, `--concurrency`, `--webhook <url>`), `test-matrix --roles r1,r2 --flow <name>`, `diff --baseline <url> --current <url>` |
 | **Sessions** | `session list/create/close`, `--session <name>` on any command |
 | **Tracing** | `trace start` (`--screenshots`, `--snapshots`), `trace stop --out <path>`, `trace view [<path>] --latest --port <n>`, `trace list`, `trace status` |
+| **Video** | `video start [--size WxH]`, `video stop [--out <path>]`, `video status`, `video list` |
 | **Tooling** | `init`, `report --out <path>`, `replay --out <path>`, `flow-share export/import/list/install/publish`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status [--json] [--watch] [--exit-code]` |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.

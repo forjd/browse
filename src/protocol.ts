@@ -55,6 +55,7 @@ const VALID_COMMANDS = [
 	"replay",
 	"diff",
 	"flow-share",
+	"video",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
