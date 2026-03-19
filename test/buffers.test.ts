@@ -96,4 +96,48 @@ describe("RingBuffer", () => {
 		const buf = new RingBuffer<number>(10);
 		expect(buf.peek()).toEqual([]);
 	});
+
+	test("push after drain resumes correctly", () => {
+		const buf = new RingBuffer<number>(3);
+		buf.push(1);
+		buf.push(2);
+		buf.push(3);
+		buf.drain();
+		buf.push(10);
+		buf.push(11);
+		expect(buf.peek()).toEqual([10, 11]);
+	});
+
+	test("push after clear resumes correctly", () => {
+		const buf = new RingBuffer<number>(3);
+		buf.push(1);
+		buf.push(2);
+		buf.push(3);
+		buf.push(4); // wraps
+		buf.clear();
+		buf.push(10);
+		expect(buf.peek()).toEqual([10]);
+	});
+
+	test("capacity of 1 keeps only the last item", () => {
+		const buf = new RingBuffer<number>(1);
+		buf.push(1);
+		buf.push(2);
+		buf.push(3);
+		expect(buf.peek()).toEqual([3]);
+		expect(buf.drain()).toEqual([3]);
+		expect(buf.peek()).toEqual([]);
+	});
+
+	test("drain with filter after wrap returns correct items", () => {
+		const buf = new RingBuffer<number>(3);
+		buf.push(1);
+		buf.push(2);
+		buf.push(3);
+		buf.push(4); // evicts 1, buffer: [2, 3, 4]
+		buf.push(5); // evicts 2, buffer: [3, 4, 5]
+		const odds = buf.drain((n) => n % 2 !== 0);
+		expect(odds).toEqual([3, 5]);
+		expect(buf.peek()).toEqual([]);
+	});
 });
