@@ -104,7 +104,14 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	"auth-state": [],
 	login: ["--env"],
 	tab: [],
-	flow: ["--var", "--continue-on-error", "--reporter", "--dry-run", "--stream"],
+	flow: [
+		"--var",
+		"--continue-on-error",
+		"--reporter",
+		"--dry-run",
+		"--stream",
+		"--webhook",
+	],
 	assert: ["--var", "--json"],
 	healthcheck: [
 		"--var",
@@ -112,6 +119,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--reporter",
 		"--parallel",
 		"--concurrency",
+		"--webhook",
 	],
 	wipe: [],
 	benchmark: ["--iterations"],

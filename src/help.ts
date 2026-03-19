@@ -133,7 +133,7 @@ browse tab close [index]     Close tab (closes active tab if no index)`,
 	flow: {
 		summary: "Execute a named flow",
 		usage: `browse flow list                          List defined flows
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream] [--webhook <url>]
 
 Flags:
   --var key=value       Pass variables to flow (repeatable)
@@ -141,6 +141,7 @@ Flags:
   --reporter <format>   Output format: junit (JUnit XML for CI integration)
   --dry-run             Preview step plan without executing
   --stream              Emit step results as NDJSON as they complete
+  --webhook <url>       POST a JSON result payload to the URL on completion
 
 Flows are defined in browse.config.json. Flows support conditional logic
 (if/else) and loops (while) with condition expressions.`,
@@ -165,7 +166,7 @@ Flags:
 	},
 	healthcheck: {
 		summary: "Run healthcheck across configured pages",
-		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N]
+		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N] [--webhook <url>]
 
 Flags:
   --var key=value       Pass variables for URL interpolation (repeatable)
@@ -173,6 +174,7 @@ Flags:
   --reporter <format>   Output format: junit (JUnit XML for CI integration)
   --parallel            Check pages concurrently using separate browser tabs
   --concurrency <N>     Max pages to check in parallel (default: 5, requires --parallel)
+  --webhook <url>       POST a JSON result payload to the URL on completion
 
 Pages are defined in browse.config.json.`,
 	},

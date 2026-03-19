@@ -731,7 +731,7 @@ List all defined flows.
 ### flow
 
 ```
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream] [--webhook <url>]
 ```
 
 Execute a named flow defined in `browse.config.json`.
@@ -743,6 +743,7 @@ Execute a named flow defined in `browse.config.json`.
 | `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
 | `--dry-run` | Preview steps without executing them |
 | `--stream` | Output real-time NDJSON with one object per step |
+| `--webhook <url>` | POST a JSON result payload to the URL on completion |
 
 **Examples:**
 
@@ -752,12 +753,13 @@ browse flow checkout --continue-on-error
 browse flow smoke-test --reporter junit > results.xml
 browse flow signup --dry-run
 browse flow smoke-test --stream
+browse flow smoke-test --webhook https://hooks.slack.com/services/T.../B.../xxx
 ```
 
 ### healthcheck
 
 ```
-browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N]
+browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N] [--webhook <url>]
 ```
 
 Run a healthcheck across configured pages defined in `browse.config.json`.
@@ -769,6 +771,7 @@ Run a healthcheck across configured pages defined in `browse.config.json`.
 | `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
 | `--parallel` | Check pages concurrently instead of sequentially |
 | `--concurrency N` | Max concurrent pages when `--parallel` is set (default: 5) |
+| `--webhook <url>` | POST a JSON result payload to the URL on completion |
 
 **Examples:**
 
@@ -778,6 +781,7 @@ browse healthcheck --var env=staging
 browse healthcheck --no-screenshots
 browse healthcheck --reporter junit > results.xml
 browse healthcheck --parallel --concurrency 8
+browse healthcheck --webhook https://hooks.slack.com/services/T.../B.../xxx
 ```
 
 ---

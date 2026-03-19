@@ -11,6 +11,11 @@ import type {
 import { interpolateVars, parseVars } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import { formatHealthcheckJUnit } from "../reporters.ts";
+import {
+	formatHealthcheckWebhookPayload,
+	parseWebhookFlag,
+	sendWebhook,
+} from "../webhook.ts";
 import { evaluateAssertCondition } from "./assert.ts";
 import { type ConsoleEntry, formatConsoleEntries } from "./console.ts";
 import type { NetworkEntry } from "./network.ts";
@@ -28,6 +33,7 @@ export function parseHealthcheckArgs(args: string[]): {
 	parallel: boolean;
 	concurrency: number;
 	reporter?: string;
+	webhookUrl?: string;
 	error?: string;
 } {
 	const vars = parseVars(args);
@@ -64,7 +70,26 @@ export function parseHealthcheckArgs(args: string[]): {
 			}
 		}
 	}
-	return { vars, noScreenshots, parallel, concurrency, reporter };
+
+	const webhookResult = parseWebhookFlag(args);
+	if (webhookResult.error) {
+		return {
+			vars,
+			noScreenshots,
+			parallel,
+			concurrency,
+			error: webhookResult.error,
+		};
+	}
+
+	return {
+		vars,
+		noScreenshots,
+		parallel,
+		concurrency,
+		reporter,
+		webhookUrl: webhookResult.url,
+	};
 }
 
 function slugify(name: string): string {
@@ -139,7 +164,8 @@ export async function handleHealthcheck(
 	if (parsed.error) {
 		return { ok: false, error: parsed.error };
 	}
-	const { vars, noScreenshots, parallel, concurrency, reporter } = parsed;
+	const { vars, noScreenshots, parallel, concurrency, reporter, webhookUrl } =
+		parsed;
 	const pages = config.healthcheck.pages;
 	const startTime = Date.now();
 	const results: PageResult[] = [];
@@ -296,6 +322,12 @@ export async function handleHealthcheck(
 	const totalCount = results.length;
 	const allPassed = passedCount === totalCount;
 	const durationMs = Date.now() - startTime;
+
+	// Fire webhook notification (non-blocking)
+	if (webhookUrl) {
+		const payload = formatHealthcheckWebhookPayload(results, durationMs);
+		sendWebhook(webhookUrl, payload);
+	}
 
 	if (reporter === "junit") {
 		const junit = formatHealthcheckJUnit(results, durationMs);
