@@ -296,12 +296,16 @@ Define reusable flows in `browse.config.json`, then run them:
 browse flow list
 browse flow signup --var base_url=https://staging.example.com
 browse flow signup --reporter junit                    # JUnit XML output for CI
+browse flow signup --reporter json                    # structured JSON output
+browse flow signup --reporter markdown                # human-readable Markdown
 browse flow signup --dry-run                           # preview steps without running
 browse flow signup --stream                            # real-time NDJSON step output
 browse assert text-contains "Welcome"
 browse assert visible ".dashboard"
 browse healthcheck --var base_url=https://staging.example.com
 browse healthcheck --reporter junit                    # JUnit XML output for CI
+browse healthcheck --reporter json                    # structured JSON output
+browse healthcheck --reporter markdown                # human-readable Markdown
 browse healthcheck --parallel --concurrency 4          # check pages in parallel
 ```
 
@@ -460,9 +464,9 @@ Measured with `browse benchmark`:
 | `tab list\|new\|switch\|close` | Tab management |
 | `login --env <name>` | Configured login |
 | `auth-state save\|load <path>` | Session import/export |
-| `flow list\|<name>` | Run configured flows (`--reporter junit`, `--dry-run`, `--stream`) |
+| `flow list\|<name>` | Run configured flows (`--reporter junit\|json\|markdown`, `--dry-run`, `--stream`) |
 | `assert <type> <args>` | Assertions (visible, text, url, element, permission) |
-| `healthcheck` | Multi-page health check (`--reporter junit`, `--parallel`, `--concurrency`) |
+| `healthcheck` | Multi-page health check (`--reporter junit\|json\|markdown`, `--parallel`, `--concurrency`) |
 | `a11y [@eN]` | Accessibility audit (`--standard`, `--json`, `--include`, `--exclude`) |
 | `session create\|list\|close` | Manage isolated browser sessions |
 | `ping` | Check if daemon is alive |
@@ -483,7 +487,7 @@ Measured with `browse benchmark`:
 | `report --out <path>` | Generate HTML report from screenshots (`--title`, `--screenshots`) |
 | `init` | Generate a `browse.config.json` template (`--force` to overwrite) |
 | `form --data <json>` | Bulk-fill form fields (`--auto-snapshot`) |
-| `test-matrix --roles <r1,r2> --flow <name>` | Multi-role parallel testing (`--env`, `--reporter junit`) |
+| `test-matrix --roles <r1,r2> --flow <name>` | Multi-role parallel testing (`--env`, `--reporter junit\|json\|markdown`) |
 | `assert-ai "<assertion>"` | AI-powered visual assertion (`--model`, `--provider`, `--base-url`) |
 | `replay [--out path]` | Generate interactive session replay HTML |
 | `diff --baseline <url> --current <url>` | Visual diff across deployments (`--flow`, `--threshold`) |

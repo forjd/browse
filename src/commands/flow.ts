@@ -9,7 +9,11 @@ import {
 	type StepResult,
 } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
-import { formatFlowJUnit } from "../reporters.ts";
+import {
+	formatFlowJson,
+	formatFlowJUnit,
+	formatFlowMarkdown,
+} from "../reporters.ts";
 import {
 	formatFlowWebhookPayload,
 	parseWebhookFlag,
@@ -88,7 +92,7 @@ export async function handleFlow(
 	const stream = args.includes("--stream");
 
 	// Parse reporter flag
-	const VALID_REPORTERS = ["junit"];
+	const VALID_REPORTERS = ["junit", "json", "markdown"];
 	let reporter: string | undefined;
 	for (let i = 1; i < args.length; i++) {
 		if (args[i] === "--reporter") {
@@ -185,6 +189,14 @@ export async function handleFlow(
 	if (reporter === "junit") {
 		const junit = formatFlowJUnit(flowName, results, durationMs);
 		return { ok: true, data: junit };
+	}
+	if (reporter === "json") {
+		const json = formatFlowJson(flowName, results, durationMs);
+		return { ok: true, data: json };
+	}
+	if (reporter === "markdown") {
+		const md = formatFlowMarkdown(flowName, results, durationMs);
+		return allPassed ? { ok: true, data: md } : { ok: false, error: md };
 	}
 
 	const report = formatFlowReport(
