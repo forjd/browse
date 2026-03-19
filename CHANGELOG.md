@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.10.0](https://github.com/forjd/browse/compare/browse-v0.9.1...browse-v0.10.0) (2026-03-19)
+
+
+### Features
+
+* add --watch, --interval, and --exit-code flags to status command ([0230fa2](https://github.com/forjd/browse/commit/0230fa21935308d832c500cc24affe620a65933d)), closes [#86](https://github.com/forjd/browse/issues/86)
+* add --webhook flag for flow and healthcheck notifications ([a0bb574](https://github.com/forjd/browse/commit/a0bb5740576181daef447e967cfae29466b26d9f)), closes [#82](https://github.com/forjd/browse/issues/82)
+* add download failure detection, metadata response, and validation flags ([#85](https://github.com/forjd/browse/issues/85)) ([f8a9706](https://github.com/forjd/browse/commit/f8a97067ef350728774779874092fb02b073487c))
+* add JSON and Markdown reporters for flow, healthcheck, and test-matrix ([36c062f](https://github.com/forjd/browse/commit/36c062f096731621382e74b6d69a642eb3026688))
+* add multi-browser support (Firefox, WebKit) ([3f346aa](https://github.com/forjd/browse/commit/3f346aa839895e6ca2f00920b92bf3efc7afe53d)), closes [#87](https://github.com/forjd/browse/issues/87)
+* add trace view and trace list commands ([#89](https://github.com/forjd/browse/issues/89)) ([0eeb204](https://github.com/forjd/browse/commit/0eeb2043415d6823f5002e2f2254d70dc3852355))
+* add video recording for browser sessions ([f62182b](https://github.com/forjd/browse/commit/f62182b9dc6fb43e2c4657975f0c4f5a58494f9a)), closes [#83](https://github.com/forjd/browse/issues/83)
+
+
+### Bug Fixes
+
+* add CDP session mock to benchmark back-navigation test ([339c56c](https://github.com/forjd/browse/commit/339c56c667411a4d8c33dca53e971e32733553e5))
+* consistent ok flag across all reporters and richer Markdown summaries ([0e18b7c](https://github.com/forjd/browse/commit/0e18b7cf71be51d5f706e6c16b68f32276adbb02))
+* prevent browser context leak and ensure video state cleanup ([5a508aa](https://github.com/forjd/browse/commit/5a508aa8c1a768e97190030db578f4809366b768))
+* prevent quit test from killing bun test process ([#97](https://github.com/forjd/browse/issues/97)) ([fa67848](https://github.com/forjd/browse/commit/fa67848a8ab4c701cd3c7915b4fedcf343a08962))
+* replace RingBuffer Array.shift() with O(1) circular buffer ([c60efb1](https://github.com/forjd/browse/commit/c60efb12e113204e27c0180c4ccfea8cd6d9e791)), closes [#88](https://github.com/forjd/browse/issues/88)
+
 ## [0.9.1](https://github.com/forjd/browse/compare/browse-v0.9.0...browse-v0.9.1) (2026-03-18)
 
 
