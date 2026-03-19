@@ -57,6 +57,7 @@ browse scroll @e3                   # scroll element into view
 browse screenshot                   # capture the page
 browse trace start                  # start recording a Playwright trace
 browse trace stop --out trace.zip   # stop and save the trace
+browse trace view --latest          # open most recent trace in viewer
 browse init                         # generate a browse.config.json template
 browse screenshots list             # list saved screenshots
 browse report --out report.html     # generate an HTML report from screenshots
@@ -433,7 +434,7 @@ Measured with `browse benchmark`:
 | `element-count <selector>` | Count elements matching a selector |
 | `wipe` | Clear all session data |
 | `benchmark` | Measure latency |
-| `trace start\|stop\|status` | Record Playwright traces (`--screenshots`, `--snapshots`, `--out`) |
+| `trace start\|stop\|view\|list\|status` | Record and view Playwright traces (`--screenshots`, `--snapshots`, `--out`, `--latest`, `--port`) |
 | `report --out <path>` | Generate HTML report from screenshots (`--title`, `--screenshots`) |
 | `init` | Generate a `browse.config.json` template (`--force` to overwrite) |
 | `form --data <json>` | Bulk-fill form fields (`--auto-snapshot`) |
