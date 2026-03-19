@@ -88,12 +88,21 @@ export type HealthcheckConfig = {
 	pages: HealthcheckPage[];
 };
 
+export type BrowserName = "chrome" | "firefox" | "webkit";
+
+export const VALID_BROWSER_NAMES = new Set<string>([
+	"chrome",
+	"firefox",
+	"webkit",
+]);
+
 export type BrowseConfig = {
 	environments: Record<string, EnvironmentConfig>;
 	flows?: Record<string, FlowConfig>;
 	permissions?: Record<string, PermissionConfig>;
 	healthcheck?: HealthcheckConfig;
 	timeout?: number;
+	browser?: BrowserName;
 };
 
 /** Passed alongside config so commands can distinguish "not found" from "invalid". */
@@ -338,6 +347,13 @@ export function validateConfig(data: unknown): string | null {
 			typeof condition[keys[0]] !== "string"
 		) {
 			return `Invalid browse.config.json: environment '${name}' has an invalid 'successCondition'. Must have exactly one of: urlContains, urlPattern, elementVisible.`;
+		}
+	}
+
+	// Validate browser (optional)
+	if (obj.browser !== undefined) {
+		if (!VALID_BROWSER_NAMES.has(obj.browser as string)) {
+			return `Invalid browse.config.json: 'browser' must be one of: ${[...VALID_BROWSER_NAMES].join(", ")}.`;
 		}
 	}
 

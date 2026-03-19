@@ -125,6 +125,18 @@ browse screenshot current.png --diff baseline.png --threshold 5
 
 Output includes similarity percentage, diff pixel count, and a path to the diff image (changed pixels highlighted in red).
 
+## Multi-browser
+
+Browse defaults to Chromium. Use `--browser` to switch:
+
+```bash
+browse --browser firefox goto https://example.com
+browse --browser webkit goto https://example.com
+BROWSE_BROWSER=firefox browse goto https://example.com
+```
+
+Stealth features and CDP console capture are Chromium-only; Firefox/WebKit use standard Playwright.
+
 ## Headed mode
 
 Launch the browser visibly for debugging (set before the daemon starts):
