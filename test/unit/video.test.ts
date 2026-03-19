@@ -7,7 +7,6 @@ import {
 	handleVideo,
 	listVideoFiles,
 	type PageHolder,
-	type VideoDeps,
 	type VideoState,
 } from "../../src/commands/video.ts";
 
@@ -271,7 +270,7 @@ describe("video stop", () => {
 			originalPage: currentPage as never,
 			videoDir: join(tmpdir(), `browse-video-test-${Date.now()}`),
 		};
-		mkdirSync(state.videoDir!, { recursive: true });
+		if (state.videoDir) mkdirSync(state.videoDir, { recursive: true });
 
 		const outDir = join(tmpdir(), `browse-video-out-${Date.now()}`);
 		const outPath = join(outDir, "test-video.webm");
@@ -319,7 +318,7 @@ describe("video stop", () => {
 			originalPage: currentPage as never,
 			videoDir: join(tmpdir(), `browse-video-err-${Date.now()}`),
 		};
-		mkdirSync(state.videoDir!, { recursive: true });
+		if (state.videoDir) mkdirSync(state.videoDir, { recursive: true });
 
 		const result = await handleVideo(context, state, tabState, ["stop"]);
 
