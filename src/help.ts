@@ -330,12 +330,24 @@ Use --session <name> on any command to route it to a named session:
 	},
 	status: {
 		summary: "Show daemon status and health info",
-		usage: `browse status [--json]
+		usage: `browse status [--json] [--watch [--interval N]] [--exit-code]
 
 Shows daemon PID, uptime, memory usage, browser version, session count,
 total tabs, and per-session details.
 
-With --json, returns structured JSON with all health metrics for CI readiness checks.`,
+Flags:
+  --json               Returns structured JSON with all health metrics
+  --watch              Continuously poll and display status
+  --interval <seconds> Polling interval for --watch (default: 5)
+  --exit-code          Exit 0 if daemon is healthy, 1 if unhealthy (for CI/container probes)
+
+Examples:
+  browse status                            One-shot status
+  browse status --json                     Structured JSON output
+  browse status --watch                    Live-updating status (every 5s)
+  browse status --watch --interval 10      Poll every 10 seconds
+  browse status --watch --json             NDJSON stream for monitoring
+  browse status --exit-code                Health probe (exit code only)`,
 	},
 	dialog: {
 		summary: "Handle browser dialogs (alert, confirm, prompt)",

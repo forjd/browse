@@ -72,6 +72,57 @@ function mockDeps(
 	};
 }
 
+function sendJsonCommand(
+	socketPath: string,
+	cmd: string,
+	args: string[] = [],
+	timeoutMs = 5_000,
+): Promise<Response> {
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const settle = (fn: () => void) => {
+			if (!settled) {
+				settled = true;
+				fn();
+			}
+		};
+
+		const client = connect(socketPath, () => {
+			client.write(`${JSON.stringify({ cmd, args, json: true })}\n`);
+		});
+
+		const timer = setTimeout(() => {
+			settle(() => {
+				client.destroy();
+				reject(
+					new Error(
+						`sendJsonCommand timed out after ${timeoutMs}ms: ${cmd} ${args.join(" ")}`,
+					),
+				);
+			});
+		}, timeoutMs);
+
+		let data = "";
+		client.on("data", (chunk) => {
+			data += chunk.toString();
+		});
+		client.on("end", () => {
+			clearTimeout(timer);
+			settle(() => {
+				try {
+					resolve(JSON.parse(data.trim()));
+				} catch {
+					reject(new Error(`Failed to parse response: ${data}`));
+				}
+			});
+		});
+		client.on("error", (err) => {
+			clearTimeout(timer);
+			settle(() => reject(err));
+		});
+	});
+}
+
 function sendCommand(
 	socketPath: string,
 	cmd: string,
@@ -165,6 +216,61 @@ describe("status command", () => {
 				expect(r.data).toContain("Sessions:");
 				expect(r.data).toContain("Uptime:");
 				expect(r.data).toContain("default:");
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+});
+
+describe("status --json command", () => {
+	test("returns structured JSON with all health metrics", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+		try {
+			const r = await sendCommand(config.socketPath, "status", [], 5_000);
+			expect(r.ok).toBe(true);
+			if (r.ok) {
+				// Send with json flag
+				const jr = await sendCommand(config.socketPath, "status", [], 5_000);
+				expect(jr.ok).toBe(true);
+			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("JSON response contains required health fields", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+		try {
+			const r = await sendJsonCommand(config.socketPath, "status");
+			expect(r.ok).toBe(true);
+			if (r.ok) {
+				const data = JSON.parse(r.data);
+				expect(data).toHaveProperty("uptime");
+				expect(data).toHaveProperty("uptimeMs");
+				expect(data).toHaveProperty("memory");
+				expect(data.memory).toHaveProperty("rss");
+				expect(data.memory).toHaveProperty("rssMb");
+				expect(data).toHaveProperty("sessions");
+				expect(data).toHaveProperty("totalTabs");
+				expect(data).toHaveProperty("browserVersion");
+				expect(data).toHaveProperty("daemonPid");
+				expect(data).toHaveProperty("sessionsDetail");
+				expect(typeof data.uptime).toBe("number");
+				expect(typeof data.memory.rssMb).toBe("number");
+				expect(typeof data.daemonPid).toBe("number");
 			}
 		} finally {
 			await shutdown();

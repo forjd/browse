@@ -282,6 +282,10 @@ browse pdf ./report.pdf                     # export to specific path
 browse ping                                 # check if daemon is alive
 browse status                               # show URL, sessions, uptime
 browse status --json                        # machine-readable daemon status
+browse status --watch                       # live-updating status (every 5s)
+browse status --watch --interval 10         # poll every 10 seconds
+browse status --watch --json                # NDJSON stream for monitoring
+browse status --exit-code                   # exit 0/1 for CI health probes
 ```
 
 ### Flows and assertions
@@ -421,7 +425,7 @@ Measured with `browse benchmark`:
 | `a11y [@eN]` | Accessibility audit (`--standard`, `--json`, `--include`, `--exclude`) |
 | `session create\|list\|close` | Manage isolated browser sessions |
 | `ping` | Check if daemon is alive |
-| `status` | Show daemon status and uptime (`--json` for machine-readable) |
+| `status` | Show daemon status and uptime (`--json`, `--watch`, `--exit-code`) |
 | `dialog accept\|dismiss\|status\|auto-*` | Handle browser dialogs |
 | `download wait` | Wait for and save file downloads (`--save-to`, `--expect-type`, `--expect-min-size`, `--expect-max-size`) |
 | `frame list\|switch\|main` | Navigate and inspect iframes |

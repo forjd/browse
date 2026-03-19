@@ -129,7 +129,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	quit: [],
 	session: ["--isolated"],
 	ping: [],
-	status: [],
+	status: ["--watch", "--interval", "--exit-code"],
 	dialog: [],
 	download: [
 		"--save-to",

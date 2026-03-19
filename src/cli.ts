@@ -107,6 +107,42 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	return { cmd: cmd as string, args, timeout, session, json, config };
 }
 
+/**
+ * Extract status-specific CLI flags (--watch, --interval, --exit-code) from args.
+ * These are handled client-side and not sent to the daemon.
+ */
+export function extractStatusFlags(args: string[]): {
+	watch: boolean;
+	interval: number;
+	exitCode: boolean;
+	cleanArgs: string[];
+} {
+	let watch = false;
+	let interval = 5;
+	let exitCode = false;
+	const cleanArgs: string[] = [];
+
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === "--watch") {
+			watch = true;
+		} else if (args[i] === "--interval") {
+			if (i + 1 < args.length) {
+				const val = Number.parseInt(args[i + 1], 10);
+				if (!Number.isNaN(val) && val > 0) {
+					interval = val;
+				}
+				i++; // skip the value
+			}
+		} else if (args[i] === "--exit-code") {
+			exitCode = true;
+		} else {
+			cleanArgs.push(args[i]);
+		}
+	}
+
+	return { watch, interval, exitCode, cleanArgs };
+}
+
 export function formatOutput(response: Response): {
 	output: string;
 	isError: boolean;
@@ -252,6 +288,69 @@ async function runCli(): Promise<void> {
 			process.exit(1);
 		}
 		return;
+	}
+
+	// Status command: handle --watch, --interval, --exit-code client-side
+	if (cmd === "status") {
+		const statusFlags = extractStatusFlags(args);
+		const retryDeps = {
+			sendRequest: (c: string, a: string[]) =>
+				sendRequest(
+					DEFAULT_CONFIG.socketPath,
+					c,
+					a,
+					timeout,
+					session,
+					json,
+					readToken(),
+				),
+			spawnDaemon: () => spawnDaemon(configPath),
+			cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
+		};
+
+		if (statusFlags.exitCode) {
+			try {
+				await sendWithRetry(retryDeps, cmd, statusFlags.cleanArgs);
+				process.exit(0);
+			} catch {
+				process.exit(1);
+			}
+		}
+
+		if (statusFlags.watch) {
+			const intervalMs = statusFlags.interval * 1000;
+
+			// eslint-disable-next-line no-constant-condition
+			while (true) {
+				try {
+					const response = await sendWithRetry(
+						retryDeps,
+						cmd,
+						statusFlags.cleanArgs,
+					);
+					const { output, isError } = formatOutput(response);
+					if (json) {
+						// NDJSON: one JSON object per line
+						process.stdout.write(`${output}\n`);
+					} else {
+						// Clear screen and rewrite for human-readable output
+						process.stdout.write(`\x1b[2J\x1b[H${output}\n`);
+					}
+					if (isError) {
+						process.exitCode = 1;
+					}
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					if (json) {
+						process.stdout.write(`${JSON.stringify({ error: msg })}\n`);
+					} else {
+						process.stdout.write(`\x1b[2J\x1b[HError: ${msg}\n`);
+					}
+					process.exitCode = 1;
+				}
+				await Bun.sleep(intervalMs);
+			}
+		}
 	}
 
 	let response: Response;
