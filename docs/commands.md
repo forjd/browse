@@ -877,14 +877,18 @@ Disable auto-mode and queue dialogs for manual handling.
 
 ```
 browse download wait [--save-to <path>] [--timeout <ms>]
+  [--expect-type <mime>] [--expect-min-size <bytes>] [--expect-max-size <bytes>]
 ```
 
-Wait for and save file downloads.
+Wait for and save file downloads with optional content verification. Returns file metadata (filename, path, URL, size, MIME type) on success. Checks `download.failure()` and returns an error if the download failed.
 
 | Flag | Description |
 |------|-------------|
 | `--save-to <path>` | Save the downloaded file to a specific path |
 | `--timeout <ms>` | Override the default timeout |
+| `--expect-type <mime>` | Validate file MIME type (e.g. `application/pdf`) |
+| `--expect-min-size <bytes>` | Minimum file size in bytes |
+| `--expect-max-size <bytes>` | Maximum file size in bytes |
 
 **Examples:**
 
@@ -892,6 +896,8 @@ Wait for and save file downloads.
 browse download wait
 browse download wait --save-to /tmp/report.csv
 browse download wait --timeout 60000
+browse download wait --expect-type application/pdf --expect-min-size 1024
+browse download wait --save-to /tmp/data.zip --expect-max-size 10485760
 ```
 
 ---

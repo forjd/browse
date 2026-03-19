@@ -235,6 +235,8 @@ browse dialog auto-off                      # disable auto-mode, queue dialogs
 browse download wait                        # wait for next download
 browse download wait --save-to ./file.pdf   # save to specific path
 browse download wait --timeout 60000        # custom timeout
+browse download wait --expect-type application/pdf  # verify MIME type
+browse download wait --expect-min-size 1024         # verify minimum size
 ```
 
 ### Iframes
@@ -420,7 +422,7 @@ Measured with `browse benchmark`:
 | `ping` | Check if daemon is alive |
 | `status` | Show daemon status and uptime (`--json` for machine-readable) |
 | `dialog accept\|dismiss\|status\|auto-*` | Handle browser dialogs |
-| `download wait` | Wait for and save file downloads (`--save-to`, `--timeout`) |
+| `download wait` | Wait for and save file downloads (`--save-to`, `--expect-type`, `--expect-min-size`, `--expect-max-size`) |
 | `frame list\|switch\|main` | Navigate and inspect iframes |
 | `intercept add\|remove\|list\|clear` | Mock or block network requests |
 | `cookies` | Inspect browser cookies (`--domain`) |
