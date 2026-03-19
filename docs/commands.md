@@ -1246,7 +1246,7 @@ Check whether a trace is currently recording.
 
 ### video start
 
-```
+```sh
 browse video start [--size <WxH>]
 ```
 
@@ -1266,7 +1266,7 @@ browse video start --size 640x480
 
 ### video stop
 
-```
+```sh
 browse video stop [--out <path>]
 ```
 
@@ -1285,7 +1285,7 @@ browse video stop --out /tmp/my-recording.webm
 
 ### video status
 
-```
+```sh
 browse video status
 ```
 
@@ -1293,7 +1293,7 @@ Check whether a video recording is currently in progress.
 
 ### video list
 
-```
+```sh
 browse video list
 ```
 
