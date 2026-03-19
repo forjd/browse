@@ -106,7 +106,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	version: [],
 	session: ["--isolated"],
 	ping: [],
-	status: ["--json"],
+	status: ["--json", "--watch", "--interval", "--exit-code"],
 	dialog: [],
 	download: [
 		"--save-to",

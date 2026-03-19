@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatOutput, parseArgs } from "../src/cli.ts";
+import { extractStatusFlags, formatOutput, parseArgs } from "../src/cli.ts";
 
 describe("parseArgs", () => {
 	test("parses goto command with URL", () => {
@@ -387,6 +387,88 @@ describe("parseArgs", () => {
 			session: undefined,
 			json: false,
 			config: "/tmp/cfg.json",
+		});
+	});
+});
+
+describe("extractStatusFlags", () => {
+	test("returns defaults when no flags present", () => {
+		const result = extractStatusFlags([]);
+		expect(result).toEqual({
+			watch: false,
+			interval: 5,
+			exitCode: false,
+			cleanArgs: [],
+		});
+	});
+
+	test("extracts --watch flag", () => {
+		const result = extractStatusFlags(["--watch"]);
+		expect(result).toEqual({
+			watch: true,
+			interval: 5,
+			exitCode: false,
+			cleanArgs: [],
+		});
+	});
+
+	test("extracts --interval with value", () => {
+		const result = extractStatusFlags(["--watch", "--interval", "10"]);
+		expect(result).toEqual({
+			watch: true,
+			interval: 10,
+			exitCode: false,
+			cleanArgs: [],
+		});
+	});
+
+	test("extracts --exit-code flag", () => {
+		const result = extractStatusFlags(["--exit-code"]);
+		expect(result).toEqual({
+			watch: false,
+			interval: 5,
+			exitCode: true,
+			cleanArgs: [],
+		});
+	});
+
+	test("preserves unrelated args", () => {
+		const result = extractStatusFlags(["--exit-code", "--json"]);
+		expect(result).toEqual({
+			watch: false,
+			interval: 5,
+			exitCode: true,
+			cleanArgs: ["--json"],
+		});
+	});
+
+	test("invalid --interval value defaults to 5", () => {
+		const result = extractStatusFlags(["--watch", "--interval", "abc"]);
+		expect(result).toEqual({
+			watch: true,
+			interval: 5,
+			exitCode: false,
+			cleanArgs: [],
+		});
+	});
+
+	test("--interval without value defaults to 5", () => {
+		const result = extractStatusFlags(["--watch", "--interval"]);
+		expect(result).toEqual({
+			watch: true,
+			interval: 5,
+			exitCode: false,
+			cleanArgs: [],
+		});
+	});
+
+	test("--interval 0 or negative defaults to 5", () => {
+		const result = extractStatusFlags(["--watch", "--interval", "0"]);
+		expect(result).toEqual({
+			watch: true,
+			interval: 5,
+			exitCode: false,
+			cleanArgs: [],
 		});
 	});
 });

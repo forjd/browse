@@ -1083,7 +1083,7 @@ Check if the daemon is alive. Returns `pong`.
 ### status
 
 ```
-browse status [--json]
+browse status [--json] [--watch [--interval N]] [--exit-code]
 ```
 
 Show sessions, uptime, URLs, and tab counts per session. With `--json`, outputs machine-readable JSON including memory usage, browser version, daemon PID, and per-session details.
@@ -1091,6 +1091,29 @@ Show sessions, uptime, URLs, and tab counts per session. With `--json`, outputs 
 | Flag | Description |
 |------|-------------|
 | `--json` | Output as JSON with extended details (memory, browser version, PID) |
+| `--watch` | Continuously poll and display status. Plain text clears and redraws; with `--json` outputs one JSON object per line (NDJSON) |
+| `--interval <seconds>` | Polling interval for `--watch` (default: 5) |
+| `--exit-code` | Exit `0` if the daemon is healthy, `1` if unhealthy. Useful for Kubernetes/Docker health probes |
+
+**Examples:**
+
+```bash
+browse status
+browse status --json
+browse status --watch
+browse status --watch --interval 10
+browse status --watch --json
+browse status --exit-code
+```
+
+**Container health probe example:**
+
+```yaml
+livenessProbe:
+  exec:
+    command: ["browse", "status", "--exit-code"]
+  periodSeconds: 10
+```
 
 ### benchmark
 
