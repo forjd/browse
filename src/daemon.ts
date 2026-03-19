@@ -131,7 +131,12 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	ping: [],
 	status: [],
 	dialog: [],
-	download: ["--save-to"],
+	download: [
+		"--save-to",
+		"--expect-type",
+		"--expect-min-size",
+		"--expect-max-size",
+	],
 	frame: [],
 	intercept: ["--status", "--body", "--content-type"],
 	cookies: ["--domain", "--json"],
