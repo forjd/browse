@@ -179,6 +179,7 @@ describe("integration: timeout", () => {
 			mockDeps(page, { config: { environments: {}, timeout: 1 } }),
 			config,
 			async () => {},
+			{ onExit: () => {} },
 		);
 
 		try {
