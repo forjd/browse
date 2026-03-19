@@ -347,12 +347,19 @@ browse dialog auto-dismiss       Automatically dismiss all future dialogs
 browse dialog auto-off           Disable auto-mode (queue dialogs)`,
 	},
 	download: {
-		summary: "Wait for and save file downloads",
+		summary: "Wait for and save file downloads with optional verification",
 		usage: `browse download wait [--save-to <path>] [--timeout <ms>]
+  [--expect-type <mime>] [--expect-min-size <bytes>] [--expect-max-size <bytes>]
 
 Flags:
-  --save-to <path>   Save downloaded file to this path
-  --timeout <ms>     Timeout for waiting (default: 30000)`,
+  --save-to <path>           Save downloaded file to this path
+  --timeout <ms>             Timeout for waiting (default: 30000)
+  --expect-type <mime>       Validate file MIME type (e.g. application/pdf)
+  --expect-min-size <bytes>  Minimum file size in bytes
+  --expect-max-size <bytes>  Maximum file size in bytes
+
+Response includes: filename, path, url, size, and MIME type.
+Returns an error if the download fails or validation checks do not pass.`,
 	},
 	frame: {
 		summary: "Navigate and inspect iframes",
