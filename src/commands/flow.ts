@@ -188,11 +188,11 @@ export async function handleFlow(
 
 	if (reporter === "junit") {
 		const junit = formatFlowJUnit(flowName, results, durationMs);
-		return { ok: true, data: junit };
+		return allPassed ? { ok: true, data: junit } : { ok: false, error: junit };
 	}
 	if (reporter === "json") {
 		const json = formatFlowJson(flowName, results, durationMs);
-		return { ok: true, data: json };
+		return allPassed ? { ok: true, data: json } : { ok: false, error: json };
 	}
 	if (reporter === "markdown") {
 		const md = formatFlowMarkdown(flowName, results, durationMs);

@@ -247,20 +247,20 @@ export async function handleTestMatrix(
 			}
 		}
 		const matrixName = `test-matrix-${flowName}`;
+		const matrixPassed = allResults.every((r) => r.passed);
 		if (reporter === "junit") {
-			return {
-				ok: true,
-				data: formatFlowJUnit(matrixName, allResults, durationMs),
-			};
+			const junit = formatFlowJUnit(matrixName, allResults, durationMs);
+			return matrixPassed
+				? { ok: true, data: junit }
+				: { ok: false, error: junit };
 		}
 		if (reporter === "json") {
-			return {
-				ok: true,
-				data: formatFlowJson(matrixName, allResults, durationMs),
-			};
+			const json = formatFlowJson(matrixName, allResults, durationMs);
+			return matrixPassed
+				? { ok: true, data: json }
+				: { ok: false, error: json };
 		}
 		const md = formatFlowMarkdown(matrixName, allResults, durationMs);
-		const matrixPassed = allResults.every((r) => r.passed);
 		return matrixPassed ? { ok: true, data: md } : { ok: false, error: md };
 	}
 

@@ -64,9 +64,6 @@ export type HealthcheckPageResult = {
 	consoleWarnings: { text: string }[];
 };
 
-/**
- * Format healthcheck results as JUnit XML.
- */
 // --- JSON reporters ---
 
 /**
@@ -138,12 +135,15 @@ export function formatFlowMarkdown(
 	durationMs: number,
 ): string {
 	const passed = results.filter((r) => r.passed).length;
+	const failed = results.length - passed;
 	const durationSec = (durationMs / 1000).toFixed(2);
 	const lines: string[] = [];
 
 	lines.push(`# Flow: ${flowName}`);
 	lines.push("");
-	lines.push(`**${passed}/${results.length} steps passed** in ${durationSec}s`);
+	lines.push(
+		`**${passed} passed / ${failed} failed (${results.length} total)** in ${durationSec}s`,
+	);
 	lines.push("");
 
 	if (results.length > 0) {
@@ -172,12 +172,15 @@ export function formatHealthcheckMarkdown(
 	durationMs: number,
 ): string {
 	const passed = results.filter((r) => r.passed).length;
+	const failed = results.length - passed;
 	const durationSec = (durationMs / 1000).toFixed(2);
 	const lines: string[] = [];
 
 	lines.push("# Healthcheck");
 	lines.push("");
-	lines.push(`**${passed}/${results.length} pages passed** in ${durationSec}s`);
+	lines.push(
+		`**${passed} passed / ${failed} failed (${results.length} total)** in ${durationSec}s`,
+	);
 	lines.push("");
 
 	if (results.length > 0) {

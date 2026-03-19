@@ -187,10 +187,19 @@ describe("formatFlowMarkdown", () => {
 		expect(md).toContain("# Flow: signup");
 	});
 
-	test("includes summary line", () => {
+	test("includes summary line with passed and failed counts", () => {
 		const md = formatFlowMarkdown("signup", PASSING_FLOW_RESULTS, 1500);
-		expect(md).toContain("3/3 steps passed");
+		expect(md).toContain("3 passed");
+		expect(md).toContain("0 failed");
+		expect(md).toContain("3 total");
 		expect(md).toContain("1.50s");
+	});
+
+	test("shows failed count in summary for failing flow", () => {
+		const md = formatFlowMarkdown("login", FAILING_FLOW_RESULTS, 800);
+		expect(md).toContain("1 passed");
+		expect(md).toContain("1 failed");
+		expect(md).toContain("2 total");
 	});
 
 	test("lists each step with pass/fail indicator", () => {
@@ -212,7 +221,9 @@ describe("formatFlowMarkdown", () => {
 	test("handles empty results", () => {
 		const md = formatFlowMarkdown("empty", EMPTY_FLOW_RESULTS, 0);
 		expect(md).toContain("# Flow: empty");
-		expect(md).toContain("0/0 steps passed");
+		expect(md).toContain("0 passed");
+		expect(md).toContain("0 failed");
+		expect(md).toContain("0 total");
 	});
 });
 
@@ -224,10 +235,19 @@ describe("formatHealthcheckMarkdown", () => {
 		expect(md).toContain("# Healthcheck");
 	});
 
-	test("includes summary line", () => {
+	test("includes summary line with passed and failed counts", () => {
 		const md = formatHealthcheckMarkdown(PASSING_HC_RESULTS, 2000);
-		expect(md).toContain("2/2 pages passed");
+		expect(md).toContain("2 passed");
+		expect(md).toContain("0 failed");
+		expect(md).toContain("2 total");
 		expect(md).toContain("2.00s");
+	});
+
+	test("shows failed count in summary for failing healthcheck", () => {
+		const md = formatHealthcheckMarkdown(FAILING_HC_RESULTS, 1200);
+		expect(md).toContain("1 passed");
+		expect(md).toContain("1 failed");
+		expect(md).toContain("2 total");
 	});
 
 	test("lists each page with pass/fail indicator", () => {

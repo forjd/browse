@@ -256,7 +256,7 @@ describe("handleFlow — running flows", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.data).toContain("# Flow: simple");
-			expect(result.data).toContain("1/1 steps passed");
+			expect(result.data).toContain("1 passed");
 		}
 	});
 
