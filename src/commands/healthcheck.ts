@@ -335,11 +335,11 @@ export async function handleHealthcheck(
 
 	if (reporter === "junit") {
 		const junit = formatHealthcheckJUnit(results, durationMs);
-		return { ok: true, data: junit };
+		return allPassed ? { ok: true, data: junit } : { ok: false, error: junit };
 	}
 	if (reporter === "json") {
 		const json = formatHealthcheckJson(results, durationMs);
-		return { ok: true, data: json };
+		return allPassed ? { ok: true, data: json } : { ok: false, error: json };
 	}
 	if (reporter === "markdown") {
 		const md = formatHealthcheckMarkdown(results, durationMs);
