@@ -424,17 +424,19 @@ If no path given, saves to ~/.bun-browse/exports/ with a timestamp.`,
 Returns the number of elements matching the selector.`,
 	},
 	trace: {
-		summary: "Record and save Playwright traces",
+		summary: "Record, view, and manage Playwright traces",
 		usage: `browse trace start [--screenshots] [--snapshots]   Start recording
 browse trace stop [--out <path>]                   Stop and save trace
+browse trace view [<path>] [--latest] [--port <n>] Open trace in viewer
+browse trace list                                  List saved traces
 browse trace status                                Check recording status
 
 Flags:
   --screenshots   Capture screenshots during recording
   --snapshots     Capture DOM snapshots during recording
   --out <path>    Output path for trace file (default: ~/.bun-browse/traces/)
-
-View traces with: npx playwright show-trace <trace.zip>`,
+  --latest        View the most recent trace
+  --port <n>      Serve trace viewer on a specific port`,
 	},
 	init: {
 		summary: "Generate a browse.config.json template",

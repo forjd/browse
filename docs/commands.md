@@ -1137,7 +1137,7 @@ Shut down the daemon.
 browse trace start [--screenshots] [--snapshots]
 ```
 
-Start recording a Playwright trace. While recording, all page actions are captured for later analysis in the [Playwright Trace Viewer](https://trace.playwright.dev).
+Start recording a Playwright trace. While recording, all page actions are captured for later analysis in the Playwright Trace Viewer.
 
 | Flag | Description |
 |------|-------------|
@@ -1161,13 +1161,48 @@ Stop recording and save the trace to a file.
 
 | Flag | Description |
 |------|-------------|
-| `--out <path>` | Output path for the trace file (default: `trace.zip`) |
+| `--out <path>` | Output path for the trace file (default: `~/.bun-browse/traces/`) |
 
 **Examples:**
 
 ```bash
 browse trace stop
 browse trace stop --out /tmp/my-trace.zip
+```
+
+### trace view
+
+```
+browse trace view [<path>] [--latest] [--port <port>]
+```
+
+Open a trace file in the Playwright Trace Viewer. Launches the viewer as a background process.
+
+| Flag | Description |
+|------|-------------|
+| `--latest` | View the most recently saved trace |
+| `--port <port>` | Serve the trace viewer on a specific port |
+
+**Examples:**
+
+```bash
+browse trace view /tmp/my-trace.zip
+browse trace view --latest
+browse trace view --latest --port 9300
+```
+
+### trace list
+
+```
+browse trace list
+```
+
+List all saved trace files in `~/.bun-browse/traces/`, sorted newest-first. Shows filename, size, and date.
+
+**Examples:**
+
+```bash
+browse trace list
 ```
 
 ### trace status
