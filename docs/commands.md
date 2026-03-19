@@ -1242,6 +1242,65 @@ Check whether a trace is currently recording.
 
 ---
 
+## Video Recording
+
+### video start
+
+```
+browse video start [--size <WxH>]
+```
+
+Start recording the active tab as a video. Creates a new browser context with video capture enabled, copies cookies from the current session, and navigates to the current URL. All subsequent commands are captured in the recording.
+
+| Flag | Description |
+|------|-------------|
+| `--size <WxH>` | Video resolution (default: current viewport or 1280x720) |
+
+**Examples:**
+
+```bash
+browse video start
+browse video start --size 1280x720
+browse video start --size 640x480
+```
+
+### video stop
+
+```
+browse video stop [--out <path>]
+```
+
+Stop recording and save the video file. Restores the original page as the active tab.
+
+| Flag | Description |
+|------|-------------|
+| `--out <path>` | Output path for the video file (default: `~/.bun-browse/videos/`) |
+
+**Examples:**
+
+```bash
+browse video stop
+browse video stop --out /tmp/my-recording.webm
+```
+
+### video status
+
+```
+browse video status
+```
+
+Check whether a video recording is currently in progress.
+
+### video list
+
+```
+browse video list
+```
+
+List all saved video files in `~/.bun-browse/videos/`, sorted newest-first. Shows filename, size, and date.
+
+---
+
 ## Project Setup
 
 ### init

@@ -58,6 +58,8 @@ browse screenshot                   # capture the page
 browse trace start                  # start recording a Playwright trace
 browse trace stop --out trace.zip   # stop and save the trace
 browse trace view --latest          # open most recent trace in viewer
+browse video start                  # start recording a session video
+browse video stop --out demo.webm   # stop and save the video
 browse init                         # generate a browse.config.json template
 browse screenshots list             # list saved screenshots
 browse report --out report.html     # generate an HTML report from screenshots

@@ -71,6 +71,7 @@ import { handleTitle } from "./commands/title.ts";
 import { createTraceState, handleTrace } from "./commands/trace.ts";
 import { handleUpload } from "./commands/upload.ts";
 import { handleUrl } from "./commands/url.ts";
+import { createVideoState, handleVideo } from "./commands/video.ts";
 import { handleViewport } from "./commands/viewport.ts";
 import { handleWait } from "./commands/wait.ts";
 import { handleWipe } from "./commands/wipe.ts";
@@ -178,6 +179,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--no-screenshots",
 	],
 	"flow-share": [],
+	video: ["--size", "--out"],
 };
 
 export type DaemonOptions = {
@@ -317,6 +319,17 @@ export async function startServer(
 		return state;
 	}
 
+	// Per-session video state
+	const videoStates = new Map<string, ReturnType<typeof createVideoState>>();
+	function getVideoState(sessionName: string) {
+		let state = videoStates.get(sessionName);
+		if (!state) {
+			state = createVideoState();
+			videoStates.set(sessionName, state);
+		}
+		return state;
+	}
+
 	// Tab registry for default session
 	const initialTabState: TabState = {
 		page: deps.page,
@@ -424,6 +437,7 @@ export async function startServer(
 		"ping",
 		"status",
 		"trace",
+		"video",
 		"init",
 		"screenshots",
 		"report",
@@ -740,6 +754,20 @@ export async function startServer(
 							sessionContext,
 							getTraceState(sessionContext),
 							request.args,
+						);
+					case "video":
+						return handleVideo(
+							sessionContext,
+							getVideoState(session.name),
+							activeTabState,
+							request.args,
+							{
+								attachListeners: (p) =>
+									attachPageListeners(p, activeTabState, browserName),
+								stealthOpts: stealthOpts
+									? { userAgent: stealthOpts.userAgent }
+									: undefined,
+							},
 						);
 					case "init":
 						return handleInit(request.args);

@@ -584,6 +584,23 @@ Examples:
   browse diff --baseline https://staging.app --current http://localhost:3000
   browse diff --baseline https://main.app --current https://feature.app --flow smoke`,
 	},
+	video: {
+		summary: "Record browser session as video",
+		usage: `browse video start [--size <WxH>]               Start recording the active tab
+browse video stop [--out <path>]                 Stop and save the video file
+browse video status                              Check recording status
+browse video list                                List saved videos
+
+Flags:
+  --size <WxH>   Video resolution (default: current viewport or 1280x720)
+  --out <path>   Output path for the video file (default: ~/.bun-browse/videos/)
+
+When recording starts, a new browser context is created with video capture
+enabled. Cookies are copied from the current session. The recording page
+replaces the active tab, so all subsequent commands are captured.
+
+On stop, the video is saved as WebM and the original page is restored.`,
+	},
 	"flow-share": {
 		summary: "Export, import, and share flow definitions",
 		usage: `browse flow-share export <name>              Export a flow to .flow.json
