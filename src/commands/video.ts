@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { BrowserContext, Page } from "playwright";
@@ -165,6 +165,7 @@ export async function handleVideo(
 		const videoDir = join(tmpdir(), `browse-video-${Date.now()}`);
 		mkdirSync(videoDir, { recursive: true });
 
+		let recordingContext: BrowserContext | undefined;
 		try {
 			const contextOpts: Record<string, unknown> = {
 				recordVideo: { dir: videoDir, size },
@@ -174,7 +175,7 @@ export async function handleVideo(
 				contextOpts.userAgent = deps.stealthOpts.userAgent;
 			}
 
-			const recordingContext = await browser.newContext(contextOpts);
+			recordingContext = await browser.newContext(contextOpts);
 
 			// Copy cookies from the current context
 			try {
@@ -214,9 +215,14 @@ export async function handleVideo(
 				data: `Video recording started (${size.width}x${size.height}). Use 'browse video stop --out video.webm' to save.`,
 			};
 		} catch (err) {
+			// Close recording context if it was created
+			try {
+				await recordingContext?.close();
+			} catch {
+				// Best effort
+			}
 			// Clean up temp dir on failure
 			try {
-				const { rmSync } = await import("node:fs");
 				rmSync(videoDir, { recursive: true, force: true });
 			} catch {
 				// Best effort
@@ -260,19 +266,25 @@ export async function handleVideo(
 			};
 		}
 
+		// Capture state up-front so we can always reset it
+		const recordingContext = videoState.recordingContext;
+		const originalPage = videoState.originalPage;
+		const videoDir = videoState.videoDir;
+		const startedAt = videoState.startedAt;
+
 		try {
 			// The recording page is currently the active page
 			const recordingPage = tabState.page;
 			const video = recordingPage.video();
 
 			// Restore original page before closing recording context
-			if (videoState.originalPage) {
-				tabState.page = videoState.originalPage;
+			if (originalPage) {
+				tabState.page = originalPage;
 			}
 
 			// Close recording context — this finalises the video file
-			if (videoState.recordingContext) {
-				await videoState.recordingContext.close();
+			if (recordingContext) {
+				await recordingContext.close();
 			}
 
 			// Save video to desired path
@@ -280,26 +292,18 @@ export async function handleVideo(
 				await video.saveAs(savePath);
 			}
 
-			const elapsed = videoState.startedAt
-				? Math.floor((Date.now() - videoState.startedAt) / 1000)
+			const elapsed = startedAt
+				? Math.floor((Date.now() - startedAt) / 1000)
 				: 0;
 
 			// Clean up temp dir
-			if (videoState.videoDir) {
+			if (videoDir) {
 				try {
-					const { rmSync } = await import("node:fs");
-					rmSync(videoState.videoDir, { recursive: true, force: true });
+					rmSync(videoDir, { recursive: true, force: true });
 				} catch {
 					// Best effort
 				}
 			}
-
-			// Reset state
-			videoState.recording = false;
-			videoState.startedAt = undefined;
-			videoState.recordingContext = undefined;
-			videoState.originalPage = undefined;
-			videoState.videoDir = undefined;
 
 			if (!existsSync(savePath)) {
 				return {
@@ -319,6 +323,17 @@ export async function handleVideo(
 				ok: false,
 				error: `Failed to stop video recording: ${message}`,
 			};
+		} finally {
+			// Always reset state so a new recording can be started
+			videoState.recording = false;
+			videoState.startedAt = undefined;
+			videoState.recordingContext = undefined;
+			videoState.originalPage = undefined;
+			videoState.videoDir = undefined;
+			// Ensure original page is restored even if close/save threw
+			if (originalPage) {
+				tabState.page = originalPage;
+			}
 		}
 	}
 
