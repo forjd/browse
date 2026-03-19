@@ -17,6 +17,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
 		"@types/bun": "latest",
+		"fast-check": "^4.6.0",
 		"lefthook": "^2.1.4"
 	},
 	"peerDependencies": {
