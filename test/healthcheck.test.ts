@@ -53,6 +53,32 @@ describe("parseHealthcheckArgs", () => {
 	});
 });
 
+describe("parseHealthcheckArgs — reporter validation", () => {
+	test("accepts json reporter", () => {
+		const result = parseHealthcheckArgs(["--reporter", "json"]);
+		expect(result.reporter).toBe("json");
+		expect(result.error).toBeUndefined();
+	});
+
+	test("accepts markdown reporter", () => {
+		const result = parseHealthcheckArgs(["--reporter", "markdown"]);
+		expect(result.reporter).toBe("markdown");
+		expect(result.error).toBeUndefined();
+	});
+
+	test("rejects invalid reporter", () => {
+		const result = parseHealthcheckArgs(["--reporter", "csv"]);
+		expect(result.error).toContain("Invalid reporter 'csv'");
+		expect(result.error).toContain("json");
+		expect(result.error).toContain("markdown");
+	});
+
+	test("rejects --reporter with no value", () => {
+		const result = parseHealthcheckArgs(["--reporter"]);
+		expect(result.error).toContain("Missing value for --reporter");
+	});
+});
+
 describe("handleHealthcheck — validation", () => {
 	test("returns error when no config", async () => {
 		const result = await handleHealthcheck(null, null as any, [], null as any);

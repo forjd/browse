@@ -10,7 +10,11 @@ import type {
 } from "../config.ts";
 import { interpolateVars, parseVars } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
-import { formatHealthcheckJUnit } from "../reporters.ts";
+import {
+	formatHealthcheckJson,
+	formatHealthcheckJUnit,
+	formatHealthcheckMarkdown,
+} from "../reporters.ts";
 import {
 	formatHealthcheckWebhookPayload,
 	parseWebhookFlag,
@@ -25,7 +29,7 @@ export type HealthcheckDeps = {
 	networkBuffer: RingBuffer<NetworkEntry>;
 };
 
-const VALID_REPORTERS = ["junit"];
+const VALID_REPORTERS = ["junit", "json", "markdown"];
 
 export function parseHealthcheckArgs(args: string[]): {
 	vars: Record<string, string>;
@@ -332,6 +336,14 @@ export async function handleHealthcheck(
 	if (reporter === "junit") {
 		const junit = formatHealthcheckJUnit(results, durationMs);
 		return { ok: true, data: junit };
+	}
+	if (reporter === "json") {
+		const json = formatHealthcheckJson(results, durationMs);
+		return { ok: true, data: json };
+	}
+	if (reporter === "markdown") {
+		const md = formatHealthcheckMarkdown(results, durationMs);
+		return allPassed ? { ok: true, data: md } : { ok: false, error: md };
 	}
 
 	const report = formatHealthcheckReport(results, allScreenshots);

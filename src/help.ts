@@ -133,12 +133,12 @@ browse tab close [index]     Close tab (closes active tab if no index)`,
 	flow: {
 		summary: "Execute a named flow",
 		usage: `browse flow list                          List defined flows
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream] [--webhook <url>]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [--dry-run] [--stream] [--webhook <url>]
 
 Flags:
   --var key=value       Pass variables to flow (repeatable)
   --continue-on-error   Continue running steps even if one fails
-  --reporter <format>   Output format: junit (JUnit XML for CI integration)
+  --reporter <format>   Output format: junit (JUnit XML), json (structured JSON), markdown (human-readable Markdown)
   --dry-run             Preview step plan without executing
   --stream              Emit step results as NDJSON as they complete
   --webhook <url>       POST a JSON result payload to the URL on completion
@@ -166,12 +166,12 @@ Flags:
 	},
 	healthcheck: {
 		summary: "Run healthcheck across configured pages",
-		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N] [--webhook <url>]
+		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter <format>] [--parallel] [--concurrency N] [--webhook <url>]
 
 Flags:
   --var key=value       Pass variables for URL interpolation (repeatable)
   --no-screenshots      Skip screenshot capture
-  --reporter <format>   Output format: junit (JUnit XML for CI integration)
+  --reporter <format>   Output format: junit (JUnit XML), json (structured JSON), markdown (human-readable Markdown)
   --parallel            Check pages concurrently using separate browser tabs
   --concurrency <N>     Max pages to check in parallel (default: 5, requires --parallel)
   --webhook <url>       POST a JSON result payload to the URL on completion
@@ -509,7 +509,7 @@ Examples:
 	},
 	"test-matrix": {
 		summary: "Run same flow across multiple roles in parallel",
-		usage: `browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter junit]
+		usage: `browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>]
 
 Runs the same flow simultaneously across isolated sessions with different
 authentication (roles/environments) and diffs the results. Each role maps
@@ -519,7 +519,7 @@ Flags:
   --roles <roles>      Comma-separated list of role names (required)
   --flow <name>        Flow to run for each role (required)
   --env <env>          Environment prefix (e.g., staging → looks for staging-admin, staging-viewer)
-  --reporter <format>  Output format: junit (JUnit XML for CI)
+  --reporter <format>  Output format: junit (JUnit XML), json (structured JSON), markdown (human-readable Markdown)
 
 Examples:
   browse test-matrix --roles admin,viewer,guest --flow checkout

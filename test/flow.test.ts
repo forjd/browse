@@ -130,6 +130,36 @@ describe("handleFlow — no flow name", () => {
 	});
 });
 
+describe("handleFlow — reporter validation", () => {
+	test("rejects invalid reporter", async () => {
+		const page = null as any;
+		const result = await handleFlow(BASE_CONFIG, page, [
+			"simple",
+			"--reporter",
+			"csv",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Invalid reporter 'csv'");
+			expect(result.error).toContain("json");
+			expect(result.error).toContain("markdown");
+			expect(result.error).toContain("junit");
+		}
+	});
+
+	test("rejects --reporter with no value", async () => {
+		const page = null as any;
+		const result = await handleFlow(BASE_CONFIG, page, [
+			"simple",
+			"--reporter",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("Missing value for --reporter");
+		}
+	});
+});
+
 // --- handleFlow with deps / execution tests ---
 
 function createMockDeps() {
@@ -193,6 +223,40 @@ describe("handleFlow — running flows", () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.data).toContain("simple");
+		}
+	});
+
+	test("returns JSON output with --reporter json", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			["simple", "--reporter", "json"],
+			deps as any,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const parsed = JSON.parse(result.data);
+			expect(parsed.name).toBe("simple");
+			expect(parsed.status).toBe("passed");
+			expect(parsed.steps).toHaveLength(1);
+		}
+	});
+
+	test("returns Markdown output with --reporter markdown", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			["simple", "--reporter", "markdown"],
+			deps as any,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("# Flow: simple");
+			expect(result.data).toContain("1/1 steps passed");
 		}
 	});
 

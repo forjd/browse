@@ -4,7 +4,11 @@ import type { BrowseConfig, ConfigContext } from "../config.ts";
 import type { StealthOpts } from "../daemon.ts";
 import { parseVars, runFlow, type StepResult } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
-import { formatFlowJUnit } from "../reporters.ts";
+import {
+	formatFlowJson,
+	formatFlowJUnit,
+	formatFlowMarkdown,
+} from "../reporters.ts";
 import { applyStealthScripts } from "../stealth.ts";
 import type { ConsoleEntry } from "./console.ts";
 import { handleLogin } from "./login.ts";
@@ -231,8 +235,8 @@ export async function handleTestMatrix(
 
 	const durationMs = Date.now() - startTime;
 
-	// JUnit output
-	if (reporter === "junit") {
+	// Reporter output
+	if (reporter === "junit" || reporter === "json" || reporter === "markdown") {
 		const allResults: StepResult[] = [];
 		for (const rr of roleResults) {
 			for (const r of rr.results) {
@@ -242,12 +246,22 @@ export async function handleTestMatrix(
 				});
 			}
 		}
-		const junit = formatFlowJUnit(
-			`test-matrix-${flowName}`,
-			allResults,
-			durationMs,
-		);
-		return { ok: true, data: junit };
+		const matrixName = `test-matrix-${flowName}`;
+		if (reporter === "junit") {
+			return {
+				ok: true,
+				data: formatFlowJUnit(matrixName, allResults, durationMs),
+			};
+		}
+		if (reporter === "json") {
+			return {
+				ok: true,
+				data: formatFlowJson(matrixName, allResults, durationMs),
+			};
+		}
+		const md = formatFlowMarkdown(matrixName, allResults, durationMs);
+		const matrixPassed = allResults.every((r) => r.passed);
+		return matrixPassed ? { ok: true, data: md } : { ok: false, error: md };
 	}
 
 	// Format comparison report
