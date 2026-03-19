@@ -619,10 +619,12 @@ export function formatOverview(): string {
 		"  --config <path>      Path to browse.config.json (default: search upward from cwd, then ~/.browse/config.json)",
 		"",
 		"Daemon flags:",
+		"  --browser <name>     Browser engine: chrome (default), firefox, webkit",
 		"  --listen <addr>      Also listen on TCP (e.g. tcp://0.0.0.0:9222) for remote agent access",
 		"",
 		"Environment variables:",
 		"  BROWSE_HEADED=1      Launch browser in headed (visible) mode",
+		"  BROWSE_BROWSER=name  Browser engine: chrome (default), firefox, webkit",
 		"",
 		'Run "browse help <command>" for detailed usage of a specific command.',
 	);

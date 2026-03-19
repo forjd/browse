@@ -81,6 +81,16 @@ echo "Installing Chrome..."
 bunx playwright install chrome
 echo "  Chrome installed"
 
+# Optional: install additional browsers via BROWSE_BROWSERS env var
+# e.g. BROWSE_BROWSERS="firefox webkit" bash install.sh
+if [ -n "$BROWSE_BROWSERS" ]; then
+  for EXTRA_BROWSER in $BROWSE_BROWSERS; do
+    echo "  Installing $EXTRA_BROWSER..."
+    bunx playwright install "$EXTRA_BROWSER"
+    echo "  $EXTRA_BROWSER installed"
+  done
+fi
+
 # Check PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -q "$BIN_DIR"; then
   echo ""

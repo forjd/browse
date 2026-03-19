@@ -2,7 +2,14 @@ import { chmodSync, rmSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { type BrowserContext, chromium, type Page } from "playwright";
+import {
+	type BrowserContext,
+	type BrowserType,
+	chromium,
+	firefox,
+	type Page,
+	webkit,
+} from "playwright";
 import { cleanupToken, generateToken } from "./auth.ts";
 import { RingBuffer } from "./buffers.ts";
 import { attachCDPConsoleCapture } from "./cdp-console.ts";
@@ -68,7 +75,7 @@ import { handleViewport } from "./commands/viewport.ts";
 import { handleWait } from "./commands/wait.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import { generateCompletions } from "./completions.ts";
-import type { BrowseConfig } from "./config.ts";
+import type { BrowseConfig, BrowserName } from "./config.ts";
 import { loadConfig, resolveConfigPath } from "./config.ts";
 import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
 import {
@@ -182,6 +189,8 @@ export type DaemonOptions = {
 	configPath?: string;
 	/** Optional TCP listen address, e.g. "tcp://0.0.0.0:9222" */
 	tcpListen?: string;
+	/** Browser engine to use: "chrome" (default), "firefox", or "webkit". */
+	browser?: BrowserName;
 };
 
 export type DaemonHandle = {
@@ -204,22 +213,24 @@ export type ServerDeps = {
 	token?: string;
 	/** Optional TCP listen address, e.g. "tcp://0.0.0.0:9222" */
 	tcpListen?: string;
+	/** Browser engine in use — drives status output and CDP availability. */
+	browserName?: BrowserName;
 };
 
-function attachPageListeners(page: Page, tabState: TabState): void {
+function attachPageListeners(
+	page: Page,
+	tabState: TabState,
+	browser?: BrowserName,
+): void {
 	page.on("framenavigated", (frame) => {
 		if (frame === page.mainFrame()) {
 			markStale();
 		}
 	});
 
-	// Console capture via CDP — Patchright omits the Runtime.enable call
-	// that standard Playwright makes, silently dropping all
-	// Runtime.consoleAPICalled events. attachCDPConsoleCapture opens its
-	// own CDP session with Runtime + Log enabled so user-triggered
-	// console.log/warn/error messages are captured reliably.
-	attachCDPConsoleCapture(page, tabState.consoleBuffer).catch(() => {
-		// Fallback: if CDP session fails, use Playwright's (partial) listener
+	// CDP console capture is Chromium-only. For Firefox/WebKit, use
+	// Playwright's built-in console listener directly.
+	if (browser && browser !== "chrome") {
 		page.on("console", (msg) => {
 			tabState.consoleBuffer.push({
 				level: msg.type(),
@@ -228,7 +239,24 @@ function attachPageListeners(page: Page, tabState: TabState): void {
 				timestamp: Date.now(),
 			});
 		});
-	});
+	} else {
+		// Chromium: use CDP — Patchright omits the Runtime.enable call
+		// that standard Playwright makes, silently dropping all
+		// Runtime.consoleAPICalled events. attachCDPConsoleCapture opens its
+		// own CDP session with Runtime + Log enabled so user-triggered
+		// console.log/warn/error messages are captured reliably.
+		attachCDPConsoleCapture(page, tabState.consoleBuffer).catch(() => {
+			// Fallback: if CDP session fails, use Playwright's (partial) listener
+			page.on("console", (msg) => {
+				tabState.consoleBuffer.push({
+					level: msg.type(),
+					text: msg.text(),
+					location: msg.location(),
+					timestamp: Date.now(),
+				});
+			});
+		});
+	}
 
 	page.on("response", (response) => {
 		tabState.networkBuffer.push({
@@ -262,7 +290,15 @@ export async function startServer(
 	let server: Server;
 	let idleTimer: IdleTimer;
 
-	const { context, config, configError, stealthOpts, token, tcpListen } = deps;
+	const {
+		context,
+		config,
+		configError,
+		stealthOpts,
+		token,
+		tcpListen,
+		browserName,
+	} = deps;
 	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
 	const startTime = Date.now();
@@ -294,7 +330,7 @@ export async function startServer(
 	};
 
 	// Attach listeners to the initial page
-	attachPageListeners(deps.page, initialTabState);
+	attachPageListeners(deps.page, initialTabState, browserName);
 
 	// Dialog handling state for default session
 	const defaultDialogState = createDialogState();
@@ -315,7 +351,8 @@ export async function startServer(
 		dialogState: defaultDialogState,
 		interceptState: defaultInterceptState,
 		tabRegistry: defaultTabRegistry,
-		attachListeners: attachPageListeners,
+		attachListeners: (p: Page, ts: TabState) =>
+			attachPageListeners(p, ts, browserName),
 	};
 	sessionRegistry.sessions.set("default", defaultSession);
 
@@ -354,7 +391,7 @@ export async function startServer(
 			consoleBuffer: new RingBuffer<ConsoleEntry>(500),
 			networkBuffer: new RingBuffer<NetworkEntry>(500),
 		};
-		attachPageListeners(newPage, tabState);
+		attachPageListeners(newPage, tabState, browserName);
 		return tabState;
 	}
 
@@ -476,7 +513,6 @@ export async function startServer(
 
 				// Get browser version
 				let browserVersion = "unknown";
-				let _chromiumPid: number | undefined;
 				try {
 					const browser = context.browser();
 					if (browser) {
@@ -499,6 +535,7 @@ export async function startServer(
 						sessions: sessionRegistry.sessions.size,
 						totalTabs,
 						browserVersion,
+						browserName: browserName ?? "chrome",
 						daemonPid: process.pid,
 						sessionsDetail: sessionsInfo,
 					};
@@ -514,7 +551,7 @@ export async function startServer(
 					`Daemon PID: ${process.pid}`,
 					`Uptime: ${uptimeSec}s`,
 					`Memory: ${memMb} MB`,
-					`Browser: Chromium ${browserVersion}`,
+					`Browser: ${browserDisplayName(browserName ?? "chrome")} ${browserVersion}`,
 					`Sessions: ${sessionRegistry.sessions.size}`,
 					`Total tabs: ${totalTabs}`,
 					"",
@@ -882,6 +919,30 @@ export async function startServer(
 	return { server, idleTimer, shutdown };
 }
 
+/** Resolve the Playwright BrowserType for the given browser name. */
+function resolveBrowserType(name: BrowserName): BrowserType {
+	switch (name) {
+		case "firefox":
+			return firefox;
+		case "webkit":
+			return webkit;
+		default:
+			return chromium;
+	}
+}
+
+/** Pretty-print the browser name for status output. */
+export function browserDisplayName(name: BrowserName): string {
+	switch (name) {
+		case "firefox":
+			return "Firefox";
+		case "webkit":
+			return "WebKit";
+		default:
+			return "Chromium";
+	}
+}
+
 /**
  * Full daemon startup: launches browser + starts socket server.
  */
@@ -894,40 +955,7 @@ export async function startDaemon(
 		idleTimeoutMs: options.idleTimeoutMs,
 	};
 
-	const userDataDir =
-		options.userDataDir ?? join(homedir(), ".bun-browse", "user-data");
-
-	const { userAgent, navigatorPlatform, chromeMajor } = generateUserAgent();
-
-	const context: BrowserContext = await chromium.launchPersistentContext(
-		userDataDir,
-		{
-			headless: options.headless ?? true,
-			channel: "chrome",
-			args: stealthArgs(),
-			ignoreDefaultArgs: ["--enable-automation"],
-			viewport: { width: 1440, height: 900 },
-			userAgent,
-		},
-	);
-
-	await applyStealthScripts(context, {
-		userAgent,
-		navigatorPlatform,
-		chromeMajor,
-	});
-
-	const page: Page = context.pages()[0] ?? (await context.newPage());
-
-	// Browser crash detection — clean exit so CLI cold-starts a fresh daemon
-	context.browser()?.on("disconnected", () => {
-		process.stderr.write("Browser disconnected — daemon exiting.\n");
-		cleanupFiles(lifecycleConfig);
-		cleanupToken();
-		process.exit(1);
-	});
-
-	// Load config: explicit path > upward search > global fallback
+	// Load config early so we can read the browser preference from it
 	const resolvedConfigPath = resolveConfigPath(options.configPath);
 	let config: BrowseConfig | null = null;
 	let configError: string | null = null;
@@ -940,6 +968,60 @@ export async function startDaemon(
 		}
 	}
 
+	// Browser precedence: CLI flag / env var > config file > default ("chrome")
+	const browserName: BrowserName =
+		options.browser ?? config?.browser ?? "chrome";
+	const isChromium = browserName === "chrome";
+
+	const userDataDir =
+		options.userDataDir ?? join(homedir(), ".bun-browse", "user-data");
+
+	// Stealth user-agent is only generated for Chromium
+	const stealthResult = isChromium ? generateUserAgent() : null;
+
+	const launcher = resolveBrowserType(browserName);
+
+	const launchOptions: Record<string, unknown> = {
+		headless: options.headless ?? true,
+		viewport: { width: 1440, height: 900 },
+	};
+
+	if (isChromium) {
+		// Chromium-specific: channel, stealth args, and UA override
+		launchOptions.channel = "chrome";
+		launchOptions.args = stealthArgs();
+		launchOptions.ignoreDefaultArgs = ["--enable-automation"];
+		if (stealthResult) {
+			launchOptions.userAgent = stealthResult.userAgent;
+		}
+	}
+
+	const context: BrowserContext = await launcher.launchPersistentContext(
+		userDataDir,
+		launchOptions,
+	);
+
+	// Apply Chromium stealth scripts (fingerprint spoofing)
+	let stealthOpts: StealthOpts | undefined;
+	if (isChromium && stealthResult) {
+		stealthOpts = {
+			userAgent: stealthResult.userAgent,
+			navigatorPlatform: stealthResult.navigatorPlatform,
+			chromeMajor: stealthResult.chromeMajor,
+		};
+		await applyStealthScripts(context, stealthOpts);
+	}
+
+	const page: Page = context.pages()[0] ?? (await context.newPage());
+
+	// Browser crash detection — clean exit so CLI cold-starts a fresh daemon
+	context.browser()?.on("disconnected", () => {
+		process.stderr.write("Browser disconnected — daemon exiting.\n");
+		cleanupFiles(lifecycleConfig);
+		cleanupToken();
+		process.exit(1);
+	});
+
 	writePidFile(lifecycleConfig);
 
 	// Generate auth token for socket security
@@ -951,9 +1033,10 @@ export async function startDaemon(
 			context,
 			config,
 			configError,
-			stealthOpts: { userAgent, navigatorPlatform, chromeMajor },
+			stealthOpts,
 			token,
 			tcpListen: options.tcpListen,
+			browserName,
 		},
 		lifecycleConfig,
 		async () => {

@@ -34,6 +34,16 @@ echo "[3/5] Installing Playwright browsers..."
 bunx playwright install chrome
 echo "  ✓ Chrome installed"
 
+# Optional: install additional browsers via BROWSE_BROWSERS env var
+# e.g. BROWSE_BROWSERS="firefox webkit" ./setup.sh
+if [ -n "$BROWSE_BROWSERS" ]; then
+  for EXTRA_BROWSER in $BROWSE_BROWSERS; do
+    echo "  Installing $EXTRA_BROWSER..."
+    bunx playwright install "$EXTRA_BROWSER"
+    echo "  ✓ $EXTRA_BROWSER installed"
+  done
+fi
+
 # Step 4: Compile binary
 echo ""
 echo "[4/5] Compiling binary..."

@@ -315,6 +315,46 @@ browse goto https://slow-page.com --timeout 60000
 
 Unrecognised flags on any command produce an error with a hint to check `browse help <command>`.
 
+### Multi-browser support
+
+Browse defaults to Chromium but also supports Firefox and WebKit for cross-browser testing. Set the browser via a CLI flag, environment variable, or config file:
+
+```sh
+browse --browser firefox goto https://example.com
+browse --browser webkit goto https://example.com
+browse --browser chrome goto https://example.com   # default
+```
+
+Or via environment variable (must be set before the daemon starts):
+
+```sh
+BROWSE_BROWSER=firefox browse goto https://example.com
+```
+
+Or in `browse.config.json`:
+
+```json
+{
+  "browser": "firefox",
+  "environments": { ... }
+}
+```
+
+The `status` command reports which browser is running:
+
+```sh
+browse status
+# Browser: Firefox 134.0
+```
+
+> **Note:** Chromium stealth features (fingerprint spoofing, anti-detection patches) are Chromium-specific and are not applied to Firefox or WebKit. CDP-based console capture also falls back to Playwright's built-in listener for non-Chromium browsers.
+
+To install additional browsers, set `BROWSE_BROWSERS` before running setup:
+
+```sh
+BROWSE_BROWSERS="firefox webkit" ./setup.sh
+```
+
 ### Headed mode
 
 Launch the browser visibly for debugging. The environment variable must be set before the daemon starts (i.e., before the first `browse` command). If a daemon is already running, run `browse quit` first so it restarts in headed mode:
@@ -374,8 +414,9 @@ For remote agent access, the daemon can also listen on a TCP port via `--listen 
 > **Note:** Rebuilding the binary does not restart a running daemon. If you rebuild after adding or changing commands, run `browse quit` first so the next call cold-starts with the new binary.
 
 ```
-CLI ──JSON──▶ Unix socket ──▶ Daemon ──▶ Playwright ──▶ Chromium
-              TCP socket ──┘
+CLI ──JSON──▶ Unix socket ──▶ Daemon ──▶ Playwright ──▶ Chromium (default)
+              TCP socket ──┘                          ├─▶ Firefox
+                                                      └─▶ WebKit
 ```
 
 ## Performance

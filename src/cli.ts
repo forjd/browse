@@ -1,5 +1,7 @@
 import { connect } from "node:net";
 import { readToken } from "./auth.ts";
+import type { BrowserName } from "./config.ts";
+import { VALID_BROWSER_NAMES } from "./config.ts";
 import { startDaemon } from "./daemon.ts";
 import { formatCommandHelp, formatOverview } from "./help.ts";
 import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
@@ -13,6 +15,21 @@ function isHeadedMode(): boolean {
 	);
 }
 
+/**
+ * Resolve the browser name from CLI flag, then BROWSE_BROWSER env var.
+ * Returns undefined if neither is set (daemon will default to "chrome").
+ */
+function resolveBrowserFromFlag(flag?: string): BrowserName | undefined {
+	if (flag && VALID_BROWSER_NAMES.has(flag.toLowerCase())) {
+		return flag.toLowerCase() as BrowserName;
+	}
+	const envVal = process.env.BROWSE_BROWSER?.toLowerCase();
+	if (envVal && VALID_BROWSER_NAMES.has(envVal)) {
+		return envVal as BrowserName;
+	}
+	return undefined;
+}
+
 export type ParsedArgs =
 	| {
 			cmd: string;
@@ -22,7 +39,7 @@ export type ParsedArgs =
 			json?: boolean;
 			config?: string;
 	  }
-	| { daemon: true; config?: string; listen?: string };
+	| { daemon: true; config?: string; listen?: string; browser?: string };
 
 /**
  * Parse CLI arguments, extracting global flags (--timeout, --session, --json) from args.
@@ -71,7 +88,20 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 	}
 
-	if (filteredArgv2[0] === "--daemon") return { daemon: true, config, listen };
+	// Extract --browser for daemon mode
+	let browser: string | undefined;
+	const filteredArgv3: string[] = [];
+	for (let i = 0; i < filteredArgv2.length; i++) {
+		if (filteredArgv2[i] === "--browser" && i + 1 < filteredArgv2.length) {
+			browser = filteredArgv2[i + 1];
+			i++;
+		} else {
+			filteredArgv3.push(filteredArgv2[i]);
+		}
+	}
+
+	if (filteredArgv3[0] === "--daemon")
+		return { daemon: true, config, listen, browser };
 
 	// Extract global flags (--timeout, --session, --json) from anywhere in argv
 	let timeout: number | undefined;
@@ -79,23 +109,23 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	let json = false;
 	const remaining: string[] = [];
 
-	for (let i = 0; i < filteredArgv2.length; i++) {
-		if (filteredArgv2[i] === "--timeout" && i + 1 < filteredArgv2.length) {
-			const val = Number.parseInt(filteredArgv2[i + 1], 10);
+	for (let i = 0; i < filteredArgv3.length; i++) {
+		if (filteredArgv3[i] === "--timeout" && i + 1 < filteredArgv3.length) {
+			const val = Number.parseInt(filteredArgv3[i + 1], 10);
 			if (!Number.isNaN(val) && val > 0) {
 				timeout = val;
 			}
 			i++; // skip the value
-		} else if (filteredArgv2[i] === "--session") {
-			if (i + 1 < filteredArgv2.length) {
-				session = filteredArgv2[i + 1];
+		} else if (filteredArgv3[i] === "--session") {
+			if (i + 1 < filteredArgv3.length) {
+				session = filteredArgv3[i + 1];
 				i++; // skip the value
 			}
 			// Missing value: --session flag is silently ignored (same as --timeout)
-		} else if (filteredArgv2[i] === "--json") {
+		} else if (filteredArgv3[i] === "--json") {
 			json = true;
 		} else {
-			remaining.push(filteredArgv2[i]);
+			remaining.push(filteredArgv3[i]);
 		}
 	}
 
@@ -222,10 +252,16 @@ async function waitForSocket(
 	throw new Error("Timed out waiting for daemon to start.");
 }
 
-async function spawnDaemon(configPath?: string): Promise<void> {
+async function spawnDaemon(
+	configPath?: string,
+	browserName?: BrowserName,
+): Promise<void> {
 	const args = [process.execPath, "--daemon"];
 	if (configPath) {
 		args.push("--config", configPath);
+	}
+	if (browserName) {
+		args.push("--browser", browserName);
 	}
 	const proc = Bun.spawn(args, {
 		stdio: ["ignore", "ignore", "ignore"],
@@ -240,6 +276,7 @@ async function runCli(): Promise<void> {
 	const parsed = parseArgs(rawArgs);
 
 	if ("daemon" in parsed) {
+		const browserName = resolveBrowserFromFlag(parsed.browser);
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
@@ -247,6 +284,7 @@ async function runCli(): Promise<void> {
 			headless: !isHeadedMode(),
 			configPath: parsed.config,
 			tcpListen: parsed.listen,
+			browser: browserName,
 		});
 		return;
 	}
@@ -304,7 +342,7 @@ async function runCli(): Promise<void> {
 					json,
 					readToken(),
 				),
-			spawnDaemon: () => spawnDaemon(configPath),
+			spawnDaemon: () => spawnDaemon(configPath, resolveBrowserFromFlag()),
 			cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
 		};
 
@@ -367,7 +405,7 @@ async function runCli(): Promise<void> {
 						json,
 						readToken(),
 					),
-				spawnDaemon: () => spawnDaemon(configPath),
+				spawnDaemon: () => spawnDaemon(configPath, resolveBrowserFromFlag()),
 				cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
 			},
 			cmd,
@@ -399,6 +437,7 @@ if (import.meta.main) {
 	const parsed = parseArgs(rawArgs);
 
 	if (parsed !== null && "daemon" in parsed) {
+		const browserName = resolveBrowserFromFlag(parsed.browser);
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
@@ -406,6 +445,7 @@ if (import.meta.main) {
 			headless: !isHeadedMode(),
 			configPath: parsed.config,
 			tcpListen: parsed.listen,
+			browser: browserName,
 		});
 	} else {
 		await runCli();
