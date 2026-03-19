@@ -162,6 +162,16 @@ describe("integration: benchmark", () => {
 		const history: string[] = [];
 		let currentIndex = -1;
 
+		const cdpSession = {
+			send: mock((method: string) => {
+				if (method === "Page.getNavigationHistory") {
+					return Promise.resolve({ currentIndex });
+				}
+				return Promise.resolve({});
+			}),
+			detach: mock(() => Promise.resolve()),
+		};
+
 		const page = mockPage({
 			goto: mock((url: string) => {
 				// Trim history forward on new navigation (browser behaviour)
@@ -180,6 +190,9 @@ describe("integration: benchmark", () => {
 				return Promise.resolve(`Title: ${url}`);
 			}),
 			url: mock(() => history[currentIndex] ?? "about:blank"),
+			context: mock(() => ({
+				newCDPSession: mock(() => Promise.resolve(cdpSession)),
+			})),
 		});
 
 		// The context's newPage returns a separate temp page for benchmark
