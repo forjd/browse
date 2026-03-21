@@ -492,6 +492,7 @@ export async function startServer(
 							throw new Error("Browser not available for isolated context");
 						}
 						const contextOpts: Record<string, unknown> = {
+							...config?.playwright?.contextOptions,
 							viewport: { width: 1440, height: 900 },
 						};
 						if (stealthOpts) {
@@ -784,6 +785,8 @@ export async function startServer(
 									? { userAgent: stealthOpts.userAgent }
 									: undefined,
 								proxyConfig,
+								passthroughContextOptions:
+									config?.playwright?.contextOptions,
 							},
 						);
 					case "init":
@@ -1055,6 +1058,8 @@ export async function startDaemon(
 	const launcher = resolveBrowserType(browserName);
 
 	const launchOptions: Record<string, unknown> = {
+		// Spread user-provided Playwright passthrough options first (ours win on conflict)
+		...config?.playwright?.launchOptions,
 		headless: options.headless ?? true,
 		viewport: { width: 1440, height: 900 },
 	};

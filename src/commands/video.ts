@@ -81,6 +81,7 @@ export type VideoDeps = {
 		username?: string;
 		password?: string;
 	};
+	passthroughContextOptions?: Record<string, unknown>;
 };
 
 export async function handleVideo(
@@ -174,6 +175,7 @@ export async function handleVideo(
 		let recordingContext: BrowserContext | undefined;
 		try {
 			const contextOpts: Record<string, unknown> = {
+				...deps?.passthroughContextOptions,
 				recordVideo: { dir: videoDir, size },
 				viewport: size,
 			};

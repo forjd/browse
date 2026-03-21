@@ -103,6 +103,11 @@ export const VALID_BROWSER_NAMES = new Set<string>([
 	"webkit",
 ]);
 
+export type PlaywrightPassthrough = {
+	launchOptions?: Record<string, unknown>;
+	contextOptions?: Record<string, unknown>;
+};
+
 export type BrowseConfig = {
 	environments: Record<string, EnvironmentConfig>;
 	flows?: Record<string, FlowConfig>;
@@ -111,6 +116,7 @@ export type BrowseConfig = {
 	timeout?: number;
 	browser?: BrowserName;
 	proxy?: ProxyConfig;
+	playwright?: PlaywrightPassthrough;
 };
 
 /** Passed alongside config so commands can distinguish "not found" from "invalid". */
@@ -487,6 +493,31 @@ export function validateConfig(data: unknown): string | null {
 						`healthcheck page ${i + 1} assertion ${j + 1}`,
 					);
 					if (condErr) return condErr;
+				}
+			}
+		}
+	}
+
+	// Validate playwright passthrough (optional)
+	if (obj.playwright !== undefined) {
+		if (
+			typeof obj.playwright !== "object" ||
+			obj.playwright === null ||
+			Array.isArray(obj.playwright)
+		) {
+			return "Invalid browse.config.json: 'playwright' must be an object.";
+		}
+
+		const pw = obj.playwright as Record<string, unknown>;
+
+		for (const key of ["launchOptions", "contextOptions"] as const) {
+			if (pw[key] !== undefined) {
+				if (
+					typeof pw[key] !== "object" ||
+					pw[key] === null ||
+					Array.isArray(pw[key])
+				) {
+					return `Invalid browse.config.json: 'playwright.${key}' must be an object.`;
 				}
 			}
 		}
