@@ -21,22 +21,15 @@ export function formatTable(
 	csv: boolean,
 ): string {
 	if (csv) {
-		const lines = [headers.join(",")];
+		const escapeCsvCell = (cell: string): string => {
+			if (cell.includes(",") || cell.includes('"') || cell.includes("\n")) {
+				return `"${cell.replace(/"/g, '""')}"`;
+			}
+			return cell;
+		};
+		const lines = [headers.map(escapeCsvCell).join(",")];
 		for (const row of rows) {
-			lines.push(
-				row
-					.map((cell) => {
-						if (
-							cell.includes(",") ||
-							cell.includes('"') ||
-							cell.includes("\n")
-						) {
-							return `"${cell.replace(/"/g, '""')}"`;
-						}
-						return cell;
-					})
-					.join(","),
-			);
+			lines.push(row.map(escapeCsvCell).join(","));
 		}
 		return lines.join("\n");
 	}
@@ -136,10 +129,18 @@ async function extractTable(
 		const allRows = hasTbody
 			? table.querySelectorAll("tbody tr")
 			: table.querySelectorAll("tr");
-		const bodyRows = Array.from(allRows).filter((tr) => !tr.closest("thead"));
-		const startIdx = headers.length > 0 && !hasTbody ? 1 : 0;
+		let bodyRows = Array.from(allRows).filter((tr) => !tr.closest("thead"));
+		// Skip first row if it's header-like (all th cells) and headers were already captured
+		if (
+			headers.length > 0 &&
+			bodyRows.length > 0 &&
+			bodyRows[0].querySelectorAll("th").length > 0 &&
+			bodyRows[0].querySelectorAll("td").length === 0
+		) {
+			bodyRows = bodyRows.slice(1);
+		}
 
-		for (let i = startIdx; i < bodyRows.length; i++) {
+		for (let i = 0; i < bodyRows.length; i++) {
 			const cells = bodyRows[i].querySelectorAll("td, th");
 			const row: string[] = [];
 			for (const cell of cells) {
@@ -204,7 +205,7 @@ async function extractLinks(
 		let filtered = links;
 		if (filter) {
 			try {
-				const re = new RegExp(filter);
+				const re = compileSafePattern(filter);
 				filtered = links.filter((l) => re.test(l.href));
 			} catch {
 				filtered = links.filter((l) => l.href.includes(filter));
