@@ -75,6 +75,12 @@ export type PageHolder = { page: Page };
 export type VideoDeps = {
 	attachListeners?: (page: Page) => void;
 	stealthOpts?: { userAgent?: string };
+	proxyConfig?: {
+		server: string;
+		bypass?: string;
+		username?: string;
+		password?: string;
+	};
 };
 
 export async function handleVideo(
@@ -173,6 +179,9 @@ export async function handleVideo(
 			};
 			if (deps?.stealthOpts?.userAgent) {
 				contextOpts.userAgent = deps.stealthOpts.userAgent;
+			}
+			if (deps?.proxyConfig) {
+				contextOpts.proxy = deps.proxyConfig;
 			}
 
 			recordingContext = await browser.newContext(contextOpts);

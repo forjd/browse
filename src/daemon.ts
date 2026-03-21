@@ -80,7 +80,7 @@ import { handleViewport } from "./commands/viewport.ts";
 import { handleWait } from "./commands/wait.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import { generateCompletions } from "./completions.ts";
-import type { BrowseConfig, BrowserName } from "./config.ts";
+import type { BrowseConfig, BrowserName, ProxyConfig } from "./config.ts";
 import { loadConfig, resolveConfigPath } from "./config.ts";
 import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
 import {
@@ -201,6 +201,8 @@ export type DaemonOptions = {
 	tcpListen?: string;
 	/** Browser engine to use: "chrome" (default), "firefox", or "webkit". */
 	browser?: BrowserName;
+	/** Proxy server URL, e.g. "http://proxy:8080" or "socks5://proxy:1080". */
+	proxy?: string;
 };
 
 export type DaemonHandle = {
@@ -225,6 +227,8 @@ export type ServerDeps = {
 	tcpListen?: string;
 	/** Browser engine in use — drives status output and CDP availability. */
 	browserName?: BrowserName;
+	/** Resolved proxy config for propagation to isolated contexts. */
+	proxyConfig?: ProxyConfig;
 };
 
 function attachPageListeners(
@@ -308,6 +312,7 @@ export async function startServer(
 		token,
 		tcpListen,
 		browserName,
+		proxyConfig,
 	} = deps;
 	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
@@ -491,6 +496,9 @@ export async function startServer(
 						};
 						if (stealthOpts) {
 							contextOpts.userAgent = stealthOpts.userAgent;
+						}
+						if (proxyConfig) {
+							contextOpts.proxy = proxyConfig;
 						}
 						const isolatedContext = await browser.newContext(contextOpts);
 						if (stealthOpts) {
@@ -775,6 +783,7 @@ export async function startServer(
 								stealthOpts: stealthOpts
 									? { userAgent: stealthOpts.userAgent }
 									: undefined,
+								proxyConfig,
 							},
 						);
 					case "init":
@@ -809,6 +818,7 @@ export async function startServer(
 							context,
 							stealthOpts,
 							configCtx,
+							proxyConfig,
 						);
 					case "assert-ai":
 						return handleAssertAi(page, request.args);
@@ -1031,6 +1041,11 @@ export async function startDaemon(
 		options.browser ?? config?.browser ?? "chrome";
 	const isChromium = browserName === "chrome";
 
+	// Proxy precedence: CLI flag / env var > config file > none
+	const proxyConfig: ProxyConfig | undefined = options.proxy
+		? { server: options.proxy }
+		: config?.proxy;
+
 	const userDataDir =
 		options.userDataDir ?? join(homedir(), ".bun-browse", "user-data");
 
@@ -1043,6 +1058,10 @@ export async function startDaemon(
 		headless: options.headless ?? true,
 		viewport: { width: 1440, height: 900 },
 	};
+
+	if (proxyConfig) {
+		launchOptions.proxy = proxyConfig;
+	}
 
 	if (isChromium) {
 		// Chromium-specific: channel, stealth args, and UA override
@@ -1095,6 +1114,7 @@ export async function startDaemon(
 			token,
 			tcpListen: options.tcpListen,
 			browserName,
+			proxyConfig,
 		},
 		lifecycleConfig,
 		async () => {
