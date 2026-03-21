@@ -98,12 +98,16 @@ Always re-snapshot after any action that changes the page. Stale refs produce a 
 | `--session <name>` | Route the command to a named session |
 | `--json` | Return output as JSON |
 | `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
+| `--browser <name>` | Browser engine: `chrome` (default), `firefox`, `webkit` |
+| `--proxy <url>` | Route browser traffic through a proxy (e.g. `http://proxy:8080`) |
 
 ## Environment variables
 
 | Variable | Description |
 |----------|-------------|
 | `BROWSE_HEADED=1` | Launch browser in headed (visible) mode for debugging |
+| `BROWSE_BROWSER=name` | Browser engine: `chrome` (default), `firefox`, `webkit` |
+| `BROWSE_PROXY=url` | Route browser traffic through a proxy |
 
 ## Getting help
 

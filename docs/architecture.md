@@ -22,6 +22,7 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 - Idle timeout: 30 minutes of inactivity triggers auto-shutdown
 - Config resolution: `--config` flag > upward directory search > `~/.browse/config.json` > none
 - Headed mode: set `BROWSE_HEADED=1` before the daemon starts to launch visible Chromium
+- Proxy support: `--proxy` flag > `BROWSE_PROXY` env var > config file `proxy` field > none. Applied at browser launch and propagated to all contexts (isolated sessions, test-matrix, video)
 
 ## Cold Start / Warm Start
 

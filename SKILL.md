@@ -142,6 +142,17 @@ BROWSE_BROWSER=firefox browse goto https://example.com
 
 Stealth features and CDP console capture are Chromium-only; Firefox/WebKit use standard Playwright.
 
+## Proxy
+
+Route browser traffic through a proxy:
+
+```bash
+browse --proxy http://proxy:8080 goto https://example.com
+BROWSE_PROXY=socks5://proxy:1080 browse goto https://example.com
+```
+
+Or configure in `browse.config.json` with `"proxy": { "server": "http://proxy:8080", "bypass": "localhost", "username": "u", "password": "p" }`.
+
 ## Headed mode
 
 Launch the browser visibly for debugging (set before the daemon starts):

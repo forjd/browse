@@ -1831,11 +1831,23 @@ These flags work with any command.
 | `--auto-snapshot` | Auto-snapshot after action/interaction (supported by: `goto`, `click`, `press`, `form`) |
 | `--help` | Show help for any command |
 
+## Daemon Flags
+
+These flags control the daemon process and must be set before it starts (i.e., on the first `browse` command or after `browse quit`):
+
+| Flag | Description |
+|------|-------------|
+| `--browser <name>` | Browser engine: `chrome` (default), `firefox`, `webkit` |
+| `--proxy <url>` | Route browser traffic through a proxy (e.g. `http://proxy:8080`, `socks5://proxy:1080`) |
+| `--listen <addr>` | Also listen on TCP (e.g. `tcp://0.0.0.0:9222`) for remote agent access |
+
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `BROWSE_HEADED=1` | Launch browser in headed (visible) mode for debugging |
+| `BROWSE_BROWSER=name` | Browser engine: `chrome` (default), `firefox`, `webkit` |
+| `BROWSE_PROXY=url` | Route browser traffic through a proxy |
 
 **Examples:**
 
@@ -1843,6 +1855,8 @@ These flags work with any command.
 browse goto https://example.com --timeout 60000
 browse snapshot --session admin --json
 browse --config /path/to/browse.config.json flow smoke-test
+browse --proxy http://proxy:8080 goto https://example.com
 BROWSE_HEADED=1 browse goto https://example.com
+BROWSE_PROXY=socks5://proxy:1080 browse goto https://example.com
 browse help goto
 ```

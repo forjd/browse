@@ -712,11 +712,13 @@ export function formatOverview(): string {
 		"",
 		"Daemon flags:",
 		"  --browser <name>     Browser engine: chrome (default), firefox, webkit",
+		"  --proxy <url>        Route browser traffic through a proxy (e.g. http://proxy:8080, socks5://proxy:1080)",
 		"  --listen <addr>      Also listen on TCP (e.g. tcp://0.0.0.0:9222) for remote agent access",
 		"",
 		"Environment variables:",
 		"  BROWSE_HEADED=1      Launch browser in headed (visible) mode",
 		"  BROWSE_BROWSER=name  Browser engine: chrome (default), firefox, webkit",
+		"  BROWSE_PROXY=url     Route browser traffic through a proxy",
 		"",
 		'Run "browse help <command>" for detailed usage of a specific command.',
 	);
