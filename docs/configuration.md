@@ -31,6 +31,7 @@ type BrowseConfig = {
   permissions?: Record<string, PermissionConfig>;    // Optional
   healthcheck?: HealthcheckConfig;                   // Optional
   timeout?: number;                                  // Optional, default 30000ms
+  proxy?: ProxyConfig;                               // Optional
 };
 ```
 
@@ -264,6 +265,36 @@ Variables from `--var` are interpolated into page URLs, so you can parameterise 
 }
 ```
 
+## Proxy (optional)
+
+Route all browser traffic through an HTTP or SOCKS proxy.
+
+```typescript
+type ProxyConfig = {
+  server: string;      // Required — proxy URL (e.g. "http://proxy:8080", "socks5://proxy:1080")
+  bypass?: string;     // Optional — comma-separated list of hosts to bypass
+  username?: string;   // Optional — proxy auth username
+  password?: string;   // Optional — proxy auth password
+};
+```
+
+### Example
+
+```json
+{
+  "proxy": {
+    "server": "http://proxy.corp.example.com:8080",
+    "bypass": "localhost,*.internal.example.com",
+    "username": "proxyuser",
+    "password": "proxypass"
+  }
+}
+```
+
+The proxy can also be set via the `--proxy` CLI flag or the `BROWSE_PROXY` environment variable (both accept a URL string). Precedence: `--proxy` flag > `BROWSE_PROXY` env var > config file.
+
+The proxy is applied to all browser contexts, including isolated sessions, test-matrix roles, and video recording contexts.
+
 ## Timeout (optional)
 
 Global timeout override in milliseconds. The default is 30000 (30 seconds). This applies to all commands that wait for conditions.
@@ -305,6 +336,10 @@ The config file is validated on load. Invalid configs produce clear error messag
       "submitButton": "Sign in",
       "successCondition": { "elementVisible": "[data-testid='user-menu']" }
     }
+  },
+  "proxy": {
+    "server": "http://proxy.corp.example.com:8080",
+    "bypass": "localhost,*.internal.example.com"
   },
   "flows": {
     "smoke-test": {

@@ -400,6 +400,39 @@ To install additional browsers, set `BROWSE_BROWSERS` before running setup:
 BROWSE_BROWSERS="firefox webkit" ./setup.sh
 ```
 
+### Proxy support
+
+Route all browser traffic through an HTTP or SOCKS proxy. Set via a CLI flag, environment variable, or config file:
+
+```sh
+browse --proxy http://proxy:8080 goto https://example.com
+browse --proxy socks5://proxy:1080 goto https://example.com
+```
+
+Or via environment variable (must be set before the daemon starts):
+
+```sh
+BROWSE_PROXY=http://proxy:8080 browse goto https://example.com
+```
+
+Or in `browse.config.json` (supports authentication and bypass lists):
+
+```json
+{
+  "proxy": {
+    "server": "http://proxy:8080",
+    "bypass": "localhost,*.internal.com",
+    "username": "user",
+    "password": "pass"
+  },
+  "environments": { ... }
+}
+```
+
+Precedence: `--proxy` flag > `BROWSE_PROXY` env var > config file. The proxy applies to all browser contexts including isolated sessions, test-matrix, and video recording.
+
+> **Note:** The daemon must be restarted for proxy changes to take effect. Run `browse quit` first if a daemon is already running.
+
 ### Headed mode
 
 Launch the browser visibly for debugging. The environment variable must be set before the daemon starts (i.e., before the first `browse` command). If a daemon is already running, run `browse quit` first so it restarts in headed mode:
