@@ -88,6 +88,13 @@ export type HealthcheckConfig = {
 	pages: HealthcheckPage[];
 };
 
+export type ProxyConfig = {
+	server: string;
+	bypass?: string;
+	username?: string;
+	password?: string;
+};
+
 export type BrowserName = "chrome" | "firefox" | "webkit";
 
 export const VALID_BROWSER_NAMES = new Set<string>([
@@ -103,6 +110,7 @@ export type BrowseConfig = {
 	healthcheck?: HealthcheckConfig;
 	timeout?: number;
 	browser?: BrowserName;
+	proxy?: ProxyConfig;
 };
 
 /** Passed alongside config so commands can distinguish "not found" from "invalid". */
@@ -354,6 +362,26 @@ export function validateConfig(data: unknown): string | null {
 	if (obj.browser !== undefined) {
 		if (!VALID_BROWSER_NAMES.has(obj.browser as string)) {
 			return `Invalid browse.config.json: 'browser' must be one of: ${[...VALID_BROWSER_NAMES].join(", ")}.`;
+		}
+	}
+
+	// Validate proxy (optional)
+	if (obj.proxy !== undefined) {
+		if (typeof obj.proxy !== "object" || obj.proxy === null) {
+			return "Invalid browse.config.json: 'proxy' must be an object.";
+		}
+		const proxy = obj.proxy as Record<string, unknown>;
+		if (typeof proxy.server !== "string" || proxy.server.length === 0) {
+			return "Invalid browse.config.json: proxy 'server' must be a non-empty string.";
+		}
+		if (proxy.bypass !== undefined && typeof proxy.bypass !== "string") {
+			return "Invalid browse.config.json: proxy 'bypass' must be a string.";
+		}
+		if (proxy.username !== undefined && typeof proxy.username !== "string") {
+			return "Invalid browse.config.json: proxy 'username' must be a string.";
+		}
+		if (proxy.password !== undefined && typeof proxy.password !== "string") {
+			return "Invalid browse.config.json: proxy 'password' must be a string.";
 		}
 	}
 

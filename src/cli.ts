@@ -19,6 +19,15 @@ function isHeadedMode(): boolean {
  * Resolve the browser name from CLI flag, then BROWSE_BROWSER env var.
  * Returns undefined if neither is set (daemon will default to "chrome").
  */
+/**
+ * Resolve the proxy server URL from CLI flag, then BROWSE_PROXY env var.
+ * Returns undefined if neither is set.
+ */
+function resolveProxy(flag?: string): string | undefined {
+	if (flag) return flag;
+	return process.env.BROWSE_PROXY || undefined;
+}
+
 function resolveBrowserFromFlag(flag?: string): BrowserName | undefined {
 	if (flag && VALID_BROWSER_NAMES.has(flag.toLowerCase())) {
 		return flag.toLowerCase() as BrowserName;
@@ -39,7 +48,13 @@ export type ParsedArgs =
 			json?: boolean;
 			config?: string;
 	  }
-	| { daemon: true; config?: string; listen?: string; browser?: string };
+	| {
+			daemon: true;
+			config?: string;
+			listen?: string;
+			browser?: string;
+			proxy?: string;
+	  };
 
 /**
  * Parse CLI arguments, extracting global flags (--timeout, --session, --json) from args.
@@ -100,8 +115,20 @@ export function parseArgs(argv: string[]): ParsedArgs {
 		}
 	}
 
-	if (filteredArgv3[0] === "--daemon")
-		return { daemon: true, config, listen, browser };
+	// Extract --proxy for daemon mode
+	let proxy: string | undefined;
+	const filteredArgv4: string[] = [];
+	for (let i = 0; i < filteredArgv3.length; i++) {
+		if (filteredArgv3[i] === "--proxy" && i + 1 < filteredArgv3.length) {
+			proxy = filteredArgv3[i + 1];
+			i++;
+		} else {
+			filteredArgv4.push(filteredArgv3[i]);
+		}
+	}
+
+	if (filteredArgv4[0] === "--daemon")
+		return { daemon: true, config, listen, browser, proxy };
 
 	// Extract global flags (--timeout, --session, --json) from anywhere in argv
 	let timeout: number | undefined;
@@ -109,23 +136,23 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	let json = false;
 	const remaining: string[] = [];
 
-	for (let i = 0; i < filteredArgv3.length; i++) {
-		if (filteredArgv3[i] === "--timeout" && i + 1 < filteredArgv3.length) {
-			const val = Number.parseInt(filteredArgv3[i + 1], 10);
+	for (let i = 0; i < filteredArgv4.length; i++) {
+		if (filteredArgv4[i] === "--timeout" && i + 1 < filteredArgv4.length) {
+			const val = Number.parseInt(filteredArgv4[i + 1], 10);
 			if (!Number.isNaN(val) && val > 0) {
 				timeout = val;
 			}
 			i++; // skip the value
-		} else if (filteredArgv3[i] === "--session") {
-			if (i + 1 < filteredArgv3.length) {
-				session = filteredArgv3[i + 1];
+		} else if (filteredArgv4[i] === "--session") {
+			if (i + 1 < filteredArgv4.length) {
+				session = filteredArgv4[i + 1];
 				i++; // skip the value
 			}
 			// Missing value: --session flag is silently ignored (same as --timeout)
-		} else if (filteredArgv3[i] === "--json") {
+		} else if (filteredArgv4[i] === "--json") {
 			json = true;
 		} else {
-			remaining.push(filteredArgv3[i]);
+			remaining.push(filteredArgv4[i]);
 		}
 	}
 
@@ -255,6 +282,7 @@ async function waitForSocket(
 async function spawnDaemon(
 	configPath?: string,
 	browserName?: BrowserName,
+	proxyServer?: string,
 ): Promise<void> {
 	const args = [process.execPath, "--daemon"];
 	if (configPath) {
@@ -262,6 +290,9 @@ async function spawnDaemon(
 	}
 	if (browserName) {
 		args.push("--browser", browserName);
+	}
+	if (proxyServer) {
+		args.push("--proxy", proxyServer);
 	}
 	const proc = Bun.spawn(args, {
 		stdio: ["ignore", "ignore", "ignore"],
@@ -277,6 +308,7 @@ async function runCli(): Promise<void> {
 
 	if ("daemon" in parsed) {
 		const browserName = resolveBrowserFromFlag(parsed.browser);
+		const proxyServer = resolveProxy(parsed.proxy);
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
@@ -285,6 +317,7 @@ async function runCli(): Promise<void> {
 			configPath: parsed.config,
 			tcpListen: parsed.listen,
 			browser: browserName,
+			proxy: proxyServer,
 		});
 		return;
 	}
@@ -342,7 +375,8 @@ async function runCli(): Promise<void> {
 					json,
 					readToken(),
 				),
-			spawnDaemon: () => spawnDaemon(configPath, resolveBrowserFromFlag()),
+			spawnDaemon: () =>
+				spawnDaemon(configPath, resolveBrowserFromFlag(), resolveProxy()),
 			cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
 		};
 
@@ -405,7 +439,8 @@ async function runCli(): Promise<void> {
 						json,
 						readToken(),
 					),
-				spawnDaemon: () => spawnDaemon(configPath, resolveBrowserFromFlag()),
+				spawnDaemon: () =>
+					spawnDaemon(configPath, resolveBrowserFromFlag(), resolveProxy()),
 				cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
 			},
 			cmd,
@@ -438,6 +473,7 @@ if (import.meta.main) {
 
 	if (parsed !== null && "daemon" in parsed) {
 		const browserName = resolveBrowserFromFlag(parsed.browser);
+		const proxyServer = resolveProxy(parsed.proxy);
 		await startDaemon({
 			socketPath: DEFAULT_CONFIG.socketPath,
 			pidPath: DEFAULT_CONFIG.pidPath,
@@ -446,6 +482,7 @@ if (import.meta.main) {
 			configPath: parsed.config,
 			tcpListen: parsed.listen,
 			browser: browserName,
+			proxy: proxyServer,
 		});
 	} else {
 		await runCli();

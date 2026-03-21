@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from "playwright";
 import { RingBuffer } from "../buffers.ts";
-import type { BrowseConfig, ConfigContext } from "../config.ts";
+import type { BrowseConfig, ConfigContext, ProxyConfig } from "../config.ts";
 import type { StealthOpts } from "../daemon.ts";
 import { parseVars, runFlow, type StepResult } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
@@ -44,6 +44,7 @@ export async function handleTestMatrix(
 	defaultContext: BrowserContext,
 	stealthOpts?: StealthOpts,
 	configCtx?: ConfigContext,
+	proxyConfig?: ProxyConfig,
 ): Promise<Response> {
 	if (!config) {
 		return {
@@ -144,6 +145,9 @@ export async function handleTestMatrix(
 			};
 			if (stealthOpts) {
 				contextOpts.userAgent = stealthOpts.userAgent;
+			}
+			if (proxyConfig) {
+				contextOpts.proxy = proxyConfig;
 			}
 			isolatedContext = await browser.newContext(contextOpts);
 			if (stealthOpts) {
