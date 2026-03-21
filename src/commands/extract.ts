@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 import { resolveRef } from "../refs.ts";
+import { compileSafePattern } from "../safe-pattern.ts";
 
 function parseFilter(args: string[]): string | null {
 	const idx = args.indexOf("--filter");
@@ -62,7 +63,7 @@ export function formatLinks(
 	let filtered = links;
 	if (filter) {
 		try {
-			const re = new RegExp(filter);
+			const re = compileSafePattern(filter);
 			filtered = links.filter((l) => re.test(l.href));
 		} catch {
 			filtered = links.filter((l) => l.href.includes(filter));
@@ -101,7 +102,17 @@ async function extractTable(
 		if ("error" in resolved) {
 			return { ok: false, error: resolved.error };
 		}
-		selector = "table";
+		if (resolved.role !== "table") {
+			return {
+				ok: false,
+				error: `Ref ${selectorArg} points to a "${resolved.role}" element, not a table.`,
+			};
+		}
+		// Build a selector that targets this specific table via nth-match
+		selector =
+			resolved.totalMatches > 1
+				? `table:nth-of-type(${resolved.nthMatch})`
+				: "table";
 	}
 
 	const tableData = await page.evaluate((sel) => {
@@ -120,9 +131,13 @@ async function extractTable(
 			}
 		}
 
-		const bodyRows = table.querySelectorAll("tbody tr, tr");
-		const startIdx =
-			headers.length > 0 && !table.querySelector("thead") ? 1 : 0;
+		// Select body rows, excluding any inside thead
+		const hasTbody = table.querySelector("tbody");
+		const allRows = hasTbody
+			? table.querySelectorAll("tbody tr")
+			: table.querySelectorAll("tr");
+		const bodyRows = Array.from(allRows).filter((tr) => !tr.closest("thead"));
+		const startIdx = headers.length > 0 && !hasTbody ? 1 : 0;
 
 		for (let i = startIdx; i < bodyRows.length; i++) {
 			const cells = bodyRows[i].querySelectorAll("td, th");

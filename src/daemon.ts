@@ -184,10 +184,10 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	],
 	"flow-share": [],
 	video: ["--size", "--out"],
-	perf: ["--budget"],
+	perf: ["--budget", "--json"],
 	security: ["--json"],
-	responsive: ["--breakpoints", "--url", "--out"],
-	extract: ["--filter", "--attr", "--csv"],
+	responsive: ["--breakpoints", "--url", "--out", "--json"],
+	extract: ["--filter", "--attr", "--csv", "--json"],
 };
 
 export type DaemonOptions = {

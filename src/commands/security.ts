@@ -236,8 +236,8 @@ export async function handleSecurity(
 			};
 		});
 
-		// Audit cookies
-		const cookies = await deps.context.cookies();
+		// Audit cookies (scoped to current page URL)
+		const cookies = await deps.context.cookies(pageUrl);
 		const isHttps = pageUrl.startsWith("https://");
 		const cookieChecks = auditCookies(
 			cookies.map((c) => ({
@@ -250,8 +250,15 @@ export async function handleSecurity(
 			isHttps,
 		);
 
-		// Detect mixed content from network buffer
-		const networkEntries = deps.networkBuffer.peek();
+		// Detect mixed content — only consider entries from the current navigation
+		const navTimestamp = await page
+			.evaluate(() => Math.floor(performance.timeOrigin))
+			.catch(() => 0);
+		const allEntries = deps.networkBuffer.peek();
+		const networkEntries =
+			navTimestamp > 0
+				? allEntries.filter((e) => e.timestamp >= navTimestamp)
+				: allEntries;
 		const mixedContent = detectMixedContent(pageUrl, networkEntries);
 
 		// Calculate score

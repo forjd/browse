@@ -233,10 +233,11 @@ export async function handlePerf(
 		if (jsonOutput) {
 			const result: Record<string, unknown> = { metrics };
 			if (budget.length > 0) {
+				const failures = checkBudget(metrics, budget);
 				result.budget = {
 					rules: budget,
-					failures: checkBudget(metrics, budget),
-					pass: checkBudget(metrics, budget).length === 0,
+					failures,
+					pass: failures.length === 0,
 				};
 			}
 			return { ok: true, data: JSON.stringify(result) };
