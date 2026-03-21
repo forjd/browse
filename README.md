@@ -160,6 +160,9 @@ browse viewport --preset tablet              # 768x1024
 browse viewport --preset desktop             # 1440x900
 browse goto https://example.com --viewport 320x568   # navigate at a specific size
 browse goto https://example.com --device "iPhone SE"  # navigate with device profile
+browse responsive                            # screenshot at all default breakpoints
+browse responsive --breakpoints 320x568,768x1024,1920x1080  # custom breakpoints
+browse responsive --url https://example.com --out ./screenshots  # specific URL
 ```
 
 ### Tabs
@@ -260,6 +263,42 @@ browse intercept add "**/analytics/**" --status 204          # block with status
 browse intercept list                                        # list active rules
 browse intercept remove "**/api/users"                       # remove a rule
 browse intercept clear                                       # remove all rules
+```
+
+### Performance metrics
+
+```sh
+browse perf                                  # Core Web Vitals + timing metrics
+browse perf --json                           # machine-readable output
+browse perf --budget lcp=2500,cls=0.1,fcp=1800  # performance budget check
+```
+
+Output includes TTFB, FCP, LCP, CLS, DOM Content Loaded, Page Load, resource count, and transfer size. The `--budget` flag checks each metric against a threshold and reports pass/fail.
+
+### Security audit
+
+```sh
+browse security                              # full security audit
+browse security --json                       # machine-readable output
+```
+
+Audits the current page for:
+- **Security headers:** HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy
+- **Cookie security:** Secure, HttpOnly, SameSite flags
+- **Mixed content:** HTTP resources loaded on HTTPS pages
+
+### Data extraction
+
+```sh
+browse extract table "table.results"         # extract HTML table as text
+browse extract table "table.data" --json     # extract as JSON objects
+browse extract table "table.data" --csv      # extract as CSV
+browse extract links                         # extract all links
+browse extract links --filter "example"      # filter links by pattern
+browse extract meta                          # meta tags, Open Graph, JSON-LD
+browse extract meta --json                   # machine-readable metadata
+browse extract select "h2"                   # extract text of matching elements
+browse extract select "a.nav" --attr href    # extract attribute values
 ```
 
 ### DOM inspection
@@ -494,6 +533,10 @@ Measured with `browse benchmark`:
 | `replay [--out path]` | Generate interactive session replay HTML |
 | `diff --baseline <url> --current <url>` | Visual diff across deployments (`--flow`, `--threshold`) |
 | `flow-share export\|import\|list\|install\|publish` | Share and install reusable flows |
+| `perf` | Core Web Vitals and performance timing (`--budget`, `--json`) |
+| `security` | Security audit: headers, cookies, mixed content (`--json`) |
+| `responsive` | Multi-viewport screenshot sweep (`--breakpoints`, `--url`, `--out`) |
+| `extract table\|links\|meta\|select` | Structured data extraction (`--csv`, `--filter`, `--attr`) |
 | `screenshots list\|clean\|count` | Manage saved screenshots (`--older-than`) |
 | `completions bash\|zsh\|fish` | Output shell completion scripts |
 | `version` | Print version and platform info |
