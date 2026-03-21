@@ -1595,6 +1595,229 @@ browse flow-share publish smoke-test
 
 ---
 
+## Performance
+
+### perf
+
+```sh
+browse perf [--budget <spec>] [--json]
+```
+
+Collects Core Web Vitals and performance timing metrics for the current page.
+
+**Metrics collected:**
+
+| Metric | Description |
+|--------|-------------|
+| TTFB | Time to First Byte |
+| FCP | First Contentful Paint |
+| LCP | Largest Contentful Paint |
+| CLS | Cumulative Layout Shift |
+| DOM Content Loaded | DOMContentLoaded event timing |
+| Page Load | Full page load event timing |
+| Resource Count | Number of resources loaded |
+| Transfer Size | Total transfer size of all resources |
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--budget <spec>` | Performance budget check. Comma-separated `metric=threshold` pairs. Metrics: `ttfb`, `fcp`, `lcp` (ms), `cls` (score), `dcl`, `load` (ms) |
+| `--json` | Output as JSON |
+
+**Examples:**
+
+```bash
+browse perf                                    # collect all metrics
+browse perf --json                             # structured JSON output
+browse perf --budget lcp=2500,cls=0.1,fcp=1800 # check against budget
+browse perf --budget lcp=2500 --json           # budget check with JSON output
+```
+
+**Budget output:**
+
+When `--budget` is specified, each metric is annotated with `[PASS]` or `[FAIL]`. The summary shows the number of violations.
+
+---
+
+## Security
+
+### security
+
+```sh
+browse security [--json]
+```
+
+Audits the current page for common security issues across three areas:
+
+**Security Headers:**
+
+| Header | Check |
+|--------|-------|
+| `Strict-Transport-Security` | Must include `max-age` |
+| `Content-Security-Policy` | Should avoid `unsafe-inline` and `unsafe-eval` |
+| `X-Content-Type-Options` | Must be `nosniff` |
+| `X-Frame-Options` | Must be `DENY` or `SAMEORIGIN` |
+| `Referrer-Policy` | Should be `strict-origin-when-cross-origin` or stricter |
+| `Permissions-Policy` | Should be present |
+
+**Cookie Security:**
+
+Checks each cookie for:
+- `Secure` flag (required on HTTPS pages)
+- `HttpOnly` flag (prevents JavaScript access)
+- `SameSite` attribute (should be `Lax` or `Strict`, not `None`)
+
+**Mixed Content:**
+
+Detects HTTP resources loaded on HTTPS pages from the network buffer.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON |
+
+**Examples:**
+
+```bash
+browse security                  # full security audit
+browse security --json           # structured JSON output
+```
+
+---
+
+## Responsive Testing
+
+### responsive
+
+```sh
+browse responsive [--breakpoints <spec>] [--url <url>] [--out <dir>] [--json]
+```
+
+Captures full-page screenshots at multiple viewport sizes for responsive layout testing.
+
+**Default breakpoints:**
+
+| Name | Width | Height |
+|------|-------|--------|
+| mobile | 375 | 667 |
+| tablet | 768 | 1024 |
+| desktop | 1440 | 900 |
+| wide | 1920 | 1080 |
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--breakpoints <spec>` | Custom breakpoints as comma-separated `WxH` values (e.g. `320x568,768x1024,1920x1080`) |
+| `--url <url>` | URL to navigate to at each breakpoint (defaults to current page, reloading at each size) |
+| `--out <dir>` | Output directory for screenshots (default: `~/.bun-browse/responsive/`) |
+| `--json` | Output as JSON |
+
+**Examples:**
+
+```bash
+browse responsive                                       # default breakpoints
+browse responsive --breakpoints 320x568,768x1024        # custom breakpoints
+browse responsive --url https://example.com             # test specific URL
+browse responsive --out ./screenshots --json            # save to dir, JSON output
+```
+
+The original viewport is restored after all screenshots are captured.
+
+---
+
+## Data Extraction
+
+### extract
+
+```sh
+browse extract <subcommand> [args] [--json]
+```
+
+Extract structured data from the current page.
+
+**Subcommands:**
+
+#### extract table
+
+```sh
+browse extract table [selector|@ref] [--json] [--csv]
+```
+
+Extracts an HTML table as structured data. Automatically detects `<thead>` headers and `<tbody>` rows.
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as array of JSON objects |
+| `--csv` | Output as CSV |
+
+```bash
+browse extract table                          # first table on page
+browse extract table "table.results"          # by CSS selector
+browse extract table "table.data" --json      # as JSON objects
+browse extract table "table.data" --csv       # as CSV
+```
+
+#### extract links
+
+```sh
+browse extract links [--filter <pattern>] [--json]
+```
+
+Extracts all links (`<a href="...">`) with their href and text content.
+
+| Flag | Description |
+|------|-------------|
+| `--filter <pattern>` | Filter links by URL pattern (string or regex) |
+| `--json` | Output as JSON |
+
+```bash
+browse extract links                          # all links
+browse extract links --filter "example"       # filter by substring
+browse extract links --filter "^/api" --json  # filter by regex, JSON output
+```
+
+#### extract meta
+
+```sh
+browse extract meta [--json]
+```
+
+Extracts page metadata including:
+- Standard meta tags (description, keywords, etc.)
+- Open Graph tags (og:title, og:image, etc.)
+- Twitter Card tags
+- JSON-LD structured data
+- Page title and canonical URL
+
+```bash
+browse extract meta                           # human-readable output
+browse extract meta --json                    # structured JSON
+```
+
+#### extract select
+
+```sh
+browse extract select <selector> [--attr <name>] [--json]
+```
+
+Extracts text content or attribute values from elements matching a CSS selector.
+
+| Flag | Description |
+|------|-------------|
+| `--attr <name>` | Extract a specific attribute instead of text content |
+| `--json` | Output as JSON array |
+
+```bash
+browse extract select "h2"                    # text content of all h2 elements
+browse extract select "a.nav" --attr href     # href attributes of nav links
+browse extract select "img" --attr src --json # image sources as JSON
+```
+
+---
+
 ## Global Flags
 
 These flags work with any command.
@@ -1603,7 +1826,7 @@ These flags work with any command.
 |------|-------------|
 | `--timeout <ms>` | Override the default timeout (30s) |
 | `--session <name>` | Route the command to a named session |
-| `--json` | Output results in JSON (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`, `status`) |
+| `--json` | Output results in JSON (supported by: `snapshot`, `console`, `network`, `cookies`, `storage`, `a11y`, `assert`, `status`, `perf`, `security`, `responsive`, `extract`) |
 | `--config <path>` | Path to `browse.config.json` (default: search upward from cwd, then `~/.browse/config.json`) |
 | `--auto-snapshot` | Auto-snapshot after action/interaction (supported by: `goto`, `click`, `press`, `form`) |
 | `--help` | Show help for any command |
