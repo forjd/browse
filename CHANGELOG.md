@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.0](https://github.com/forjd/browse/compare/browse-v0.10.0...browse-v0.11.0) (2026-03-21)
+
+
+### Features
+
+* add perf, security, responsive, and extract commands ([7583a24](https://github.com/forjd/browse/commit/7583a24c768d3656f76a5d5c716c49746208d976))
+* add playwright passthrough options in browse.config.json ([6cf5a88](https://github.com/forjd/browse/commit/6cf5a88baf903ae3635fc0c9cb4f49b92db2887d))
+* add proxy support for browser connections ([db9bd4f](https://github.com/forjd/browse/commit/db9bd4fcf87ccb7a9bf08dc40cbf389e3a96e070))
+
+
+### Bug Fixes
+
+* **extract:** CSV header escaping, remaining ReDoS, and header-row dedup ([14909dd](https://github.com/forjd/browse/commit/14909dd510377d50fb0a7bc4b9e4b9343b21b8ba))
+* resolve ref, header dedup, ReDoS, cookie scoping, network filtering, --json flags, budget dedup ([15c5424](https://github.com/forjd/browse/commit/15c54248239229d9cac232413bc54fcee24a85cc))
+
 ## [0.10.0](https://github.com/forjd/browse/compare/browse-v0.9.1...browse-v0.10.0) (2026-03-19)
 
 
