@@ -153,6 +153,21 @@ BROWSE_PROXY=socks5://proxy:1080 browse goto https://example.com
 
 Or configure in `browse.config.json` with `"proxy": { "server": "http://proxy:8080", "bypass": "localhost", "username": "u", "password": "p" }`.
 
+## Playwright passthrough
+
+Pass any Playwright launch or context option via `browse.config.json` without waiting for explicit `browse` support:
+
+```json
+{
+  "playwright": {
+    "launchOptions": { "locale": "fr-FR", "timezoneId": "Europe/Paris" },
+    "contextOptions": { "colorScheme": "dark", "geolocation": { "latitude": 48.86, "longitude": 2.35 } }
+  }
+}
+```
+
+`launchOptions` are applied at browser startup; `contextOptions` are applied to isolated sessions and video recording contexts. Browse's own options (headless, viewport, stealth) take precedence on conflict.
+
 ## Headed mode
 
 Launch the browser visibly for debugging (set before the daemon starts):

@@ -32,6 +32,7 @@ type BrowseConfig = {
   healthcheck?: HealthcheckConfig;                   // Optional
   timeout?: number;                                  // Optional, default 30000ms
   proxy?: ProxyConfig;                               // Optional
+  playwright?: PlaywrightPassthrough;                // Optional
 };
 ```
 
@@ -307,6 +308,40 @@ Global timeout override in milliseconds. The default is 30000 (30 seconds). This
 
 Individual commands can override this value with the `--timeout` flag.
 
+## Playwright Passthrough (optional)
+
+Pass arbitrary Playwright launch and context options directly, without waiting for `browse` to add explicit support. Options are spread into the underlying Playwright calls — browse's own options (headless, viewport, stealth) take precedence on conflict.
+
+```typescript
+type PlaywrightPassthrough = {
+  launchOptions?: Record<string, unknown>;   // Spread into launchPersistentContext()
+  contextOptions?: Record<string, unknown>;  // Spread into browser.newContext()
+};
+```
+
+- `launchOptions` — applied when the daemon starts the browser. Useful for locale, timezone, proxy, and other browser-level settings.
+- `contextOptions` — applied when creating isolated session contexts and video recording contexts.
+
+### Example
+
+```json
+{
+  "playwright": {
+    "launchOptions": {
+      "locale": "fr-FR",
+      "timezoneId": "Europe/Paris"
+    },
+    "contextOptions": {
+      "colorScheme": "dark",
+      "geolocation": { "latitude": 48.8566, "longitude": 2.3522 },
+      "permissions": ["geolocation"]
+    }
+  }
+}
+```
+
+Both sub-keys must be plain objects if present. See the [Playwright BrowserContext docs](https://playwright.dev/docs/api/class-browser#browser-new-context) for the full list of available options.
+
 ## Validation
 
 The config file is validated on load. Invalid configs produce clear error messages identifying the problem. The following fields are required for each environment entry:
@@ -405,6 +440,15 @@ The config file is validated on load. Invalid configs produce clear error messag
         ]
       }
     ]
+  },
+  "playwright": {
+    "launchOptions": {
+      "locale": "en-GB",
+      "timezoneId": "Europe/London"
+    },
+    "contextOptions": {
+      "colorScheme": "dark"
+    }
   },
   "timeout": 45000
 }
