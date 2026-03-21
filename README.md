@@ -477,9 +477,22 @@ Optional. Create `browse.config.json` in your project root to configure login en
       { "url": "{{base_url}}/settings", "assertions": [{ "visible": ".settings-form" }] }
     ]
   },
+  "playwright": {
+    "launchOptions": {
+      "locale": "en-GB",
+      "timezoneId": "Europe/London"
+    },
+    "contextOptions": {
+      "colorScheme": "dark"
+    }
+  },
   "timeout": 45000
 }
 ```
+
+### Playwright passthrough
+
+Pass any Playwright launch or context option directly via the `playwright` key in `browse.config.json`. Options are spread into the underlying Playwright calls — browse's own options (headless, viewport, stealth) take precedence on conflict. See the [configuration docs](docs/configuration.md#playwright-passthrough-optional) for details.
 
 ## Architecture
 
