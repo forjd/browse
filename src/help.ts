@@ -615,6 +615,81 @@ Examples:
   browse flow-share install acme/browse-flows/checkout
   browse flow-share list`,
 	},
+	perf: {
+		summary: "Measure page performance (Core Web Vitals)",
+		usage: `browse perf [--budget <spec>] [--json]
+
+Collects Core Web Vitals and performance timing metrics for the current page.
+
+Metrics: TTFB, FCP, LCP, CLS, DOM Content Loaded, Page Load, resource count, transfer size.
+
+Flags:
+  --budget <spec>   Performance budget check. Comma-separated metric=threshold pairs.
+                    Metrics: ttfb, fcp, lcp (ms), cls (score), dcl, load (ms).
+  --json            Output as JSON
+
+Examples:
+  browse perf
+  browse perf --budget lcp=2500,cls=0.1,fcp=1800
+  browse perf --json`,
+	},
+	security: {
+		summary: "Run security audit (headers, cookies, mixed content)",
+		usage: `browse security [--json]
+
+Audits the current page for common security issues:
+  - Security headers (HSTS, CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
+  - Cookie security flags (Secure, HttpOnly, SameSite)
+  - Mixed content detection (HTTP resources on HTTPS pages)
+
+Flags:
+  --json   Output as JSON
+
+Examples:
+  browse security
+  browse security --json`,
+	},
+	responsive: {
+		summary: "Capture screenshots across viewport breakpoints",
+		usage: `browse responsive [--breakpoints <spec>] [--url <url>] [--out <dir>] [--json]
+
+Captures full-page screenshots at multiple viewport sizes for responsive testing.
+
+Default breakpoints: mobile (375x667), tablet (768x1024), desktop (1440x900), wide (1920x1080).
+
+Flags:
+  --breakpoints <spec>   Custom breakpoints as comma-separated WxH (e.g. 320x568,768x1024,1920x1080)
+  --url <url>            URL to test (defaults to current page, reloading at each breakpoint)
+  --out <dir>            Output directory (default: ~/.bun-browse/responsive/)
+  --json                 Output as JSON
+
+Examples:
+  browse responsive
+  browse responsive --breakpoints 320x568,768x1024,1920x1080
+  browse responsive --url https://example.com --out ./screenshots`,
+	},
+	extract: {
+		summary: "Extract structured data from the page",
+		usage: `browse extract <subcommand> [args] [--json]
+
+Subcommands:
+  table <selector|@ref>              Extract HTML table as structured data
+  links [--filter <pattern>]         Extract all links with href and text
+  meta                               Extract meta tags, Open Graph, Twitter Card, JSON-LD
+  select <selector> [--attr <name>]  Extract matching elements' text or attribute
+
+Flags:
+  --json              Output as JSON
+  --csv               Output table as CSV (table subcommand only)
+  --filter <pattern>  Filter links by URL pattern (links subcommand only)
+  --attr <name>       Extract specific attribute (select subcommand only)
+
+Examples:
+  browse extract table "table.results"
+  browse extract links --filter "example\\.com"
+  browse extract meta --json
+  browse extract select "h2" --attr id`,
+	},
 };
 
 export function formatOverview(): string {

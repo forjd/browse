@@ -32,6 +32,7 @@ import { handleDiff } from "./commands/diff.ts";
 import { handleDownload } from "./commands/download.ts";
 import { handleElementCount } from "./commands/element-count.ts";
 import { handleEval } from "./commands/eval.ts";
+import { handleExtract } from "./commands/extract.ts";
 import { handleFill } from "./commands/fill.ts";
 import { handleFlow } from "./commands/flow.ts";
 import { handleFlowShare } from "./commands/flow-share.ts";
@@ -48,14 +49,17 @@ import { handleLogin } from "./commands/login.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
 import { handlePageEval } from "./commands/page-eval.ts";
 import { handlePdf } from "./commands/pdf.ts";
+import { handlePerf } from "./commands/perf.ts";
 import { handlePress } from "./commands/press.ts";
 import { handleQuit } from "./commands/quit.ts";
 import { handleReload } from "./commands/reload.ts";
 import { handleReplay } from "./commands/replay.ts";
 import { handleReport } from "./commands/report.ts";
+import { handleResponsive } from "./commands/responsive.ts";
 import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleScreenshots } from "./commands/screenshots.ts";
 import { handleScroll } from "./commands/scroll.ts";
+import { handleSecurity } from "./commands/security.ts";
 import { handleSelect } from "./commands/select.ts";
 import {
 	handleSession,
@@ -180,6 +184,10 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	],
 	"flow-share": [],
 	video: ["--size", "--out"],
+	perf: ["--budget"],
+	security: ["--json"],
+	responsive: ["--breakpoints", "--url", "--out"],
+	extract: ["--filter", "--attr", "--csv"],
 };
 
 export type DaemonOptions = {
@@ -819,6 +827,28 @@ export async function startServer(
 						);
 					case "flow-share":
 						return handleFlowShare(config, request.args);
+					case "perf":
+						return handlePerf(page, request.args, {
+							json: request.json,
+						});
+					case "security":
+						return handleSecurity(
+							page,
+							request.args,
+							{
+								context: sessionContext,
+								networkBuffer: getActiveNetworkBuffer(session),
+							},
+							{ json: request.json },
+						);
+					case "responsive":
+						return handleResponsive(page, request.args, {
+							json: request.json,
+						});
+					case "extract":
+						return handleExtract(page, request.args, {
+							json: request.json,
+						});
 					case "quit":
 						return handleQuit();
 					default:

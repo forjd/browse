@@ -56,6 +56,10 @@ const VALID_COMMANDS = [
 	"diff",
 	"flow-share",
 	"video",
+	"perf",
+	"security",
+	"responsive",
+	"extract",
 ] as const;
 
 export type Command = (typeof VALID_COMMANDS)[number];
