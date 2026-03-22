@@ -1860,3 +1860,160 @@ BROWSE_HEADED=1 browse goto https://example.com
 BROWSE_PROXY=socks5://proxy:1080 browse goto https://example.com
 browse help goto
 ```
+
+---
+
+## New Commands (Phase 7)
+
+### Test Recorder
+
+```bash
+browse record start [--output flow.json] [--name "flow-name"]  # Start recording
+browse record pause                                             # Pause capture
+browse record resume                                            # Resume capture
+browse record stop                                              # Stop and save flow
+```
+
+### Crawl Pipeline
+
+```bash
+browse crawl <url> [--depth N] [--extract table|links|meta|text]
+  [--paginate <selector>] [--max-pages N] [--rate-limit N/s]
+  [--output file.jsonl] [--include pattern] [--exclude pattern]
+  [--same-origin] [--dry-run] [--robots]
+```
+
+### Network Simulation
+
+```bash
+browse throttle <preset>     # slow-3g, 3g, 4g, wifi, cable
+browse throttle off           # Disable throttling
+browse throttle status        # Show current state
+browse throttle --download 500 --upload 100 --latency 400  # Custom (KB/s, ms)
+browse offline on             # Enable offline mode
+browse offline off            # Disable offline mode
+```
+
+### Natural Language Commands
+
+```bash
+browse do "<instruction>" [--dry-run] [--provider anthropic|openai] [--model <model>]
+```
+
+### Visual Regression Testing
+
+```bash
+browse vrt init                        # Initialize VRT directory
+browse vrt baseline --url <url>        # Capture baseline screenshots
+browse vrt check [--threshold N]       # Compare against baselines
+browse vrt update [--all] [--only names]  # Accept current as new baselines
+browse vrt list                        # List baselines
+```
+
+### CI/CD Scaffolding
+
+```bash
+browse ci-init [--ci github|gitlab|circleci] [--force]
+```
+
+### Watch & REPL
+
+```bash
+browse watch <flow-file.json> [--var key=value]
+browse repl [url]
+```
+
+### SEO Audit
+
+```bash
+browse seo [url] [--check meta,headings,images,links] [--score] [--json]
+```
+
+### Event Streaming
+
+```bash
+browse subscribe [--events navigation,console,network] [--level error] [--idle-timeout 60]
+```
+
+### Dev Server Lifecycle
+
+```bash
+browse dev start    # Start and wait for readiness
+browse dev stop     # Stop server
+browse dev status   # Check if running
+```
+
+### Compliance Audit
+
+```bash
+browse compliance [url] [--standard gdpr|ccpa|eprivacy] [--json]
+```
+
+### Active Security Scanning
+
+```bash
+browse security-scan [--checks xss,csp,clickjack,forms] [--verbose] [--json]
+```
+
+### Multi-Locale Testing
+
+```bash
+browse i18n --locales en,fr,de --url <url> [--json]
+browse i18n check-keys --url <url> --pattern <regex>
+browse i18n rtl-check --url <url> --locale ar
+```
+
+### API Contract Testing
+
+```bash
+browse api-assert <url-pattern> [--status 200] [--timing "<500ms"]
+  [--schema schema.json] [--body-contains "text"] [--header "name: value"]
+  [--method POST] [--max-size 1mb] [--timeout 10000]
+```
+
+### Design Token Audit
+
+```bash
+browse design-audit --tokens tokens.json [--check colors,fonts] [--selector sel] [--json]
+browse design-audit --extract [--json]  # Extract styles only
+```
+
+### Doc Screenshots
+
+```bash
+browse doc-capture --flow flow.json --output dir/ [--markdown file.md] [--update]
+```
+
+### Touch Gestures
+
+```bash
+browse gesture swipe <left|right|up|down> [@ref] [--distance 200] [--speed fast|slow]
+browse gesture long-press @eN [--duration 500]
+browse gesture double-tap @eN
+browse gesture drag @eN --to @eN
+```
+
+### Device Profiles
+
+```bash
+browse devices list              # List all profiles
+browse devices search "iphone"   # Search by name
+browse devices info "iPhone 15 Pro"  # Show details
+```
+
+### Scheduled Monitoring
+
+```bash
+browse monitor check --config monitor.json         # Run checks once
+browse monitor history [--last 24h] [--site name]  # View history
+browse monitor status                               # Show config
+```
+
+### Accessibility Enhancements
+
+```bash
+browse a11y coverage          # Coverage report (names, alt, labels, landmarks)
+browse a11y tree [--json]     # Full accessibility tree export
+browse a11y tab-order         # Keyboard navigation audit
+browse a11y headings          # Heading hierarchy check
+```

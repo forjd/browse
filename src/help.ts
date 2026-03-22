@@ -668,6 +668,29 @@ Examples:
   browse responsive --breakpoints 320x568,768x1024,1920x1080
   browse responsive --url https://example.com --out ./screenshots`,
 	},
+	record: {
+		summary: "Record browser interactions as a flow JSON file",
+		usage: `browse record <subcommand> [args]
+
+Subcommands:
+  start [--output file.flow.json] [--name "flow-name"]   Start recording interactions
+  stop                                                    Stop recording and save flow JSON
+  pause                                                   Pause event capture
+  resume                                                  Resume event capture
+
+Flags:
+  --output <path>   Output file path (default: recording.flow.json)
+  --name <name>     Flow name/description (default: recorded-flow)
+
+Captures clicks, fills, selects, and navigations. Collapses rapid keystrokes
+into single fill steps. Converts absolute URLs to {{base_url}} variables.
+
+Examples:
+  browse record start --output checkout.flow.json --name "checkout flow"
+  browse record pause
+  browse record resume
+  browse record stop`,
+	},
 	extract: {
 		summary: "Extract structured data from the page",
 		usage: `browse extract <subcommand> [args] [--json]
@@ -689,6 +712,337 @@ Examples:
   browse extract links --filter "example\\.com"
   browse extract meta --json
   browse extract select "h2" --attr id`,
+	},
+	throttle: {
+		summary: "Simulate network throttling via CDP",
+		usage: `browse throttle <preset|off|status> [--download KB/s] [--upload KB/s] [--latency ms]
+
+Presets:
+  slow-3g   50 KB/s ↓, 25 KB/s ↑, 2000ms latency
+  3g        187 KB/s ↓, 75 KB/s ↑, 400ms latency
+  4g        1500 KB/s ↓, 750 KB/s ↑, 60ms latency
+  wifi      3750 KB/s ↓, 1500 KB/s ↑, 20ms latency
+  cable     6250 KB/s ↓, 3125 KB/s ↑, 5ms latency
+
+Subcommands:
+  browse throttle <preset>         Apply a named preset
+  browse throttle off              Disable throttling
+  browse throttle status           Show current throttle settings
+  browse throttle --download 200 --upload 50 --latency 100   Custom values (KB/s)
+
+Flags:
+  --download <KB/s>   Download throughput in KB/s (default: 500)
+  --upload <KB/s>     Upload throughput in KB/s (default: 100)
+  --latency <ms>      Added latency in ms (default: 0)
+
+Examples:
+  browse throttle 3g
+  browse throttle slow-3g
+  browse throttle --download 100 --upload 50 --latency 500
+  browse throttle off`,
+	},
+	offline: {
+		summary: "Simulate offline network conditions via CDP",
+		usage: `browse offline <on|off>
+
+Enables or disables offline mode using Chrome DevTools Protocol.
+When enabled, all network requests will fail as if the device has no connection.
+
+Examples:
+  browse offline on     Enable offline mode
+  browse offline off    Disable offline mode`,
+	},
+	crawl: {
+		summary: "Multi-page crawl and scrape pipeline",
+		usage: `browse crawl <url> [options]
+
+Crawl multiple pages starting from a URL, extracting data from each page.
+Uses BFS traversal with configurable depth, rate limiting, and filtering.
+
+Flags:
+  --depth <N>              Max link-follow depth (default: 1)
+  --extract <type>         Data to extract: text, links, table, meta (default: text)
+  --paginate <selector>    CSS selector for pagination element (click to advance)
+  --max-pages <N>          Maximum pages to visit (default: 100)
+  --rate-limit <N/s>       Max requests per second (e.g., 2/s)
+  --output <file>          Write JSON results to file
+  --include <pattern>      Only crawl URLs matching glob pattern (repeatable)
+  --exclude <pattern>      Skip URLs matching glob pattern (repeatable)
+  --same-origin            Only follow links to the same origin
+  --dry-run                Collect URLs without extracting data
+  --json                   Output as JSON
+
+Examples:
+  browse crawl https://example.com
+  browse crawl https://example.com --depth 2 --extract links --same-origin
+  browse crawl https://example.com --paginate ".next-page" --max-pages 10
+  browse crawl https://example.com --rate-limit 2/s --output results.json
+  browse crawl https://example.com --include "*blog*" --exclude "*admin*"
+  browse crawl https://example.com --depth 3 --dry-run`,
+	},
+	do: {
+		summary: "Natural language browser automation via LLM",
+		usage: `browse do "<instruction>" [--dry-run] [--provider <anthropic|openai>] [--model <model>] [--base-url <url>] [--verbose] [--env <name>]
+
+Translates a natural language instruction into a sequence of browse commands
+using an LLM, then returns the planned commands for execution.
+
+Flags:
+  --dry-run              Show planned commands without executing
+  --provider <provider>  AI provider: anthropic (default), openai
+  --model <model>        Model to use (default: claude-sonnet-4-20250514 for Anthropic, gpt-4o for OpenAI)
+  --base-url <url>       Custom API base URL for OpenAI-compatible providers
+  --verbose              Show additional details
+  --env <name>           Environment name for login steps
+
+Environment variables:
+  ANTHROPIC_API_KEY      Required for Anthropic provider (default)
+  OPENAI_API_KEY         Required for OpenAI provider
+
+Examples:
+  browse do "go to example.com and click the login button"
+  browse do "fill in the search box with hello and press Enter" --dry-run
+  browse do "log in and navigate to settings" --env staging
+  browse do "take a screenshot of the homepage" --provider openai`,
+	},
+	vrt: {
+		summary: "Visual regression testing workflow",
+		usage: `browse vrt <init|baseline|check|update|list>
+
+Subcommands:
+  init                  Initialize VRT directory structure and config
+  baseline [--url ...]  Capture baseline screenshots for configured pages
+  check [--threshold N] Compare current screenshots against baselines
+  update [--all]        Accept current screenshots as new baselines
+  list                  List current baseline screenshots
+
+Flags:
+  --url <url>        URL to capture (repeatable, for baseline)
+  --threshold <n>    Diff threshold percentage (default: from config, typically 5)
+  --all              Update all baselines (for update)
+  --only <names>     Update specific baselines (for update)
+  --json             Output results as JSON (for check)
+
+Configuration is stored in .browse/vrt/config.json.
+
+Examples:
+  browse vrt init
+  browse vrt baseline --url https://example.com
+  browse vrt check --threshold 3
+  browse vrt update --all
+  browse vrt list`,
+	},
+	do: {
+		summary: "Execute a task described in natural language",
+		usage: `browse do "<instruction>" [--dry-run] [--provider <anthropic|openai>] [--model <model>]
+
+Uses an LLM to translate natural language into browse commands.
+
+Flags:
+  --dry-run               Show planned commands without executing
+  --provider <provider>   AI provider: anthropic (default), openai
+  --model <model>         Model to use
+  --base-url <url>        Custom API base URL
+  --env <name>            Environment for login context
+
+Examples:
+  browse do "go to staging and check the dashboard loads"
+  browse do "fill the search box with 'test' and press enter" --dry-run`,
+	},
+	"ci-init": {
+		summary: "Scaffold CI/CD configuration for browse",
+		usage: `browse ci-init [--ci <github|gitlab|circleci>] [--force]
+
+Generates CI configuration files for running browse in your CI/CD pipeline.
+
+Flags:
+  --ci <system>   CI system: github, gitlab, circleci (auto-detected if omitted)
+  --force         Overwrite existing config files`,
+	},
+	watch: {
+		summary: "Watch a flow file and re-run on changes",
+		usage: `browse watch <flow-file.json> [--var key=value]
+
+Watches a flow file for changes and re-runs it automatically.`,
+	},
+	repl: {
+		summary: "Start an interactive REPL session",
+		usage: `browse repl [url]
+
+Interactive session with command history, tab completion, and auto-snapshot.
+
+REPL commands:
+  .save <path>        Export history as a flow file
+  .history            Show command history
+  .undo               Navigate back
+  .auto-snapshot      Toggle auto-snapshot
+  exit                Quit REPL`,
+	},
+	seo: {
+		summary: "Run SEO audit on the current page",
+		usage: `browse seo [url] [--check <categories>] [--score] [--json]
+
+Audits: meta tags, headings, images, links, structured data, Open Graph.
+
+Flags:
+  --check <list>   Audit specific categories (meta,headings,images,links)
+  --score          Include a numeric score
+  --json           Output as JSON
+
+Examples:
+  browse seo
+  browse seo https://example.com --json`,
+	},
+	subscribe: {
+		summary: "Subscribe to real-time browser events",
+		usage: `browse subscribe [--events <types>] [--level <level>] [--idle-timeout <s>]
+
+Streams browser events as NDJSON.
+
+Event types: navigation, console, network, dialog, download, error
+
+Flags:
+  --events <types>       Comma-separated event types (default: navigation,console,network)
+  --level <level>        Filter console events by level
+  --idle-timeout <s>     Stop after N seconds of silence (default: 60)`,
+	},
+	dev: {
+		summary: "Manage dev server lifecycle",
+		usage: `browse dev <start|stop|status> [--flow <name>]
+
+Configure in browse.config.json:
+  { "devServer": { "command": "npm run dev", "url": "http://localhost:3000" } }
+
+Subcommands:
+  start    Start the dev server and wait for readiness
+  stop     Stop the dev server
+  status   Check if dev server is running`,
+	},
+	compliance: {
+		summary: "Run cookie consent and privacy compliance audit",
+		usage: `browse compliance [url] [--standard <gdpr|ccpa|eprivacy>] [--json]
+
+Checks: pre-consent cookies, consent banner, third-party trackers, privacy policy links.
+
+Flags:
+  --standard <std>   Compliance standard (default: gdpr)
+  --json             Output as JSON
+
+Examples:
+  browse compliance https://example.com
+  browse compliance --standard gdpr --json`,
+	},
+	"security-scan": {
+		summary: "Run active security scans (XSS, CSRF, clickjacking)",
+		usage: `browse security-scan [--checks <types>] [--verbose] [--json]
+
+Active security testing: XSS probing, CSP analysis, clickjacking, form security.
+
+Flags:
+  --checks <types>   Comma-separated scan types: xss,redirect,clickjack,csp,forms
+  --verbose          Show every payload tested
+  --json             Output as JSON
+
+Note: Only run against applications you have permission to test.`,
+	},
+	i18n: {
+		summary: "Multi-locale testing and translation checks",
+		usage: `browse i18n [subcommand] --locales <en,fr,de,...> [--url <url>] [--json]
+
+Subcommands:
+  check-keys --url <url> --pattern <regex>   Check for untranslated strings
+  rtl-check --url <url> --locale <locale>    Verify RTL layout
+
+Flags:
+  --locales <list>     Comma-separated locale codes
+  --url <url>          URL to test
+  --pattern <regex>    Regex for untranslated keys (default: UPPER_SNAKE_CASE)
+  --json               Output as JSON`,
+	},
+	"api-assert": {
+		summary: "Assert on API request/response from the browser",
+		usage: `browse api-assert <url-pattern> [--status <code>] [--timing "<Nms"] [--schema <path>] [--json]
+
+Waits for a matching network request and validates assertions.
+
+Flags:
+  --status <code>            Expected HTTP status code
+  --method <method>          Match HTTP method
+  --schema <path>            JSON Schema file for response validation
+  --timing "<Nms"            Max response time
+  --body-contains <string>   Response must contain string
+  --max-size <size>          Max response size (e.g., 500kb)
+  --header <name: value>     Expected response header
+  --timeout <ms>             Wait timeout (default: 10000)
+
+Examples:
+  browse api-assert /api/users --status 200 --timing "<500ms"
+  browse api-assert /api/submit --method POST --status 201`,
+	},
+	"design-audit": {
+		summary: "Compare page styles against design tokens",
+		usage: `browse design-audit --tokens <tokens.json> [--check colors,fonts] [--selector <sel>] [--json]
+browse design-audit --extract [--json]
+
+Flags:
+  --tokens <path>      Design tokens JSON file
+  --check <list>       Audit categories (colors, fonts)
+  --selector <sel>     Scope to CSS selector
+  --extract            Extract styles only (no comparison)
+  --json               Output as JSON`,
+	},
+	"doc-capture": {
+		summary: "Capture annotated screenshots for documentation",
+		usage: `browse doc-capture --flow <flow.json> --output <dir> [--markdown <file>] [--update]
+
+Flags:
+  --flow <path>        Doc-capture flow file
+  --output <dir>       Output directory for screenshots
+  --markdown <file>    Generate markdown with image references
+  --update             Only overwrite changed screenshots
+  --var key=value      Pass variables to flow`,
+	},
+	gesture: {
+		summary: "Perform touch gestures",
+		usage: `browse gesture <type> [args]
+
+Types:
+  swipe <direction> [@ref]     Swipe left/right/up/down
+  long-press <@ref>            Long press an element
+  double-tap <@ref>            Double tap an element
+  drag <@ref> --to <@ref>      Drag element to another
+
+Flags:
+  --speed <fast|slow>    Swipe speed
+  --duration <ms>        Long press duration (default: 500)
+  --distance <px>        Swipe distance (default: 200)`,
+	},
+	devices: {
+		summary: "Browse and search device profiles",
+		usage: `browse devices <subcommand>
+
+Subcommands:
+  list                  List all available device profiles
+  search <query>        Search by name (e.g., "iphone")
+  info <name>           Show device details
+
+Use with --device flag:
+  browse goto https://example.com --device "iPhone 15 Pro"`,
+	},
+	monitor: {
+		summary: "Scheduled site monitoring with alerts",
+		usage: `browse monitor <check|history|status> [--config monitor.json]
+
+Subcommands:
+  check                Run all site checks once
+  history [--last 24h] View recent check history
+  status               Show monitor configuration
+
+Flags:
+  --config <path>      Monitor config file (default: monitor.json)
+  --last <duration>    Filter history (e.g., 24h, 7d)
+  --site <name>        Filter by site name
+  --json               Output as JSON`,
 	},
 };
 

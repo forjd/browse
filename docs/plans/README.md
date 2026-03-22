@@ -1,10 +1,11 @@
 # Implementation Plans — Feature Gap Closure
 
 **Date:** 2026-03-22
+**Status:** All 20 plans implemented and moved to [archive](../archive/plans/)
 **Based on:** [20-Persona Gap Analysis](../research/feature-gap-analysis-20-personas.md)
 
-This directory contains implementation plans for closing all 20 feature gaps identified
-in the persona-based gap analysis. Plans are organized by priority tier.
+All 20 feature gap plans have been implemented. Plan files have been moved to
+`docs/archive/plans/` for reference. See below for the original index.
 
 ---
 

@@ -589,6 +589,31 @@ Measured with `browse benchmark`:
 | `completions bash\|zsh\|fish` | Output shell completion scripts |
 | `version` | Print version and platform info |
 | `quit` | Stop the daemon |
+| `record start\|stop\|pause\|resume` | Interactive test recorder (`--output`, `--name`) |
+| `crawl <url>` | Multi-page crawl/scrape pipeline (`--depth`, `--extract`, `--paginate`, `--rate-limit`) |
+| `throttle <preset\|off\|status>` | Network throttling (slow-3g, 3g, 4g, wifi, cable) |
+| `offline on\|off` | Toggle offline mode |
+| `do "<instruction>"` | Natural language → browse commands via LLM (`--dry-run`, `--provider`) |
+| `vrt init\|baseline\|check\|update\|list` | Visual regression testing workflow (`--threshold`) |
+| `ci-init` | Scaffold CI/CD config (`--ci github\|gitlab\|circleci`) |
+| `watch <flow-file>` | Watch flow file and re-run on changes |
+| `repl` | Interactive REPL session |
+| `seo [url]` | SEO audit: meta, headings, images, links, structured data (`--json`) |
+| `subscribe` | Real-time event streaming (`--events`, `--level`, `--idle-timeout`) |
+| `dev start\|stop\|status` | Dev server lifecycle management |
+| `compliance [url]` | Cookie consent and privacy compliance audit (`--standard gdpr\|ccpa`) |
+| `security-scan` | Active security scanning: XSS, CSP, clickjacking (`--checks`, `--json`) |
+| `i18n --locales <list>` | Multi-locale testing: translations, RTL, overflow (`--url`, `--json`) |
+| `api-assert <pattern>` | API contract testing from browser (`--status`, `--timing`, `--schema`) |
+| `design-audit --tokens <file>` | Compare live styles against design tokens |
+| `doc-capture --flow <file>` | Automated doc screenshots (`--output`, `--markdown`, `--update`) |
+| `gesture <type>` | Touch gestures: swipe, long-press, double-tap, drag |
+| `devices list\|search\|info` | Browse Playwright device profiles |
+| `monitor check\|history\|status` | Scheduled site monitoring with alerts (`--config`) |
+| `a11y coverage` | Accessibility coverage report |
+| `a11y tree` | Full accessibility tree export |
+| `a11y tab-order` | Keyboard navigation audit |
+| `a11y headings` | Heading hierarchy check |
 
 ## License
 
