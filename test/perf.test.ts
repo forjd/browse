@@ -62,10 +62,13 @@ describe("checkBudget", () => {
 		expect(failures[1].metric).toBe("CLS");
 	});
 
-	test("ignores unknown metric names", () => {
+	test("reports unknown metric names as failures", () => {
 		const metrics = makeMetrics();
 		const budget = [{ metric: "unknown", threshold: 100 }];
-		expect(checkBudget(metrics, budget)).toEqual([]);
+		const failures = checkBudget(metrics, budget);
+		expect(failures).toHaveLength(1);
+		expect(failures[0].metric).toBe("UNKNOWN");
+		expect(failures[0].actual).toBe("N/A");
 	});
 });
 
