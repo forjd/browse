@@ -9,6 +9,8 @@ A fast CLI for browser automation. Wraps Playwright behind a persistent daemon o
 
 Built for AI agents doing QA, but works just as well by hand.
 
+**[Why Browse?](docs/why-browse.md)** — what makes it different for AI agent builders, DevOps, QA, security, accessibility, and more.
+
 ## Install
 
 Requires [Bun](https://bun.sh) >= 1.0.
