@@ -35,3 +35,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # opensrc - source code for packages
 opensrc/
+
+# test artifacts
+recording.flow.json
+test.flow.json
+
+# generated CI configs (created by ci-init command)
+.github/workflows/browse-qa.yml
+.gitlab-ci.yml
+.circleci/config.yml
