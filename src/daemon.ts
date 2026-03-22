@@ -14,21 +14,30 @@ import { cleanupToken, generateToken } from "./auth.ts";
 import { RingBuffer } from "./buffers.ts";
 import { attachCDPConsoleCapture } from "./cdp-console.ts";
 import { handleA11y } from "./commands/a11y.ts";
+import { handleApiAssert as handleApiAssertCmd } from "./commands/api-assert.ts";
 import { handleAssert } from "./commands/assert.ts";
 import { handleAssertAi } from "./commands/assert-ai.ts";
 import { handleAttr } from "./commands/attr.ts";
 import { handleAuthState } from "./commands/auth-state.ts";
 import { handleBack } from "./commands/back.ts";
 import { handleBenchmark } from "./commands/benchmark.ts";
+import { handleCiInit } from "./commands/ci-init.ts";
 import { handleClick } from "./commands/click.ts";
+import { handleCompliance } from "./commands/compliance.ts";
 import { type ConsoleEntry, handleConsole } from "./commands/console.ts";
 import { handleCookies } from "./commands/cookies.ts";
+import { handleCrawl } from "./commands/crawl.ts";
+import { handleDesignAudit } from "./commands/design-audit.ts";
+import { handleDev } from "./commands/dev.ts";
+import { handleDevices } from "./commands/devices.ts";
 import {
 	attachDialogListener,
 	createDialogState,
 	handleDialog,
 } from "./commands/dialog.ts";
 import { handleDiff } from "./commands/diff.ts";
+import { handleDo } from "./commands/do.ts";
+import { handleDocCapture } from "./commands/doc-capture.ts";
 import { handleDownload } from "./commands/download.ts";
 import { handleElementCount } from "./commands/element-count.ts";
 import { handleEval } from "./commands/eval.ts";
@@ -39,20 +48,26 @@ import { handleFlowShare } from "./commands/flow-share.ts";
 import { handleForm } from "./commands/form.ts";
 import { handleForward } from "./commands/forward.ts";
 import { handleFrame } from "./commands/frame.ts";
+import { handleGesture } from "./commands/gesture.ts";
 import { handleGoto } from "./commands/goto.ts";
 import { handleHealthcheck } from "./commands/healthcheck.ts";
 import { handleHover } from "./commands/hover.ts";
 import { handleHtml } from "./commands/html.ts";
+import { handleI18n } from "./commands/i18n.ts";
 import { handleInit } from "./commands/init.ts";
 import { createInterceptState, handleIntercept } from "./commands/intercept.ts";
 import { handleLogin } from "./commands/login.ts";
+import { handleMonitor } from "./commands/monitor.ts";
 import { handleNetwork, type NetworkEntry } from "./commands/network.ts";
+import { handleOffline } from "./commands/offline.ts";
 import { handlePageEval } from "./commands/page-eval.ts";
 import { handlePdf } from "./commands/pdf.ts";
 import { handlePerf } from "./commands/perf.ts";
 import { handlePress } from "./commands/press.ts";
 import { handleQuit } from "./commands/quit.ts";
+import { handleRecord } from "./commands/record.ts";
 import { handleReload } from "./commands/reload.ts";
+import { handleRepl } from "./commands/repl.ts";
 import { handleReplay } from "./commands/replay.ts";
 import { handleReport } from "./commands/report.ts";
 import { handleResponsive } from "./commands/responsive.ts";
@@ -60,7 +75,9 @@ import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleScreenshots } from "./commands/screenshots.ts";
 import { handleScroll } from "./commands/scroll.ts";
 import { handleSecurity } from "./commands/security.ts";
+import { handleSecurityScan } from "./commands/security-scan.ts";
 import { handleSelect } from "./commands/select.ts";
+import { handleSeo } from "./commands/seo.ts";
 import {
 	handleSession,
 	type Session,
@@ -68,16 +85,20 @@ import {
 } from "./commands/session.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import { handleStorage } from "./commands/storage.ts";
+import { handleSubscribe } from "./commands/subscribe.ts";
 import { handleTab, type TabRegistry, type TabState } from "./commands/tab.ts";
 import { handleTestMatrix } from "./commands/test-matrix.ts";
 import { handleText } from "./commands/text.ts";
+import { handleThrottle } from "./commands/throttle.ts";
 import { handleTitle } from "./commands/title.ts";
 import { createTraceState, handleTrace } from "./commands/trace.ts";
 import { handleUpload } from "./commands/upload.ts";
 import { handleUrl } from "./commands/url.ts";
 import { createVideoState, handleVideo } from "./commands/video.ts";
 import { handleViewport } from "./commands/viewport.ts";
+import { handleVrt } from "./commands/vrt.ts";
 import { handleWait } from "./commands/wait.ts";
+import { handleWatch } from "./commands/watch.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import { generateCompletions } from "./completions.ts";
 import type { BrowseConfig, BrowserName, ProxyConfig } from "./config.ts";
@@ -188,6 +209,64 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	security: ["--json"],
 	responsive: ["--breakpoints", "--url", "--out", "--json"],
 	extract: ["--filter", "--attr", "--csv", "--json"],
+	record: ["--output", "--name"],
+	throttle: ["--download", "--upload", "--latency"],
+	offline: [],
+	crawl: [
+		"--depth",
+		"--extract",
+		"--paginate",
+		"--max-pages",
+		"--rate-limit",
+		"--output",
+		"--include",
+		"--exclude",
+		"--same-origin",
+		"--dry-run",
+		"--robots",
+		"--json",
+	],
+	do: [
+		"--dry-run",
+		"--provider",
+		"--model",
+		"--base-url",
+		"--verbose",
+		"--env",
+	],
+	vrt: ["--url", "--threshold", "--all", "--only", "--json"],
+	"ci-init": ["--ci", "--force"],
+	watch: ["--var"],
+	repl: [],
+	seo: ["--check", "--score", "--json"],
+	subscribe: ["--events", "--level", "--status", "--idle-timeout"],
+	dev: ["--flow"],
+	compliance: ["--standard", "--check", "--json"],
+	"security-scan": ["--checks", "--verbose", "--json"],
+	i18n: ["--locales", "--url", "--pattern", "--locale", "--json"],
+	"api-assert": [
+		"--status",
+		"--method",
+		"--schema",
+		"--timing",
+		"--body-contains",
+		"--body-not-contains",
+		"--max-size",
+		"--header",
+		"--json",
+	],
+	"design-audit": ["--tokens", "--check", "--selector", "--extract", "--json"],
+	"doc-capture": [
+		"--flow",
+		"--output",
+		"--markdown",
+		"--update",
+		"--var",
+		"--json",
+	],
+	gesture: ["--speed", "--duration", "--distance", "--to"],
+	devices: [],
+	monitor: ["--config", "--last", "--site", "--json"],
 };
 
 export type DaemonOptions = {
@@ -785,8 +864,7 @@ export async function startServer(
 									? { userAgent: stealthOpts.userAgent }
 									: undefined,
 								proxyConfig,
-								passthroughContextOptions:
-									config?.playwright?.contextOptions,
+								passthroughContextOptions: config?.playwright?.contextOptions,
 							},
 						);
 					case "init":
@@ -862,6 +940,74 @@ export async function startServer(
 						return handleExtract(page, request.args, {
 							json: request.json,
 						});
+					case "crawl":
+						return handleCrawl(page, request.args, {
+							json: request.json,
+						});
+					case "record":
+						return handleRecord(page, request.args);
+					case "throttle":
+						return handleThrottle(page, request.args);
+					case "offline":
+						return handleOffline(page, request.args);
+					case "do":
+						return handleDo(page, request.args);
+					case "vrt":
+						return handleVrt(page, request.args, {
+							json: request.json,
+						});
+					case "ci-init":
+						return handleCiInit(page, request.args);
+					case "watch":
+						return handleWatch(page, request.args);
+					case "repl":
+						return handleRepl(page, request.args);
+					case "seo":
+						return handleSeo(page, request.args, {
+							json: request.json,
+						});
+					case "subscribe":
+						return handleSubscribe(page, request.args);
+					case "dev":
+						return handleDev(page, request.args, {
+							config,
+						});
+					case "compliance":
+						return handleCompliance(
+							page,
+							request.args,
+							{
+								context: sessionContext,
+								networkBuffer: getActiveNetworkBuffer(session),
+							},
+							{ json: request.json },
+						);
+					case "security-scan":
+						return handleSecurityScan(page, request.args, {
+							json: request.json,
+						});
+					case "i18n":
+						return handleI18n(page, request.args, {
+							json: request.json,
+						});
+					case "api-assert":
+						return handleApiAssertCmd(page, request.args, {
+							json: request.json,
+						});
+					case "design-audit":
+						return handleDesignAudit(page, request.args, {
+							json: request.json,
+						});
+					case "doc-capture":
+						return handleDocCapture(page, request.args, {
+							json: request.json,
+						});
+					case "gesture":
+						return handleGesture(page, request.args);
+					case "devices":
+						return handleDevices(page, request.args);
+					case "monitor":
+						return handleMonitor(page, request.args);
 					case "quit":
 						return handleQuit();
 					default:

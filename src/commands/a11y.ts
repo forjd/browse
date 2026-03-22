@@ -43,6 +43,43 @@ export async function handleA11y(
 		new AxeBuilder(opts) as ReturnType<AxeBuilderFactory>,
 	options?: { json?: boolean },
 ): Promise<Response> {
+	// Check for new sub-commands
+	const sub = args[0];
+	if (sub === "coverage") {
+		const { computeA11yCoverage, formatCoverageReport } = await import(
+			"../a11y-coverage.ts"
+		);
+		const result = await computeA11yCoverage(page);
+		if (options?.json) return { ok: true, data: JSON.stringify(result) };
+		return { ok: true, data: formatCoverageReport(result) };
+	}
+
+	if (sub === "tree") {
+		try {
+			const snapshot = await page.accessibility.snapshot({
+				interestingOnly: false,
+			});
+			if (!snapshot) return { ok: true, data: "Empty accessibility tree" };
+			if (options?.json)
+				return { ok: true, data: JSON.stringify(snapshot, null, 2) };
+			return { ok: true, data: formatA11yTree(snapshot, 0) };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return {
+				ok: false,
+				error: `Failed to export accessibility tree: ${message}`,
+			};
+		}
+	}
+
+	if (sub === "tab-order") {
+		return auditTabOrder(page, options?.json ?? false);
+	}
+
+	if (sub === "headings") {
+		return auditHeadings(page, options?.json ?? false);
+	}
+
 	let standard: string | undefined;
 	const jsonOutput = options?.json ?? false;
 	let includeSelector: string | undefined;
@@ -252,4 +289,181 @@ function formatViolations(violations: AxeViolation[]): string {
 	}
 
 	return lines.join("\n").trimEnd();
+}
+
+type A11yNode = {
+	role?: string;
+	name?: string;
+	children?: A11yNode[];
+	focused?: boolean;
+	level?: number;
+};
+
+function formatA11yTree(node: A11yNode, depth: number): string {
+	const lines: string[] = [];
+	const indent = "  ".repeat(depth);
+	const role = node.role ?? "unknown";
+	const name = node.name ? ` "${node.name}"` : "";
+	const focused = node.focused ? " [focused]" : "";
+	const level = node.level ? ` [level=${node.level}]` : "";
+	lines.push(`${indent}${role}${name}${level}${focused}`);
+	if (node.children) {
+		for (const child of node.children) {
+			lines.push(formatA11yTree(child, depth + 1));
+		}
+	}
+	return lines.join("\n");
+}
+
+async function auditTabOrder(page: Page, json: boolean): Promise<Response> {
+	const focusedElements: {
+		index: number;
+		role: string;
+		name: string;
+		visible: boolean;
+	}[] = [];
+
+	try {
+		// Get all focusable elements
+		const focusable = await page.evaluate(() => {
+			const els = document.querySelectorAll(
+				'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+			);
+			return Array.from(els).map((el, i) => ({
+				index: i,
+				tag: el.tagName.toLowerCase(),
+				role: el.getAttribute("role") ?? el.tagName.toLowerCase(),
+				name:
+					el.getAttribute("aria-label") ??
+					(el as HTMLElement).innerText?.trim().slice(0, 40) ??
+					"",
+				hasTabIndex: el.hasAttribute("tabindex"),
+				tabIndex: (el as HTMLElement).tabIndex,
+			}));
+		});
+
+		// Tab through elements (up to 50)
+		const maxTabs = Math.min(focusable.length, 50);
+		for (let i = 0; i < maxTabs; i++) {
+			await page.keyboard.press("Tab");
+			const active = await page.evaluate(() => {
+				const el = document.activeElement;
+				if (!el || el === document.body) return null;
+				const computed = getComputedStyle(el);
+				const hasOutline =
+					computed.outlineStyle !== "none" && computed.outlineWidth !== "0px";
+				const hasBorder = computed.borderStyle !== "none";
+				return {
+					tag: el.tagName.toLowerCase(),
+					role: el.getAttribute("role") ?? el.tagName.toLowerCase(),
+					name:
+						el.getAttribute("aria-label") ??
+						(el as HTMLElement).innerText?.trim().slice(0, 40) ??
+						"",
+					visible: hasOutline || hasBorder,
+				};
+			});
+
+			if (active) {
+				focusedElements.push({
+					index: i + 1,
+					role: active.role,
+					name: active.name,
+					visible: active.visible,
+				});
+			}
+		}
+
+		if (json) {
+			return {
+				ok: true,
+				data: JSON.stringify({
+					tabOrder: focusedElements,
+					totalFocusable: focusable.length,
+					noFocusIndicator: focusedElements.filter((e) => !e.visible).length,
+				}),
+			};
+		}
+
+		const lines = [`Keyboard Tab Order (${focusedElements.length} elements):`];
+		for (const el of focusedElements) {
+			const vis = el.visible ? "visible focus" : "NO visible focus indicator";
+			lines.push(`  ${el.index}. [${el.role}] "${el.name}" — ${vis}`);
+		}
+
+		const noVis = focusedElements.filter((e) => !e.visible).length;
+		const unreachable = focusable.length - focusedElements.length;
+
+		lines.push("");
+		if (noVis > 0) {
+			lines.push(`[WARN] ${noVis} element(s) have no visible focus indicator`);
+		}
+		if (unreachable > 0) {
+			lines.push(
+				`[WARN] ${unreachable} focusable element(s) not reached by Tab`,
+			);
+		}
+		if (noVis === 0 && unreachable === 0) {
+			lines.push("[PASS] All elements reachable with visible focus");
+		}
+
+		return { ok: true, data: lines.join("\n") };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: `Tab order audit failed: ${message}` };
+	}
+}
+
+async function auditHeadings(page: Page, json: boolean): Promise<Response> {
+	const headings = await page.evaluate(() => {
+		const result: { level: number; text: string }[] = [];
+		for (const tag of ["h1", "h2", "h3", "h4", "h5", "h6"]) {
+			for (const el of document.querySelectorAll(tag)) {
+				result.push({
+					level: Number.parseInt(tag[1], 10),
+					text: (el as HTMLElement).innerText?.trim().slice(0, 80) ?? "",
+				});
+			}
+		}
+		// Sort by document order
+		return result;
+	});
+
+	// Check for issues
+	const h1Count = headings.filter((h) => h.level === 1).length;
+	const issues: string[] = [];
+
+	if (h1Count === 0) issues.push("No H1 found");
+	else if (h1Count > 1) issues.push(`Multiple H1 tags (${h1Count})`);
+
+	for (let i = 1; i < headings.length; i++) {
+		if (headings[i].level > headings[i - 1].level + 1) {
+			issues.push(
+				`Heading skip: H${headings[i - 1].level} -> H${headings[i].level} at "${headings[i].text.slice(0, 30)}"`,
+			);
+		}
+	}
+
+	if (json) {
+		return {
+			ok: true,
+			data: JSON.stringify({ headings, issues }),
+		};
+	}
+
+	const lines = ["Heading Hierarchy:"];
+	for (const h of headings) {
+		const indent = "  ".repeat(h.level);
+		lines.push(`${indent}H${h.level}: ${h.text}`);
+	}
+	lines.push("");
+	if (issues.length > 0) {
+		for (const issue of issues) {
+			lines.push(`[WARN] ${issue}`);
+		}
+	} else {
+		lines.push("[PASS] Heading hierarchy is correct");
+	}
+
+	return { ok: true, data: lines.join("\n") };
 }

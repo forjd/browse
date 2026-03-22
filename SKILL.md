@@ -63,7 +63,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Auth** | `login --env <name>`, `auth-state save/load <path>` |
 | **Tabs** | `tab list/new/switch/close` |
 | **Assert** | `assert visible/text-contains/url-contains/...`, `assert-ai "<visual assertion>"` |
-| **Accessibility** | `a11y` (full page), `a11y @eN` (element), `a11y --standard wcag2aa`, `a11y --json` |
+| **Accessibility** | `a11y` (full page), `a11y @eN` (element), `a11y --standard wcag2aa`, `a11y --json`, `a11y coverage`, `a11y tree`, `a11y tab-order`, `a11y headings` |
 | **Performance** | `perf` (Core Web Vitals), `perf --budget lcp=2500,cls=0.1`, `perf --json` |
 | **Security** | `security` (headers, cookies, mixed content), `security --json` |
 | **Responsive** | `responsive` (multi-viewport screenshots), `responsive --breakpoints 320x568,1920x1080`, `responsive --url <url>` |
@@ -72,6 +72,25 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Sessions** | `session list/create/close`, `--session <name>` on any command |
 | **Tracing** | `trace start` (`--screenshots`, `--snapshots`), `trace stop --out <path>`, `trace view [<path>] --latest --port <n>`, `trace list`, `trace status` |
 | **Video** | `video start [--size WxH]`, `video stop [--out <path>]`, `video status`, `video list` |
+| **Crawl** | `crawl <url>` (`--depth`, `--extract table\|links\|meta\|text`, `--paginate`, `--rate-limit`, `--output`, `--dry-run`) |
+| **Record** | `record start` (`--output`, `--name`), `record stop`, `record pause/resume` |
+| **Network Sim** | `throttle <preset\|off\|status>` (slow-3g, 3g, 4g, wifi, cable), `offline on/off` |
+| **NL Commands** | `do "<instruction>"` (`--dry-run`, `--provider`, `--model`) |
+| **VRT** | `vrt init`, `vrt baseline`, `vrt check` (`--threshold`), `vrt update` (`--all`), `vrt list` |
+| **SEO** | `seo [url]` (`--check`, `--score`, `--json`) |
+| **Compliance** | `compliance [url]` (`--standard gdpr\|ccpa\|eprivacy`, `--json`) |
+| **Security Scan** | `security-scan` (`--checks xss,csp,clickjack,forms`, `--verbose`, `--json`) |
+| **i18n** | `i18n --locales en,fr,de --url <url>`, `i18n check-keys`, `i18n rtl-check` |
+| **API Assert** | `api-assert <url-pattern>` (`--status`, `--timing`, `--schema`, `--body-contains`, `--header`) |
+| **Design** | `design-audit --tokens <file>`, `design-audit --extract` |
+| **Doc Capture** | `doc-capture --flow <file> --output <dir>` (`--markdown`, `--update`) |
+| **Gestures** | `gesture swipe <dir>`, `gesture long-press @eN`, `gesture double-tap @eN`, `gesture drag @eN --to @eN` |
+| **Devices** | `devices list`, `devices search <query>`, `devices info <name>` |
+| **Monitor** | `monitor check --config <file>`, `monitor history`, `monitor status` |
+| **Dev Server** | `dev start`, `dev stop`, `dev status` |
+| **CI/CD** | `ci-init` (`--ci github\|gitlab\|circleci`) |
+| **Events** | `subscribe` (`--events navigation,console,network`, `--level`, `--idle-timeout`) |
+| **Watch/REPL** | `watch <flow-file>`, `repl` |
 | **Tooling** | `init`, `report --out <path>`, `replay --out <path>`, `flow-share export/import/list/install/publish`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status [--json] [--watch] [--exit-code]` |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.
