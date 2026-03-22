@@ -292,15 +292,10 @@ export async function handleSecurityScan(
 					try {
 						const parsed = new URL(href);
 						for (const param of parsed.searchParams.keys()) {
-							if (
-								redirectParams.includes(param.toLowerCase())
-							) {
+							if (redirectParams.includes(param.toLowerCase())) {
 								const val = parsed.searchParams.get(param) ?? "";
 								// Check if the redirect param points to an external domain
-								if (
-									val.startsWith("http") &&
-									!val.startsWith(currentOrigin)
-								) {
+								if (val.startsWith("http") && !val.startsWith(currentOrigin)) {
 									results.push({
 										type: "external-redirect-param",
 										detail: `Link with redirect param "${param}" pointing to external URL: ${val.slice(0, 80)}`,
@@ -315,14 +310,15 @@ export async function handleSecurityScan(
 
 				// Check forms for redirect hidden inputs
 				for (const form of document.querySelectorAll("form")) {
-					const hiddenInputs = form.querySelectorAll(
-						'input[type="hidden"]',
-					);
+					const hiddenInputs = form.querySelectorAll('input[type="hidden"]');
 					for (const input of hiddenInputs) {
 						const name = (input as HTMLInputElement).name.toLowerCase();
 						if (redirectParams.includes(name)) {
 							const value = (input as HTMLInputElement).value;
-							if (value.startsWith("http") && !value.startsWith(currentOrigin)) {
+							if (
+								value.startsWith("http") &&
+								!value.startsWith(currentOrigin)
+							) {
 								results.push({
 									type: "form-redirect-input",
 									detail: `Form has hidden redirect input "${name}" pointing to external URL: ${value.slice(0, 80)}`,
