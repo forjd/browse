@@ -71,3 +71,100 @@ jobs:
         run: |
           gh release upload ${{ needs.release-please.outputs.tag_name }} \
             dist/${{ matrix.artifact }}
+
+  update-homebrew-tap:
+    needs: [release-please, build-binaries]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for release assets to be available
+        run: sleep 10
+
+      - name: Download binaries and compute checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          BINARIES="browse-darwin-arm64 browse-darwin-x86_64 browse-linux-arm64 browse-linux-x86_64"
+          for bin in $BINARIES; do
+            gh release download "$TAG" --repo forjd/browse --pattern "$bin" --dir .
+            sha=$(sha256sum "$bin" | cut -d' ' -f1)
+            echo "${bin//-/_}_sha256=$sha" >> "$GITHUB_ENV"
+          done
+
+          # Extract version from tag (e.g. browse-v0.11.0 -> 0.11.0)
+          echo "VERSION=${TAG#browse-v}" >> "$GITHUB_ENV"
+
+      - name: Generate formula
+        run: |
+          cat > browse.rb << 'FORMULA'
+          class Browse < Formula
+            desc "Fast CLI for browser automation, built on Playwright"
+            homepage "https://github.com/forjd/browse"
+            version "$VERSION"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/forjd/browse/releases/download/$TAG/browse-darwin-arm64"
+                sha256 "$DARWIN_ARM64_SHA"
+              else
+                url "https://github.com/forjd/browse/releases/download/$TAG/browse-darwin-x86_64"
+                sha256 "$DARWIN_X86_64_SHA"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/forjd/browse/releases/download/$TAG/browse-linux-arm64"
+                sha256 "$LINUX_ARM64_SHA"
+              else
+                url "https://github.com/forjd/browse/releases/download/$TAG/browse-linux-x86_64"
+                sha256 "$LINUX_X86_64_SHA"
+              end
+            end
+
+            def install
+              binary = Dir.glob("browse-*").first || "browse"
+              bin.install binary => "browse"
+            end
+
+            def caveats
+              <<~EOS
+                browse requires Bun and a browser to work. After installing:
+                  curl -fsSL https://bun.sh/install | bash
+                  bunx playwright install chrome
+              EOS
+            end
+
+            test do
+              assert_match "browse", shell_output("#{bin}/browse --version")
+            end
+          end
+          FORMULA
+
+          # Substitute variables
+          sed -i "s|\$VERSION|${VERSION}|g" browse.rb
+          sed -i "s|\$TAG|${TAG}|g" browse.rb
+          sed -i "s|\$DARWIN_ARM64_SHA|${browse_darwin_arm64_sha256}|g" browse.rb
+          sed -i "s|\$DARWIN_X86_64_SHA|${browse_darwin_x86_64_sha256}|g" browse.rb
+          sed -i "s|\$LINUX_ARM64_SHA|${browse_linux_arm64_sha256}|g" browse.rb
+          sed -i "s|\$LINUX_X86_64_SHA|${browse_linux_x86_64_sha256}|g" browse.rb
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' browse.rb
+
+      - name: Push to homebrew-tap
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/forjd/homebrew-tap.git tap
+          cp browse.rb tap/Formula/browse.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/browse.rb
+          git commit -m "feat: update browse to ${TAG#browse-v}"
+          git push
