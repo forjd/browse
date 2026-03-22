@@ -99,10 +99,7 @@ export async function handleSubscribe(
 	}
 
 	if (eventTypes.includes("dialog")) {
-		const handler = (dialog: {
-			type: () => string;
-			message: () => string;
-		}) => {
+		const handler = (dialog: { type: () => string; message: () => string }) => {
 			addEvent({
 				ts: new Date().toISOString(),
 				event: "dialog",

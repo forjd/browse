@@ -86,9 +86,7 @@ export async function handleSeo(
 
 			// Headings — collect in DOM order to preserve hierarchy
 			const headings: { level: number; text: string }[] = [];
-			const headingEls = document.querySelectorAll(
-				"h1, h2, h3, h4, h5, h6",
-			);
+			const headingEls = document.querySelectorAll("h1, h2, h3, h4, h5, h6");
 			for (const el of headingEls) {
 				headings.push({
 					level: Number.parseInt(el.tagName[1], 10),
