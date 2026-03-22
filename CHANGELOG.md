@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/forjd/browse/compare/browse-v0.11.0...browse-v0.12.0) (2026-03-22)
+
+
+### Features
+
+* add Homebrew tap as an install method ([8daf6b4](https://github.com/forjd/browse/commit/8daf6b4fd0e4e22f3fee36c5c5859926a473a522))
+
+
+### Bug Fixes
+
+* install Bun via bun.sh instead of setup-bun action ([2bb6c7c](https://github.com/forjd/browse/commit/2bb6c7c220027a61941568d1bd1758ed5cef8b78))
+
 ## [0.11.0](https://github.com/forjd/browse/compare/browse-v0.10.0...browse-v0.11.0) (2026-03-21)
 
 
