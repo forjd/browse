@@ -19,9 +19,14 @@ function mockPage(
 	cdpEntryCount = 2,
 ) {
 	const cdpClient = mockCDPClient(cdpCurrentIndex, cdpEntryCount);
+	let currentUrl = "https://example.com/page2";
 	return {
-		goBack: mock(() => Promise.resolve({})),
+		goBack: mock(() => {
+			currentUrl = "https://example.com/page1";
+			return Promise.resolve({});
+		}),
 		title: mock(() => Promise.resolve("Previous Page")),
+		url: () => currentUrl,
 		context: () => ({
 			newCDPSession: mock(() => Promise.resolve(cdpClient)),
 		}),
@@ -58,6 +63,7 @@ describe("handleBack", () => {
 		const page = mockPage(
 			{
 				goBack: mock(() => Promise.reject(new Error("Navigation failed"))),
+				url: () => "https://example.com/page2",
 			},
 			1,
 			2,
