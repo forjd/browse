@@ -13,6 +13,15 @@ Built for AI agents doing QA, but works just as well by hand.
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install forjd/tap/browse
+bunx playwright install chrome
+```
+
+### Script
+
 Requires [Bun](https://bun.sh) >= 1.0.
 
 ```sh
