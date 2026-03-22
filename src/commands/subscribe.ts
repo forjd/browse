@@ -53,93 +53,91 @@ export async function handleSubscribe(
 
 	// Collect events for the configured timeout window
 	const events: string[] = [];
-	const startTime = Date.now();
 
-	const collectEvents = (): Promise<void> => {
-		return new Promise<void>((resolve) => {
-			const listeners: (() => void)[] = [];
+	// Track listeners for guaranteed cleanup
+	const listeners: (() => void)[] = [];
 
-			const addEvent = (event: Record<string, unknown>) => {
-				events.push(JSON.stringify(event));
-			};
-
-			if (eventTypes.includes("console")) {
-				const handler = (msg: {
-					type: () => string;
-					text: () => string;
-					location: () => { url: string; lineNumber: number };
-				}) => {
-					const level = msg.type();
-					if (levelFilter && level !== levelFilter) return;
-					addEvent({
-						ts: new Date().toISOString(),
-						event: "console",
-						data: {
-							level,
-							text: msg.text(),
-							source: msg.location().url,
-							line: msg.location().lineNumber,
-						},
-					});
-				};
-				page.on("console", handler);
-				listeners.push(() => page.off("console", handler));
-			}
-
-			if (eventTypes.includes("navigation")) {
-				const handler = (frame: { url: () => string }) => {
-					if (frame === page.mainFrame()) {
-						addEvent({
-							ts: new Date().toISOString(),
-							event: "navigation",
-							data: { url: frame.url() },
-						});
-					}
-				};
-				page.on("framenavigated", handler);
-				listeners.push(() => page.off("framenavigated", handler));
-			}
-
-			if (eventTypes.includes("dialog")) {
-				const handler = (dialog: {
-					type: () => string;
-					message: () => string;
-				}) => {
-					addEvent({
-						ts: new Date().toISOString(),
-						event: "dialog",
-						data: { type: dialog.type(), message: dialog.message() },
-					});
-				};
-				page.on("dialog", handler);
-				listeners.push(() => page.off("dialog", handler));
-			}
-
-			if (eventTypes.includes("error")) {
-				const handler = (error: Error) => {
-					addEvent({
-						ts: new Date().toISOString(),
-						event: "error",
-						data: {
-							message: error.message,
-							stack: error.stack,
-						},
-					});
-				};
-				page.on("pageerror", handler);
-				listeners.push(() => page.off("pageerror", handler));
-			}
-
-			// Collect for a short window (max 5 seconds) to capture pending events
-			const collectTime = Math.min(idleTimeout, 5_000);
-			setTimeout(() => {
-				for (const cleanup of listeners) cleanup();
-				resolve();
-			}, collectTime);
-		});
+	const addEvent = (event: Record<string, unknown>) => {
+		events.push(JSON.stringify(event));
 	};
 
-	await collectEvents();
+	if (eventTypes.includes("console")) {
+		const handler = (msg: {
+			type: () => string;
+			text: () => string;
+			location: () => { url: string; lineNumber: number };
+		}) => {
+			const level = msg.type();
+			if (levelFilter && level !== levelFilter) return;
+			addEvent({
+				ts: new Date().toISOString(),
+				event: "console",
+				data: {
+					level,
+					text: msg.text(),
+					source: msg.location().url,
+					line: msg.location().lineNumber,
+				},
+			});
+		};
+		page.on("console", handler);
+		listeners.push(() => page.off("console", handler));
+	}
+
+	if (eventTypes.includes("navigation")) {
+		const handler = (frame: { url: () => string }) => {
+			if (frame === page.mainFrame()) {
+				addEvent({
+					ts: new Date().toISOString(),
+					event: "navigation",
+					data: { url: frame.url() },
+				});
+			}
+		};
+		page.on("framenavigated", handler);
+		listeners.push(() => page.off("framenavigated", handler));
+	}
+
+	if (eventTypes.includes("dialog")) {
+		const handler = (dialog: {
+			type: () => string;
+			message: () => string;
+		}) => {
+			addEvent({
+				ts: new Date().toISOString(),
+				event: "dialog",
+				data: { type: dialog.type(), message: dialog.message() },
+			});
+		};
+		page.on("dialog", handler);
+		listeners.push(() => page.off("dialog", handler));
+	}
+
+	if (eventTypes.includes("error")) {
+		const handler = (error: Error) => {
+			addEvent({
+				ts: new Date().toISOString(),
+				event: "error",
+				data: {
+					message: error.message,
+					stack: error.stack,
+				},
+			});
+		};
+		page.on("pageerror", handler);
+		listeners.push(() => page.off("pageerror", handler));
+	}
+
+	// Collect for a short window (max 5 seconds) to capture pending events
+	const collectTime = Math.min(idleTimeout, 5_000);
+	try {
+		await new Promise<void>((resolve) => {
+			setTimeout(resolve, collectTime);
+		});
+	} finally {
+		// Always clean up listeners to prevent accumulation
+		for (const cleanup of listeners) cleanup();
+	}
 
 	if (events.length === 0) {
 		return {

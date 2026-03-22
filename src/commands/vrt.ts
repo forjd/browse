@@ -214,8 +214,9 @@ async function vrtCheck(
 		};
 	}
 
-	// Determine pages from config for navigation
-	const configPages = config.pages;
+	// Determine pages from config and/or --url args for navigation
+	const urlPages = parseUrlArgs(args);
+	const configPages = urlPages.length > 0 ? urlPages : config.pages;
 	const waitEvent = (config.waitAfterNavigation ?? "domcontentloaded") as
 		| "load"
 		| "domcontentloaded"
@@ -234,7 +235,7 @@ async function vrtCheck(
 	for (const baselineFile of baselineFiles) {
 		const nameWithoutExt = baselineFile.replace(/\.png$/, "");
 
-		// Try to find matching page and viewport from config
+		// Try to find matching page and viewport from config or ad-hoc URLs
 		let navigated = false;
 		for (const p of configPages) {
 			for (const vp of config.viewports) {
@@ -249,6 +250,18 @@ async function vrtCheck(
 				}
 			}
 			if (navigated) break;
+		}
+
+		// If no matching config page found but we have ad-hoc URLs,
+		// try matching by page name prefix only (without viewport suffix)
+		if (!navigated && urlPages.length > 0) {
+			for (const p of urlPages) {
+				if (nameWithoutExt.startsWith(p.name)) {
+					await page.goto(p.url, { waitUntil: waitEvent });
+					navigated = true;
+					break;
+				}
+			}
 		}
 
 		// Capture current screenshot

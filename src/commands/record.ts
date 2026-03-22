@@ -18,7 +18,10 @@ import {
 function parseFlag(args: string[], flag: string): string | null {
 	const idx = args.indexOf(flag);
 	if (idx === -1 || idx + 1 >= args.length) return null;
-	return args[idx + 1];
+	const value = args[idx + 1];
+	// Don't swallow another flag as a value
+	if (value.startsWith("--")) return null;
+	return value;
 }
 
 async function recordStart(page: Page, args: string[]): Promise<Response> {

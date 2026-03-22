@@ -69,8 +69,11 @@ export async function handleThrottle(
 
 	if (sub === "off") {
 		// Get CDP session and disable throttling
+		let cdp: Awaited<
+			ReturnType<ReturnType<typeof page.context>["newCDPSession"]>
+		> | null = null;
 		try {
-			const cdp = await page.context().newCDPSession(page);
+			cdp = await page.context().newCDPSession(page);
 			await cdp.send("Network.emulateNetworkConditions", {
 				offline: false,
 				downloadThroughput: -1,
@@ -81,6 +84,7 @@ export async function handleThrottle(
 			currentThrottle = null;
 			return { ok: true, data: "Throttle: disabled" };
 		} catch (err) {
+			if (cdp) await cdp.detach().catch(() => {});
 			const message = err instanceof Error ? err.message : String(err);
 			if (
 				message.includes("Target does not support") ||
@@ -117,8 +121,11 @@ export async function handleThrottle(
 		};
 	}
 
+	let cdp: Awaited<
+		ReturnType<ReturnType<typeof page.context>["newCDPSession"]>
+	> | null = null;
 	try {
-		const cdp = await page.context().newCDPSession(page);
+		cdp = await page.context().newCDPSession(page);
 		await cdp.send("Network.emulateNetworkConditions", {
 			offline: false,
 			downloadThroughput: download,
@@ -134,6 +141,7 @@ export async function handleThrottle(
 			data: `Throttle: ${presetName ?? "custom"} (${dl} KB/s ↓, ${ul} KB/s ↑, ${latency}ms latency)`,
 		};
 	} catch (err) {
+		if (cdp) await cdp.detach().catch(() => {});
 		const message = err instanceof Error ? err.message : String(err);
 		if (
 			message.includes("Target does not support") ||

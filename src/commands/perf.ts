@@ -124,10 +124,27 @@ export function checkBudget(
 	budget: BudgetRule[],
 ): BudgetFailure[] {
 	const failures: BudgetFailure[] = [];
+	const validMetrics = new Set(["ttfb", "fcp", "lcp", "cls", "dcl", "load"]);
 
 	for (const rule of budget) {
+		if (!validMetrics.has(rule.metric)) {
+			failures.push({
+				metric: rule.metric.toUpperCase(),
+				actual: "N/A",
+				threshold: String(rule.threshold),
+			});
+			continue;
+		}
+
 		const value = getMetricValue(metrics, rule.metric);
-		if (value === undefined) continue;
+		if (value === undefined || value < 0) {
+			failures.push({
+				metric: rule.metric.toUpperCase(),
+				actual: "unavailable",
+				threshold: String(rule.threshold),
+			});
+			continue;
+		}
 
 		if (value > rule.threshold) {
 			const isMs = rule.metric !== "cls";
