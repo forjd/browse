@@ -19,9 +19,14 @@ function mockPage(
 	cdpEntryCount = 1,
 ) {
 	const cdpClient = mockCDPClient(cdpCurrentIndex, cdpEntryCount);
+	let currentUrl = "https://example.com/page1";
 	return {
-		goForward: mock(() => Promise.resolve({})),
+		goForward: mock(() => {
+			currentUrl = "https://example.com/page2";
+			return Promise.resolve({});
+		}),
 		title: mock(() => Promise.resolve("Next Page")),
+		url: () => currentUrl,
 		context: () => ({
 			newCDPSession: mock(() => Promise.resolve(cdpClient)),
 		}),
@@ -58,6 +63,7 @@ describe("handleForward", () => {
 		const page = mockPage(
 			{
 				goForward: mock(() => Promise.reject(new Error("Navigation failed"))),
+				url: () => "https://example.com/page1",
 			},
 			0,
 			2,
