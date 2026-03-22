@@ -84,15 +84,16 @@ export async function handleSeo(
 			}
 			result.twitterCard = twTags;
 
-			// Headings
+			// Headings — collect in DOM order to preserve hierarchy
 			const headings: { level: number; text: string }[] = [];
-			for (const tag of ["h1", "h2", "h3", "h4", "h5", "h6"]) {
-				for (const el of document.querySelectorAll(tag)) {
-					headings.push({
-						level: Number.parseInt(tag[1], 10),
-						text: (el as HTMLElement).innerText?.trim().slice(0, 100) ?? "",
-					});
-				}
+			const headingEls = document.querySelectorAll(
+				"h1, h2, h3, h4, h5, h6",
+			);
+			for (const el of headingEls) {
+				headings.push({
+					level: Number.parseInt(el.tagName[1], 10),
+					text: (el as HTMLElement).innerText?.trim().slice(0, 100) ?? "",
+				});
 			}
 			result.headings = headings;
 
@@ -318,13 +319,10 @@ export async function handleSeo(
 			});
 		}
 
-		// Heading hierarchy
+		// Heading hierarchy — headings are already in DOM order
 		let hasSkip = false;
-		const sortedHeadings = headings.sort(
-			(a, b) => headings.indexOf(a) - headings.indexOf(b),
-		);
-		for (let i = 1; i < sortedHeadings.length; i++) {
-			if (sortedHeadings[i].level > sortedHeadings[i - 1].level + 1) {
+		for (let i = 1; i < headings.length; i++) {
+			if (headings[i].level > headings[i - 1].level + 1) {
 				hasSkip = true;
 				break;
 			}

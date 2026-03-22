@@ -46,19 +46,31 @@ export async function handleCompliance(
 
 	// Navigate to URL if provided
 	const targetUrl = args.find((a) => a.startsWith("http"));
-	if (targetUrl) {
-		await page.goto(targetUrl, {
-			waitUntil: "networkidle",
-			timeout: 30_000,
-		});
+
+	// Use a fresh browser context for compliance auditing to avoid
+	// polluted state (existing cookies, storage) from the current session.
+	const browser = deps.context.browser();
+	const freshContext = browser ? await browser.newContext() : null;
+	const auditContext = freshContext ?? deps.context;
+	let auditPage = page;
+
+	if (freshContext && targetUrl) {
+		auditPage = await freshContext.newPage();
 	}
 
-	const pageUrl = page.url();
-	const checks: ComplianceCheck[] = [];
-
 	try {
+		if (targetUrl) {
+			await auditPage.goto(targetUrl, {
+				waitUntil: "networkidle",
+				timeout: 30_000,
+			});
+		}
+
+		const pageUrl = auditPage.url();
+		const checks: ComplianceCheck[] = [];
+
 		// 1. Pre-consent cookie audit
-		const cookies = await deps.context.cookies(pageUrl);
+		const cookies = await auditContext.cookies(pageUrl);
 		const trackerCookies: {
 			name: string;
 			tracker: string;
@@ -96,7 +108,7 @@ export async function handleCompliance(
 		}
 
 		// 2. Consent banner detection
-		const bannerInfo = await page.evaluate(() => {
+		const bannerInfo = await auditPage.evaluate(() => {
 			// Check for common consent banner markers
 			const markers = [
 				"#onetrust-banner-sdk",
@@ -240,7 +252,7 @@ export async function handleCompliance(
 		}
 
 		// 4. Privacy policy link
-		const privacyLinks = await page.evaluate(() => {
+		const privacyLinks = await auditPage.evaluate(() => {
 			const links = document.querySelectorAll("a");
 			const found: { text: string; href: string }[] = [];
 			for (const link of links) {
@@ -282,12 +294,21 @@ export async function handleCompliance(
 			violations,
 		};
 
+		// Close the fresh context now that auditing is complete
+		if (freshContext) {
+			await freshContext.close();
+		}
+
 		if (jsonOutput) {
 			return { ok: true, data: JSON.stringify(report) };
 		}
 
 		return { ok: true, data: formatComplianceReport(report) };
 	} catch (err) {
+		// Ensure the fresh context is closed even on error
+		if (freshContext) {
+			await freshContext.close().catch(() => {});
+		}
 		const message = err instanceof Error ? err.message : String(err);
 		return {
 			ok: false,

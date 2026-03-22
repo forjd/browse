@@ -538,6 +538,10 @@ export async function startServer(
 		"flow-share",
 		"test-matrix",
 		"diff",
+		"record",
+		"watch",
+		"subscribe",
+		"monitor",
 	]);
 
 	type ConnectionResult = { responseStr: string; quit: boolean };

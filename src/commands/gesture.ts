@@ -113,13 +113,43 @@ async function handleSwipe(page: Page, args: string[]): Promise<Response> {
 	}
 
 	try {
-		// Use touchscreen API
-		await page.touchscreen.tap(startX, startY);
-		// Simulate swipe with mouse drag as fallback
-		await page.mouse.move(startX, startY);
-		await page.mouse.down();
-		await page.mouse.move(endX, endY, { steps });
-		await page.mouse.up();
+		// Emit proper touch events via CDP for accurate mobile simulation
+		let cdp: Awaited<
+			ReturnType<ReturnType<typeof page.context>["newCDPSession"]>
+		> | null = null;
+		try {
+			cdp = await page.context().newCDPSession(page);
+			// Touch start
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchStart",
+				touchPoints: [{ x: startX, y: startY }],
+			});
+
+			// Interpolate touch move events
+			for (let i = 1; i <= steps; i++) {
+				const progress = i / steps;
+				const x = startX + (endX - startX) * progress;
+				const y = startY + (endY - startY) * progress;
+				await cdp.send("Input.dispatchTouchEvent", {
+					type: "touchMove",
+					touchPoints: [{ x, y }],
+				});
+			}
+
+			// Touch end
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchEnd",
+				touchPoints: [],
+			});
+			await cdp.detach();
+		} catch {
+			// Fallback to mouse events for non-Chromium browsers
+			if (cdp) await cdp.detach().catch(() => {});
+			await page.mouse.move(startX, startY);
+			await page.mouse.down();
+			await page.mouse.move(endX, endY, { steps });
+			await page.mouse.up();
+		}
 
 		return {
 			ok: true,
@@ -164,10 +194,30 @@ async function handleLongPress(page: Page, args: string[]): Promise<Response> {
 		const x = box.x + box.width / 2;
 		const y = box.y + box.height / 2;
 
-		await page.mouse.move(x, y);
-		await page.mouse.down();
-		await new Promise((r) => setTimeout(r, duration));
-		await page.mouse.up();
+		// Use CDP touch events for proper mobile simulation
+		let cdp: Awaited<
+			ReturnType<ReturnType<typeof page.context>["newCDPSession"]>
+		> | null = null;
+		try {
+			cdp = await page.context().newCDPSession(page);
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchStart",
+				touchPoints: [{ x, y }],
+			});
+			await new Promise((r) => setTimeout(r, duration));
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchEnd",
+				touchPoints: [],
+			});
+			await cdp.detach();
+		} catch {
+			// Fallback to mouse events for non-Chromium browsers
+			if (cdp) await cdp.detach().catch(() => {});
+			await page.mouse.move(x, y);
+			await page.mouse.down();
+			await new Promise((r) => setTimeout(r, duration));
+			await page.mouse.up();
+		}
 
 		return {
 			ok: true,
@@ -199,7 +249,46 @@ async function handleDoubleTap(page: Page, args: string[]): Promise<Response> {
 			{ name: resolved.name, exact: true },
 		);
 
-		await locator.dblclick({ timeout: 10_000 });
+		const box = await locator.boundingBox();
+		if (!box) {
+			return { ok: false, error: `Could not find bounding box for ${ref}` };
+		}
+
+		const x = box.x + box.width / 2;
+		const y = box.y + box.height / 2;
+
+		// Use CDP touch events for proper double-tap simulation
+		let cdp: Awaited<
+			ReturnType<ReturnType<typeof page.context>["newCDPSession"]>
+		> | null = null;
+		try {
+			cdp = await page.context().newCDPSession(page);
+			// First tap
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchStart",
+				touchPoints: [{ x, y }],
+			});
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchEnd",
+				touchPoints: [],
+			});
+			// Brief pause between taps
+			await new Promise((r) => setTimeout(r, 50));
+			// Second tap
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchStart",
+				touchPoints: [{ x, y }],
+			});
+			await cdp.send("Input.dispatchTouchEvent", {
+				type: "touchEnd",
+				touchPoints: [],
+			});
+			await cdp.detach();
+		} catch {
+			// Fallback to Playwright dblclick for non-Chromium
+			if (cdp) await cdp.detach().catch(() => {});
+			await locator.dblclick({ timeout: 10_000 });
+		}
 
 		return {
 			ok: true,

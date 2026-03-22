@@ -118,10 +118,19 @@ Flags:
 		}
 
 		try {
+			// Apply the requested locale before navigating so the server
+			// can respond with locale-appropriate content/direction.
+			await page.setExtraHTTPHeaders({ "Accept-Language": locale });
 			await page.goto(targetUrl, {
 				waitUntil: "domcontentloaded",
 				timeout: 30_000,
 			});
+
+			// Set the document lang attribute to match the requested locale
+			// so that CSS :lang() selectors and RTL behaviour activate.
+			await page.evaluate((loc) => {
+				document.documentElement.setAttribute("lang", loc);
+			}, locale);
 
 			const rtlInfo = await page.evaluate(() => {
 				const html = document.documentElement;
@@ -185,8 +194,13 @@ Flags:
 				lines.push("  [PASS] No text overflow detected");
 			}
 
+			// Reset headers after RTL check
+			await page.setExtraHTTPHeaders({});
+
 			return { ok: true, data: lines.join("\n") };
 		} catch (err) {
+			// Reset headers even on failure
+			await page.setExtraHTTPHeaders({}).catch(() => {});
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: `RTL check failed: ${message}` };
 		}

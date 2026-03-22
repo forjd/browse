@@ -262,9 +262,90 @@ export async function handleSecurityScan(
 
 		// Open redirect
 		if (enabledChecks.has("redirect")) {
+			const findings: ScanFinding[] = [];
+
+			// Check for common open redirect patterns in links and forms
+			const redirectData = await page.evaluate((url) => {
+				const results: { type: string; detail: string }[] = [];
+				const currentOrigin = new URL(url).origin;
+
+				// Check all links for redirect parameters
+				const links = document.querySelectorAll("a[href]");
+				const redirectParams = [
+					"redirect",
+					"redirect_uri",
+					"return",
+					"return_to",
+					"returnUrl",
+					"next",
+					"url",
+					"goto",
+					"target",
+					"rurl",
+					"dest",
+					"destination",
+					"continue",
+				];
+
+				for (const link of links) {
+					const href = (link as HTMLAnchorElement).href;
+					try {
+						const parsed = new URL(href);
+						for (const param of parsed.searchParams.keys()) {
+							if (
+								redirectParams.includes(param.toLowerCase())
+							) {
+								const val = parsed.searchParams.get(param) ?? "";
+								// Check if the redirect param points to an external domain
+								if (
+									val.startsWith("http") &&
+									!val.startsWith(currentOrigin)
+								) {
+									results.push({
+										type: "external-redirect-param",
+										detail: `Link with redirect param "${param}" pointing to external URL: ${val.slice(0, 80)}`,
+									});
+								}
+							}
+						}
+					} catch {
+						// skip invalid URLs
+					}
+				}
+
+				// Check forms for redirect hidden inputs
+				for (const form of document.querySelectorAll("form")) {
+					const hiddenInputs = form.querySelectorAll(
+						'input[type="hidden"]',
+					);
+					for (const input of hiddenInputs) {
+						const name = (input as HTMLInputElement).name.toLowerCase();
+						if (redirectParams.includes(name)) {
+							const value = (input as HTMLInputElement).value;
+							if (value.startsWith("http") && !value.startsWith(currentOrigin)) {
+								results.push({
+									type: "form-redirect-input",
+									detail: `Form has hidden redirect input "${name}" pointing to external URL: ${value.slice(0, 80)}`,
+								});
+							}
+						}
+					}
+				}
+
+				return results;
+			}, pageUrl);
+
+			for (const item of redirectData) {
+				findings.push({
+					type: "redirect",
+					severity: "medium",
+					description: item.detail,
+				});
+			}
+
 			report.scans.redirect = {
-				status: "pass",
-				findings: [],
+				status: findings.length > 0 ? "warn" : "pass",
+				findings,
 			};
 		}
 

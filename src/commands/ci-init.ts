@@ -29,16 +29,9 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Run healthcheck
-        run: ./dist/browse healthcheck --reporter junit --out results.xml
+        run: ./dist/browse healthcheck --reporter junit
         env:
           BROWSE_HEADED: "0"
-
-      - name: Upload results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: qa-results
-          path: results.xml
 `;
 
 const GITLAB_CI_TEMPLATE = `browse-qa:
@@ -50,10 +43,7 @@ const GITLAB_CI_TEMPLATE = `browse-qa:
     - ./setup.sh
     - bunx playwright install --with-deps chromium
   script:
-    - ./dist/browse healthcheck --reporter junit --out results.xml
-  artifacts:
-    reports:
-      junit: results.xml
+    - ./dist/browse healthcheck --reporter junit
   variables:
     BROWSE_HEADED: "0"
 `;
@@ -77,11 +67,9 @@ jobs:
             ./setup.sh
       - run:
           name: Run QA
-          command: ./dist/browse healthcheck --reporter junit --out results.xml
+          command: ./dist/browse healthcheck --reporter junit
           environment:
             BROWSE_HEADED: "0"
-      - store_test_results:
-          path: results.xml
 
 workflows:
   qa:
@@ -107,12 +95,12 @@ function generateCI(ci: CISystem): { path: string; content: string } {
 			};
 		case "gitlab":
 			return {
-				path: ".gitlab-ci.browse.yml",
+				path: ".gitlab-ci.yml",
 				content: GITLAB_CI_TEMPLATE,
 			};
 		case "circleci":
 			return {
-				path: ".circleci/browse-qa.yml",
+				path: ".circleci/config.yml",
 				content: CIRCLECI_TEMPLATE,
 			};
 	}

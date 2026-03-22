@@ -11,6 +11,14 @@ export type DevServerConfig = {
 	cwd?: string;
 };
 
+// Track spawned dev server processes for cleanup
+let activeDevProcess: {
+	proc: ReturnType<typeof Bun.spawn>;
+	url: string;
+	command: string;
+	pid: number;
+} | null = null;
+
 async function checkUrl(url: string): Promise<boolean> {
 	try {
 		const resp = await fetch(url, { signal: AbortSignal.timeout(3_000) });
@@ -66,10 +74,13 @@ Subcommands:
 				};
 			}
 			const running = await checkUrl(devServer.url);
+			const tracked = activeDevProcess
+				? ` (tracked PID: ${activeDevProcess.pid})`
+				: "";
 			return {
 				ok: true,
 				data: running
-					? `Dev server: running at ${devServer.url}`
+					? `Dev server: running at ${devServer.url}${tracked}`
 					: `Dev server: not running (${devServer.url})`,
 			};
 		}
@@ -97,12 +108,21 @@ Subcommands:
 			// Spawn the dev server
 			try {
 				const env = { ...process.env, ...(devServer.env ?? {}) };
-				const proc = Bun.spawn(devServer.command.split(" "), {
+				// Use shell to handle quoted arguments and paths correctly
+				const proc = Bun.spawn(["sh", "-c", devServer.command], {
 					cwd: devServer.cwd ?? process.cwd(),
 					env,
 					stdout: "ignore",
 					stderr: "ignore",
 				});
+
+				// Track the spawned process for later cleanup
+				activeDevProcess = {
+					proc,
+					url: devServer.url,
+					command: devServer.command,
+					pid: proc.pid,
+				};
 
 				// Poll for readiness
 				const timeout = devServer.timeout ?? 30_000;
@@ -117,6 +137,7 @@ Subcommands:
 
 				if (!ready) {
 					proc.kill();
+					activeDevProcess = null;
 					return {
 						ok: false,
 						error: `Dev server failed to start within ${timeout}ms. Command: ${devServer.command}`,
@@ -126,7 +147,7 @@ Subcommands:
 				const elapsed = ((Date.now() - start) / 1000).toFixed(1);
 				return {
 					ok: true,
-					data: `Dev server ready at ${devServer.url} (${elapsed}s)`,
+					data: `Dev server ready at ${devServer.url} (PID: ${proc.pid}, ${elapsed}s)`,
 				};
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
@@ -138,10 +159,26 @@ Subcommands:
 		}
 
 		case "stop": {
-			return {
-				ok: true,
-				data: "Dev server stop: use Ctrl+C or kill the process manually.\nBrowse does not track the dev server PID across daemon restarts.",
-			};
+			if (!activeDevProcess) {
+				return {
+					ok: true,
+					data: "No tracked dev server process to stop.\nIf the server was started externally, use Ctrl+C or kill the process manually.",
+				};
+			}
+
+			try {
+				activeDevProcess.proc.kill();
+				const msg = `Dev server stopped (PID: ${activeDevProcess.pid}, command: ${activeDevProcess.command})`;
+				activeDevProcess = null;
+				return { ok: true, data: msg };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				activeDevProcess = null;
+				return {
+					ok: false,
+					error: `Failed to stop dev server: ${message}`,
+				};
+			}
 		}
 
 		default:
