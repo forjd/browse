@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/forjd/browse/compare/browse-v0.12.0...browse-v0.12.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* prevent back/forward commands from hanging on bfcache pages ([1a9f6ce](https://github.com/forjd/browse/commit/1a9f6ce9cfa4ff5c045c904524c3fae5446178c3))
+
 ## [0.12.0](https://github.com/forjd/browse/compare/browse-v0.11.0...browse-v0.12.0) (2026-03-22)
 
 
