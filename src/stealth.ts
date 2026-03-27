@@ -208,11 +208,9 @@ export async function applyStealthScripts(
 
 			// 1. Remove Playwright globals that fpscanner detects
 			try {
-				// biome-ignore lint/performance/noDelete: must remove from window
 				delete (globalThis as Record<string, unknown>).__pwInitScripts;
 			} catch {}
 			try {
-				// biome-ignore lint/performance/noDelete: must remove from window
 				delete (globalThis as Record<string, unknown>).__playwright__binding__;
 			} catch {}
 
