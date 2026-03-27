@@ -26,8 +26,7 @@
 	"dependencies": {
 		"@axe-core/playwright": "^4.11.1",
 		"playwright": "npm:patchright@1.58.2",
-		"playwright-core": "npm:patchright-core@1.58.2",
-		"user-agents": "^1.1.669"
+		"playwright-core": "npm:patchright-core@1.58.2"
 	},
 	"patchedDependencies": {
 		"patchright-core@1.58.2": "patches/patchright-core@1.58.2.patch",
