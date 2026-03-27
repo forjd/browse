@@ -128,6 +128,88 @@ describe("applyStealthScripts", () => {
 		expect(source).toContain("Receiving end does not exist");
 	});
 
+	test("init script does not touch navigator.webdriver", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		// Should not define a getter for webdriver — leave it to the C++ flag
+		expect(source).not.toContain('makeNativeGetter("webdriver"');
+		expect(source).not.toContain('makeNativeGetter("webdriver"');
+	});
+
+	test("init script overrides NavigatorUAData.prototype getters", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		// Should override prototype getters directly, not create a fake object
+		expect(source).toContain("NavigatorUAData");
+		expect(source).toContain("uadProto");
+	});
+
+	test("init script includes connection.downlinkMax patch", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		expect(source).toContain("downlinkMax");
+	});
+
+	test("init script includes screen dimension spoofing", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		// Should spoof screen.width and screen.height, not just availHeight
+		expect(source).toContain("spoofedW");
+		expect(source).toContain("spoofedH");
+	});
+
 	test("init script includes screen.availHeight patch", async () => {
 		const addInitScript = mock(() => Promise.resolve());
 		const context = { addInitScript } as never;
