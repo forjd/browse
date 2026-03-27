@@ -1220,7 +1220,12 @@ export async function startDaemon(
 		stealthOpts = await buildStealthUA("chrome");
 		launchOptions.channel = "chrome";
 		launchOptions.args = stealthArgs(stealthOpts.userAgent);
-		launchOptions.ignoreDefaultArgs = ["--enable-automation"];
+		launchOptions.ignoreDefaultArgs = [
+			"--enable-automation",
+			"--disable-popup-blocking",
+			"--disable-component-update",
+			"--disable-default-apps",
+		];
 		launchOptions.userAgent = stealthOpts.userAgent;
 	}
 

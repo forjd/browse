@@ -130,7 +130,11 @@
 		});
 	}
 
-	// --- 4. SharedWorker interception ---
+	// --- 4. Remove Playwright globals that fpscanner detects ---
+	try { delete window.__pwInitScripts; } catch (_) {}
+	try { delete window.__playwright__binding__; } catch (_) {}
+
+	// --- 5. SharedWorker interception ---
 	// Note: ServiceWorker UA is handled by the --user-agent= Chromium flag
 	// at the browser process level (see stealthArgs in stealth.ts).
 	// Blob URLs cannot register ServiceWorkers, so JS-level interception

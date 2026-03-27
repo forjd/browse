@@ -206,13 +206,23 @@ export async function applyStealthScripts(
 				return fn;
 			}
 
-			// 1. navigator.webdriver → false
+			// 1. Remove Playwright globals that fpscanner detects
+			try {
+				// biome-ignore lint/performance/noDelete: must remove from window
+				delete (globalThis as Record<string, unknown>).__pwInitScripts;
+			} catch {}
+			try {
+				// biome-ignore lint/performance/noDelete: must remove from window
+				delete (globalThis as Record<string, unknown>).__playwright__binding__;
+			} catch {}
+
+			// 2. navigator.webdriver → false
 			Object.defineProperty(Navigator.prototype, "webdriver", {
 				get: makeNativeGetter("webdriver", Navigator.prototype, () => false),
 				configurable: true,
 			});
 
-			// 2. navigator.userAgentData (Chromium ≥90)
+			// 3. navigator.userAgentData (Chromium ≥90)
 			if ("userAgentData" in navigator) {
 				const uaDataPlatform =
 					navigatorPlatform === "MacIntel"
@@ -297,7 +307,7 @@ export async function applyStealthScripts(
 				});
 			}
 
-			// 3. navigator.userAgent
+			// 4. navigator.userAgent
 			Object.defineProperty(Navigator.prototype, "userAgent", {
 				get: makeNativeGetter(
 					"userAgent",
@@ -333,6 +343,12 @@ function resolveExtensionDir(name: string): string | null {
  */
 export function stealthArgs(userAgent?: string): string[] {
 	const args: string[] = [];
+
+	// Disable the Blink AutomationControlled feature. This prevents the
+	// engine from setting navigator.webdriver = true at the C++ level,
+	// covering all execution contexts (main, workers, iframes) without
+	// needing JS-level prototype patching for this property.
+	args.push("--disable-blink-features=AutomationControlled");
 
 	// Set UA at the Chromium process level so ALL contexts — including
 	// ServiceWorkers and SharedWorkers — see the clean UA string.
