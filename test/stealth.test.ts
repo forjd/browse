@@ -106,6 +106,47 @@ describe("applyStealthScripts", () => {
 		expect(source).not.toContain("f.toString =");
 	});
 
+	test("init script includes chrome.runtime stub", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		// Bun's toString may rename variables, so check for the runtime stub's signature
+		expect(source).toContain("runtime");
+		expect(source).toContain("sendMessage");
+		expect(source).toContain("Receiving end does not exist");
+	});
+
+	test("init script includes screen.availHeight patch", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		expect(source).toContain("availHeight");
+	});
+
 	test("passes chromeFullVersion for HEV fullVersionList", async () => {
 		const addInitScript = mock(() => Promise.resolve());
 		const context = { addInitScript } as never;

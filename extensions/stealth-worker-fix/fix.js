@@ -192,7 +192,46 @@
 		}
 	}
 
-	// --- 6. SharedWorker interception ---
+	// --- 6. chrome.runtime stub ---
+	// Real Chrome always exposes chrome.runtime, even without extensions.
+	if (typeof chrome !== "undefined") {
+		if (!chrome.runtime) {
+			chrome.runtime = {};
+		}
+		var rt = chrome.runtime;
+		if (!("connect" in rt)) {
+			rt.connect = makeNativeFunction("connect", function connect() {
+				throw new Error("Could not establish connection. Receiving end does not exist.");
+			});
+		}
+		if (!("sendMessage" in rt)) {
+			rt.sendMessage = makeNativeFunction("sendMessage", function sendMessage() {
+				throw new Error("Could not establish connection. Receiving end does not exist.");
+			});
+		}
+	}
+
+	// --- 7. screen.availWidth/availHeight ---
+	// In headless, these equal screen dimensions exactly (no OS chrome).
+	if (screen.availHeight === screen.height) {
+		var dockOffset = navPlatform === "MacIntel" ? 74
+			: navPlatform === "Win32" ? 40 : 37;
+		var menuBarOffset = navPlatform === "MacIntel" ? 37 : 0;
+		var totalOffset = dockOffset + menuBarOffset;
+
+		Object.defineProperty(Screen.prototype, "availHeight", {
+			get: makeNativeGetter("availHeight", Screen.prototype,
+				function() { return screen.height - totalOffset; }),
+			configurable: true,
+		});
+		Object.defineProperty(Screen.prototype, "availTop", {
+			get: makeNativeGetter("availTop", Screen.prototype,
+				function() { return menuBarOffset; }),
+			configurable: true,
+		});
+	}
+
+	// --- 8. SharedWorker interception ---
 	// Note: ServiceWorker UA is handled by the --user-agent= Chromium flag
 	// at the browser process level (see stealthArgs in stealth.ts).
 	// Blob URLs cannot register ServiceWorkers, so JS-level interception
