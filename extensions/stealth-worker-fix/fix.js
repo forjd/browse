@@ -6,6 +6,7 @@
 // 1. Navigator.prototype.userAgent — removes HeadlessChrome
 // 2. Navigator.prototype.userAgentData — consistent brands/versions
 // 3. SharedWorker constructor — wraps with UA patches for worker contexts
+// ServiceWorker UA is handled by --user-agent= Chromium flag (stealth.ts).
 //
 // Property descriptors use native-style getters with individually
 // spoofed toString methods to avoid global Function.prototype.toString
@@ -115,7 +116,11 @@
 		});
 	}
 
-	// --- 3. Worker interception (SharedWorker + ServiceWorker) ---
+	// --- 3. SharedWorker interception ---
+	// Note: ServiceWorker UA is handled by the --user-agent= Chromium flag
+	// at the browser process level (see stealthArgs in stealth.ts).
+	// Blob URLs cannot register ServiceWorkers, so JS-level interception
+	// is not viable for SW contexts.
 
 	// Build self-contained patch code for injection into worker contexts
 	var workerPatchCode = [
@@ -191,64 +196,8 @@
 	});
 
 	window.SharedWorker = PatchedSharedWorker;
-	} // end SharedWorker
-
-	// --- 4. ServiceWorker interception ---
-	// Intercept navigator.serviceWorker.register() to wrap SW scripts
-	// with navigator patches via a blob URL + importScripts.
-	if (navigator.serviceWorker) {
-		var origRegister = ServiceWorkerContainer.prototype.register;
-		var patchedRegister = makeNativeFunction(
-			"register",
-			function register(scriptURL, options) {
-				var resolvedURL;
-				try {
-					resolvedURL = new URL(scriptURL, location.href).href;
-				} catch (_) {
-					return origRegister.call(this, scriptURL, options);
-				}
-
-				// SW scripts always use importScripts (no ES module support in
-				// most SW contexts), but respect type: "module" if specified.
-				var wrapperCode;
-				if (options && options.type === "module") {
-					wrapperCode =
-						workerPatchCode +
-						"\nimport " +
-						JSON.stringify(resolvedURL) +
-						";";
-				} else {
-					wrapperCode =
-						workerPatchCode +
-						"\nimportScripts(" +
-						JSON.stringify(resolvedURL) +
-						");";
-				}
-
-				var blob = new Blob([wrapperCode], {
-					type: "application/javascript",
-				});
-				var blobURL = URL.createObjectURL(blob);
-
-				// SW registration requires a scope — preserve the original
-				// script's directory as default scope if not explicitly set.
-				var newOpts = Object.assign({}, options || {});
-				if (!newOpts.scope) {
-					// Default scope is the directory of the original script
-					var lastSlash = resolvedURL.lastIndexOf("/");
-					if (lastSlash !== -1) {
-						newOpts.scope = resolvedURL.substring(0, lastSlash + 1);
-					}
-				}
-
-				return origRegister.call(this, blobURL, newOpts).finally(
-					() => {
-						URL.revokeObjectURL(blobURL);
-					},
-				);
-			},
-		);
-
-		ServiceWorkerContainer.prototype.register = patchedRegister;
+	} catch (_) {
+		// SharedWorker may not be available in all contexts
+	}
 	}
 })();

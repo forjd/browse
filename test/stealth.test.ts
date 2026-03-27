@@ -15,6 +15,19 @@ describe("stealthArgs", () => {
 			expect(extArg).toContain("stealth-worker-fix");
 		}
 	});
+
+	test("includes --user-agent flag when UA is provided", () => {
+		const ua =
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/146.0.0.0 Safari/537.36";
+		const args = stealthArgs(ua);
+		expect(args).toContain(`--user-agent=${ua}`);
+	});
+
+	test("omits --user-agent flag when no UA is provided", () => {
+		const args = stealthArgs();
+		const uaArg = args.find((a) => a.startsWith("--user-agent="));
+		expect(uaArg).toBeUndefined();
+	});
 });
 
 describe("applyStealthScripts", () => {
