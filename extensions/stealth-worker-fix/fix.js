@@ -3,9 +3,10 @@
 // This extension is the primary stealth mechanism because addInitScript
 // does not work reliably on Playwright persistent contexts.
 // It patches:
-// 1. Navigator.prototype.userAgent — removes HeadlessChrome
-// 2. Navigator.prototype.userAgentData — consistent brands/versions
-// 3. SharedWorker constructor — wraps with UA patches for worker contexts
+// 1. Navigator.prototype.webdriver — hides automation flag
+// 2. Navigator.prototype.userAgent — removes HeadlessChrome
+// 3. Navigator.prototype.userAgentData — consistent brands/versions
+// 4. SharedWorker constructor — wraps with UA patches for worker contexts
 // ServiceWorker UA is handled by --user-agent= Chromium flag (stealth.ts).
 //
 // Property descriptors use native-style getters with individually
@@ -30,9 +31,16 @@
 
 	// Helper: create a getter function with a spoofed toString that
 	// looks like a native getter. Does NOT modify Function.prototype.toString.
+	// Uses a regular function (not arrow) so `this` is the receiver — native
+	// getters throw TypeError when called on the prototype instead of an instance.
 	var nativeToString = Function.prototype.toString;
-	function makeNativeGetter(name, valueFn) {
-		var getter = () => valueFn();
+	function makeNativeGetter(name, proto, valueFn) {
+		var getter = function () {
+			if (!(this instanceof proto.constructor)) {
+				throw new TypeError("Illegal invocation");
+			}
+			return valueFn();
+		};
 		// Spoof toString on the individual function instance
 		getter.toString = () => "function get " + name + "() { [native code] }";
 		// Also spoof the toString's own toString to look native
@@ -46,13 +54,19 @@
 		return fn;
 	}
 
-	// --- 1. navigator.userAgent ---
-	Object.defineProperty(Navigator.prototype, "userAgent", {
-		get: makeNativeGetter("userAgent", () => patchedUA),
+	// --- 1. navigator.webdriver → false ---
+	Object.defineProperty(Navigator.prototype, "webdriver", {
+		get: makeNativeGetter("webdriver", Navigator.prototype, () => false),
 		configurable: true,
 	});
 
-	// --- 2. navigator.userAgentData ---
+	// --- 2. navigator.userAgent ---
+	Object.defineProperty(Navigator.prototype, "userAgent", {
+		get: makeNativeGetter("userAgent", Navigator.prototype, () => patchedUA),
+		configurable: true,
+	});
+
+	// --- 3. navigator.userAgentData ---
 	if ("userAgentData" in navigator) {
 		var brands = [
 			{ brand: "Chromium", version: chromeMajor },
@@ -111,12 +125,12 @@
 		};
 
 		Object.defineProperty(Navigator.prototype, "userAgentData", {
-			get: makeNativeGetter("userAgentData", () => fakeUAData),
+			get: makeNativeGetter("userAgentData", Navigator.prototype, () => fakeUAData),
 			configurable: true,
 		});
 	}
 
-	// --- 3. SharedWorker interception ---
+	// --- 4. SharedWorker interception ---
 	// Note: ServiceWorker UA is handled by the --user-agent= Chromium flag
 	// at the browser process level (see stealthArgs in stealth.ts).
 	// Blob URLs cannot register ServiceWorkers, so JS-level interception
@@ -130,15 +144,17 @@
 		"var plat=" + JSON.stringify(uaDataPlatform) + ";",
 		"var brands=[{brand:'Chromium',version:cm},{brand:'Google Chrome',version:cm},{brand:'Not-A.Brand',version:'8'}];",
 		"var NP=Object.getPrototypeOf(navigator);",
-		"try{Object.defineProperty(NP,'userAgent',{get:function(){return ua},configurable:true})}catch(e){}",
-		"try{Object.defineProperty(NP,'webdriver',{get:function(){return false},configurable:true})}catch(e){}",
+		"var NPCtor=NP.constructor;",
+		"function wg(fn){return function(){if(!(this instanceof NPCtor))throw new TypeError('Illegal invocation');return fn()}}",
+		"try{Object.defineProperty(NP,'userAgent',{get:wg(function(){return ua}),configurable:true})}catch(e){}",
+		"try{Object.defineProperty(NP,'webdriver',{get:wg(function(){return false}),configurable:true})}catch(e){}",
 		"try{if('userAgentData' in navigator){",
 		"  var fvl=[{brand:'Chromium',version:cm+'.0.0.0'},{brand:'Google Chrome',version:cm+'.0.0.0'},{brand:'Not-A.Brand',version:'8.0.0.0'}];",
 		"  var fakeUAData={brands:brands,mobile:false,platform:plat,",
 		"    getHighEntropyValues:function(h){var r={brands:brands,mobile:false,platform:plat,fullVersionList:fvl,uaFullVersion:cm+'.0.0.0',platformVersion:'0.0.0',architecture:'x86',bitness:'64',model:'',wow64:false};if(!h)return Promise.resolve(r);var o={brands:brands,mobile:false,platform:plat};for(var i=0;i<h.length;i++){if(h[i] in r)o[h[i]]=r[h[i]]}return Promise.resolve(o)},",
 		"    toJSON:function(){return{brands:brands,mobile:false,platform:plat}}",
 		"  };",
-		"  Object.defineProperty(NP,'userAgentData',{get:function(){return fakeUAData},configurable:true})",
+		"  Object.defineProperty(NP,'userAgentData',{get:wg(function(){return fakeUAData}),configurable:true})",
 		"}}catch(e){}",
 		"})();",
 	].join("\n");
