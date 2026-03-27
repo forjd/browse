@@ -28,6 +28,17 @@ function extractChromeVersion(ua: string): string {
 }
 
 /**
+ * Extract the full Chrome version (e.g. "146.0.7680.165") from a user-agent string.
+ * Falls back to "major.0.0.0" if the full version can't be parsed.
+ */
+function extractChromeFullVersion(ua: string): string {
+	const match = ua.match(/Chrome\/(\d+\.\d+\.\d+\.\d+)/);
+	if (match) return match[1];
+	const major = extractChromeVersion(ua);
+	return `${major}.0.0.0`;
+}
+
+/**
  * Derive high-entropy platform values from the host OS.
  */
 export function getHighEntropyDefaults(): {
@@ -128,11 +139,13 @@ export async function buildStealthUA(
 	}
 
 	const chromeMajor = extractChromeVersion(userAgent);
+	const chromeFullVersion = extractChromeFullVersion(userAgent);
 
 	return {
 		userAgent,
 		navigatorPlatform,
 		chromeMajor,
+		chromeFullVersion,
 		platformVersion,
 		architecture,
 		bitness,
@@ -143,6 +156,7 @@ export type StealthOpts = {
 	userAgent: string;
 	navigatorPlatform: string;
 	chromeMajor: string;
+	chromeFullVersion: string;
 	platformVersion: string;
 	architecture: string;
 	bitness: string;
@@ -165,6 +179,7 @@ export async function applyStealthScripts(
 			userAgent,
 			navigatorPlatform,
 			chromeMajor,
+			chromeFullVersion,
 			platformVersion,
 			architecture,
 			bitness,
@@ -276,10 +291,10 @@ export async function applyStealthScripts(
 				];
 
 				const fullVersionList = [
-					{ brand: "Chromium", version: `${chromeMajor}.0.0.0` },
+					{ brand: "Chromium", version: chromeFullVersion },
 					{
 						brand: "Google Chrome",
-						version: `${chromeMajor}.0.0.0`,
+						version: chromeFullVersion,
 					},
 					{ brand: "Not-A.Brand", version: "8.0.0.0" },
 				];
@@ -293,7 +308,7 @@ export async function applyStealthScripts(
 					architecture,
 					bitness,
 					model: "",
-					uaFullVersion: `${chromeMajor}.0.0.0`,
+					uaFullVersion: chromeFullVersion,
 					wow64: false,
 				};
 
