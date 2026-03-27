@@ -67,7 +67,19 @@
 	});
 
 	// --- 3. navigator.userAgentData ---
-	if ("userAgentData" in navigator) {
+	// Capture the original userAgentData and its getHighEntropyValues before
+	// patching, so we can proxy real platform values (platformVersion,
+	// architecture, bitness, model, wow64) while only overriding brands/UA.
+	var origUAData = ("userAgentData" in navigator) ? navigator.userAgentData : null;
+	var origGetHEV = origUAData ? origUAData.getHighEntropyValues.bind(origUAData) : null;
+
+	// Fetch real high-entropy values before we patch. The promise resolves
+	// as a microtask at document_start — well before any page script runs.
+	var realHEVPromise = origGetHEV
+		? origGetHEV(["platformVersion", "architecture", "bitness", "model", "wow64"])
+		: Promise.resolve(null);
+
+	if (origUAData) {
 		var brands = [
 			{ brand: "Chromium", version: chromeMajor },
 			{ brand: "Google Chrome", version: chromeMajor },
@@ -79,36 +91,37 @@
 			{ brand: "Not-A.Brand", version: "8.0.0.0" },
 		];
 
-		var allHighEntropy = {
-			brands: brands,
-			fullVersionList: fullVersionList,
-			mobile: false,
-			platform: uaDataPlatform,
-			platformVersion: "0.0.0",
-			architecture: "x86",
-			bitness: "64",
-			model: "",
-			uaFullVersion: chromeMajor + ".0.0.0",
-			wow64: false,
-		};
-
 		var ghev = makeNativeFunction(
 			"getHighEntropyValues",
 			function getHighEntropyValues(hints) {
-				if (!hints || hints.length === 0) {
-					return Promise.resolve(Object.assign({}, allHighEntropy));
-				}
-				var result = {
-					brands: brands,
-					mobile: false,
-					platform: uaDataPlatform,
-				};
-				for (var i = 0; i < hints.length; i++) {
-					if (hints[i] in allHighEntropy) {
-						result[hints[i]] = allHighEntropy[hints[i]];
+				return realHEVPromise.then(function (realValues) {
+					var base = {
+						brands: brands,
+						fullVersionList: fullVersionList,
+						mobile: false,
+						platform: uaDataPlatform,
+						platformVersion: realValues ? realValues.platformVersion : "0.0.0",
+						architecture: realValues ? realValues.architecture : "x86",
+						bitness: realValues ? realValues.bitness : "64",
+						model: realValues ? realValues.model : "",
+						uaFullVersion: chromeMajor + ".0.0.0",
+						wow64: realValues ? realValues.wow64 : false,
+					};
+					if (!hints || hints.length === 0) {
+						return Object.assign({}, base);
 					}
-				}
-				return Promise.resolve(result);
+					var result = {
+						brands: brands,
+						mobile: false,
+						platform: uaDataPlatform,
+					};
+					for (var i = 0; i < hints.length; i++) {
+						if (hints[i] in base) {
+							result[hints[i]] = base[hints[i]];
+						}
+					}
+					return result;
+				});
 			},
 		);
 
@@ -124,6 +137,11 @@
 			toJSON: toJSON,
 		};
 
+		// Set prototype so instanceof NavigatorUAData returns true
+		if (typeof NavigatorUAData !== "undefined") {
+			Object.setPrototypeOf(fakeUAData, NavigatorUAData.prototype);
+		}
+
 		Object.defineProperty(Navigator.prototype, "userAgentData", {
 			get: makeNativeGetter("userAgentData", Navigator.prototype, () => fakeUAData),
 			configurable: true,
@@ -134,90 +152,128 @@
 	try { delete window.__pwInitScripts; } catch (_) {}
 	try { delete window.__playwright__binding__; } catch (_) {}
 
-	// --- 5. SharedWorker interception ---
+	// --- 5. chrome.app stub ---
+	// Headless Chrome may be missing chrome.app, which detection scripts check.
+	if (typeof chrome !== "undefined") {
+		if (!chrome.app) {
+			chrome.app = {};
+		}
+		var app = chrome.app;
+		if (!("isInstalled" in app)) {
+			app.isInstalled = false;
+		}
+		if (!("getDetails" in app)) {
+			app.getDetails = makeNativeFunction("getDetails", function getDetails() { return null; });
+		}
+		if (!("getIsInstalled" in app)) {
+			app.getIsInstalled = makeNativeFunction("getIsInstalled", function getIsInstalled() { return false; });
+		}
+		if (!("installState" in app)) {
+			app.installState = makeNativeFunction("installState", function installState(callback) {
+				if (callback) callback("disabled");
+			});
+		}
+		if (!("runningState" in app)) {
+			app.runningState = makeNativeFunction("runningState", function runningState() { return "cannot_run"; });
+		}
+	}
+
+	// --- 6. SharedWorker interception ---
 	// Note: ServiceWorker UA is handled by the --user-agent= Chromium flag
 	// at the browser process level (see stealthArgs in stealth.ts).
 	// Blob URLs cannot register ServiceWorkers, so JS-level interception
 	// is not viable for SW contexts.
 
-	// Build self-contained patch code for injection into worker contexts
-	var workerPatchCode = [
-		"(function(){",
-		"var ua=" + JSON.stringify(patchedUA) + ";",
-		"var cm=" + JSON.stringify(chromeMajor) + ";",
-		"var plat=" + JSON.stringify(uaDataPlatform) + ";",
-		"var brands=[{brand:'Chromium',version:cm},{brand:'Google Chrome',version:cm},{brand:'Not-A.Brand',version:'8'}];",
-		"var NP=Object.getPrototypeOf(navigator);",
-		"var NPCtor=NP.constructor;",
-		"function wg(fn){return function(){if(!(this instanceof NPCtor))throw new TypeError('Illegal invocation');return fn()}}",
-		"try{Object.defineProperty(NP,'userAgent',{get:wg(function(){return ua}),configurable:true})}catch(e){}",
-		"try{Object.defineProperty(NP,'webdriver',{get:wg(function(){return false}),configurable:true})}catch(e){}",
-		"try{if('userAgentData' in navigator){",
-		"  var fvl=[{brand:'Chromium',version:cm+'.0.0.0'},{brand:'Google Chrome',version:cm+'.0.0.0'},{brand:'Not-A.Brand',version:'8.0.0.0'}];",
-		"  var fakeUAData={brands:brands,mobile:false,platform:plat,",
-		"    getHighEntropyValues:function(h){var r={brands:brands,mobile:false,platform:plat,fullVersionList:fvl,uaFullVersion:cm+'.0.0.0',platformVersion:'0.0.0',architecture:'x86',bitness:'64',model:'',wow64:false};if(!h)return Promise.resolve(r);var o={brands:brands,mobile:false,platform:plat};for(var i=0;i<h.length;i++){if(h[i] in r)o[h[i]]=r[h[i]]}return Promise.resolve(o)},",
-		"    toJSON:function(){return{brands:brands,mobile:false,platform:plat}}",
-		"  };",
-		"  Object.defineProperty(NP,'userAgentData',{get:wg(function(){return fakeUAData}),configurable:true})",
-		"}}catch(e){}",
-		"})();",
-	].join("\n");
+	// Build worker patch code after real high-entropy values resolve, so
+	// workers get accurate platform values instead of hardcoded defaults.
+	realHEVPromise.then(function (realValues) {
+		var hev = {
+			platformVersion: realValues ? realValues.platformVersion : "0.0.0",
+			architecture: realValues ? realValues.architecture : "x86",
+			bitness: realValues ? realValues.bitness : "64",
+			model: realValues ? realValues.model : "",
+			wow64: realValues ? realValues.wow64 : false,
+		};
 
-	// SharedWorker interception
-	if (typeof SharedWorker !== "undefined") {
-	try {
-	var OrigSharedWorker = SharedWorker;
+		var workerPatchCode = [
+			"(function(){",
+			"var ua=" + JSON.stringify(patchedUA) + ";",
+			"var cm=" + JSON.stringify(chromeMajor) + ";",
+			"var plat=" + JSON.stringify(uaDataPlatform) + ";",
+			"var hev=" + JSON.stringify(hev) + ";",
+			"var brands=[{brand:'Chromium',version:cm},{brand:'Google Chrome',version:cm},{brand:'Not-A.Brand',version:'8'}];",
+			"var NP=Object.getPrototypeOf(navigator);",
+			"var NPCtor=NP.constructor;",
+			"function wg(fn){return function(){if(!(this instanceof NPCtor))throw new TypeError('Illegal invocation');return fn()}}",
+			"try{Object.defineProperty(NP,'userAgent',{get:wg(function(){return ua}),configurable:true})}catch(e){}",
+			"try{Object.defineProperty(NP,'webdriver',{get:wg(function(){return false}),configurable:true})}catch(e){}",
+			"try{if('userAgentData' in navigator){",
+			"  var fvl=[{brand:'Chromium',version:cm+'.0.0.0'},{brand:'Google Chrome',version:cm+'.0.0.0'},{brand:'Not-A.Brand',version:'8.0.0.0'}];",
+			"  var fakeUAData={brands:brands,mobile:false,platform:plat,",
+			"    getHighEntropyValues:function(h){var r={brands:brands,mobile:false,platform:plat,fullVersionList:fvl,uaFullVersion:cm+'.0.0.0',platformVersion:hev.platformVersion,architecture:hev.architecture,bitness:hev.bitness,model:hev.model,wow64:hev.wow64};if(!h)return Promise.resolve(r);var o={brands:brands,mobile:false,platform:plat};for(var i=0;i<h.length;i++){if(h[i] in r)o[h[i]]=r[h[i]]}return Promise.resolve(o)},",
+			"    toJSON:function(){return{brands:brands,mobile:false,platform:plat}}",
+			"  };",
+			"  Object.defineProperty(NP,'userAgentData',{get:wg(function(){return fakeUAData}),configurable:true})",
+			"}}catch(e){}",
+			"})();",
+		].join("\n");
 
-	var PatchedSharedWorker = makeNativeFunction(
-		"SharedWorker",
-		function SharedWorker(scriptURL, options) {
-			var resolvedURL;
-			try {
-				resolvedURL = new URL(scriptURL, location.href).href;
-			} catch (_) {
-				return new OrigSharedWorker(scriptURL, options);
-			}
+		// SharedWorker interception
+		if (typeof SharedWorker !== "undefined") {
+		try {
+		var OrigSharedWorker = SharedWorker;
 
-			var wrapperCode;
-			if (options && options.type === "module") {
-				wrapperCode =
-					workerPatchCode +
-					"\nimport(" +
-					JSON.stringify(resolvedURL) +
-					");";
-			} else {
-				wrapperCode =
-					workerPatchCode +
-					"\nimportScripts(" +
-					JSON.stringify(resolvedURL) +
-					");";
-			}
+		var PatchedSharedWorker = makeNativeFunction(
+			"SharedWorker",
+			function SharedWorker(scriptURL, options) {
+				var resolvedURL;
+				try {
+					resolvedURL = new URL(scriptURL, location.href).href;
+				} catch (_) {
+					return new OrigSharedWorker(scriptURL, options);
+				}
 
-			var blob = new Blob([wrapperCode], {
-				type: "application/javascript",
-			});
-			var blobURL = URL.createObjectURL(blob);
+				var wrapperCode;
+				if (options && options.type === "module") {
+					wrapperCode =
+						workerPatchCode +
+						"\nimport(" +
+						JSON.stringify(resolvedURL) +
+						");";
+				} else {
+					wrapperCode =
+						workerPatchCode +
+						"\nimportScripts(" +
+						JSON.stringify(resolvedURL) +
+						");";
+				}
 
-			try {
-				var newOpts = options ? Object.assign({}, options) : undefined;
-				return new OrigSharedWorker(blobURL, newOpts);
-			} finally {
-				setTimeout(() => {
-					URL.revokeObjectURL(blobURL);
-				}, 1000);
-			}
-		},
-	);
+				var blob = new Blob([wrapperCode], {
+					type: "application/javascript",
+				});
+				var blobURL = URL.createObjectURL(blob);
 
-	PatchedSharedWorker.prototype = OrigSharedWorker.prototype;
-	Object.defineProperty(PatchedSharedWorker, "name", {
-		value: "SharedWorker",
-		configurable: true,
+				try {
+					var newOpts = options ? Object.assign({}, options) : undefined;
+					return new OrigSharedWorker(blobURL, newOpts);
+				} finally {
+					setTimeout(() => {
+						URL.revokeObjectURL(blobURL);
+					}, 1000);
+				}
+			},
+		);
+
+		PatchedSharedWorker.prototype = OrigSharedWorker.prototype;
+		Object.defineProperty(PatchedSharedWorker, "name", {
+			value: "SharedWorker",
+			configurable: true,
+		});
+
+		window.SharedWorker = PatchedSharedWorker;
+		} catch (_) {
+			// SharedWorker may not be available in all contexts
+		}
+		}
 	});
-
-	window.SharedWorker = PatchedSharedWorker;
-	} catch (_) {
-		// SharedWorker may not be available in all contexts
-	}
-	}
 })();

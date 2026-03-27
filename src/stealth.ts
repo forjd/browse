@@ -30,7 +30,7 @@ function extractChromeVersion(ua: string): string {
 /**
  * Derive high-entropy platform values from the host OS.
  */
-function getHighEntropyDefaults(): {
+export function getHighEntropyDefaults(): {
 	platformVersion: string;
 	architecture: string;
 	bitness: string;
@@ -197,12 +197,14 @@ export async function applyStealthScripts(
 				return getter;
 			}
 
-			function makeNativeFunction<T extends Function>(name: string, fn: T): T {
-				(fn as Function & { toString: () => string }).toString = () =>
-					`function ${name}() { [native code] }`;
-				(
-					fn as Function & { toString: Function & { toString: () => string } }
-				).toString.toString = nativeToString.bind(nativeToString);
+			function makeNativeFunction<
+				// biome-ignore lint/complexity/noBannedTypes: generic bound for callable values
+				T extends Function,
+			>(name: string, fn: T): T {
+				const f = fn as { toString: { toString: (this: unknown) => string } };
+				f.toString = (() =>
+					`function ${name}() { [native code] }`) as typeof f.toString;
+				f.toString.toString = nativeToString.bind(nativeToString);
 				return fn;
 			}
 
@@ -214,7 +216,45 @@ export async function applyStealthScripts(
 				delete (globalThis as Record<string, unknown>).__playwright__binding__;
 			} catch {}
 
-			// 2. navigator.webdriver → false
+			// 2. chrome.app stub — headless Chrome may be missing it
+			if (typeof chrome !== "undefined") {
+				const chromeAny = chrome as Record<string, unknown>;
+				if (!chromeAny.app) {
+					chromeAny.app = {};
+				}
+				const app = chromeAny.app as Record<string, unknown>;
+				if (!("isInstalled" in app)) app.isInstalled = false;
+				if (!("getDetails" in app))
+					app.getDetails = makeNativeFunction(
+						"getDetails",
+						function getDetails() {
+							return null;
+						},
+					);
+				if (!("getIsInstalled" in app))
+					app.getIsInstalled = makeNativeFunction(
+						"getIsInstalled",
+						function getIsInstalled() {
+							return false;
+						},
+					);
+				if (!("installState" in app))
+					app.installState = makeNativeFunction(
+						"installState",
+						function installState(callback: (state: string) => void) {
+							if (callback) callback("disabled");
+						},
+					);
+				if (!("runningState" in app))
+					app.runningState = makeNativeFunction(
+						"runningState",
+						function runningState() {
+							return "cannot_run";
+						},
+					);
+			}
+
+			// 3. navigator.webdriver → false
 			Object.defineProperty(Navigator.prototype, "webdriver", {
 				get: makeNativeGetter("webdriver", Navigator.prototype, () => false),
 				configurable: true,
@@ -279,13 +319,9 @@ export async function applyStealthScripts(
 					},
 				);
 
-				const toJSON = makeNativeFunction(
-					"toJSON",
-					// biome-ignore lint/complexity/useArrowFunction: must be named
-					function toJSON() {
-						return { brands, mobile: false, platform: uaDataPlatform };
-					},
-				);
+				const toJSON = makeNativeFunction("toJSON", function toJSON() {
+					return { brands, mobile: false, platform: uaDataPlatform };
+				});
 
 				const fakeUAData = {
 					brands,
@@ -294,6 +330,11 @@ export async function applyStealthScripts(
 					getHighEntropyValues: ghev,
 					toJSON,
 				};
+
+				// Set prototype so instanceof NavigatorUAData returns true
+				if (typeof NavigatorUAData !== "undefined") {
+					Object.setPrototypeOf(fakeUAData, NavigatorUAData.prototype);
+				}
 
 				Object.defineProperty(Navigator.prototype, "userAgentData", {
 					get: makeNativeGetter(

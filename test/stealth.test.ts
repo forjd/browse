@@ -1,5 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
-import { applyStealthScripts, stealthArgs } from "../src/stealth.ts";
+import {
+	applyStealthScripts,
+	getHighEntropyDefaults,
+	stealthArgs,
+} from "../src/stealth.ts";
 
 describe("stealthArgs", () => {
 	test("returns an array of launch args", () => {
@@ -32,6 +36,23 @@ describe("stealthArgs", () => {
 		const args = stealthArgs();
 		const uaArg = args.find((a) => a.startsWith("--user-agent="));
 		expect(uaArg).toBeUndefined();
+	});
+});
+
+describe("getHighEntropyDefaults", () => {
+	test("returns non-zero platformVersion", () => {
+		const defaults = getHighEntropyDefaults();
+		expect(defaults.platformVersion).not.toBe("0.0.0");
+	});
+
+	test("returns valid architecture", () => {
+		const defaults = getHighEntropyDefaults();
+		expect(["arm", "x86"]).toContain(defaults.architecture);
+	});
+
+	test("returns 64-bit bitness", () => {
+		const defaults = getHighEntropyDefaults();
+		expect(defaults.bitness).toBe("64");
 	});
 });
 
