@@ -3,10 +3,13 @@
 // This extension is the primary stealth mechanism because addInitScript
 // does not work reliably on Playwright persistent contexts.
 // It patches:
-// 1. Navigator.prototype.webdriver — hides automation flag
-// 2. Navigator.prototype.userAgent — removes HeadlessChrome
-// 3. Navigator.prototype.userAgentData — consistent brands/versions
+// 1. Navigator.prototype.userAgent — removes HeadlessChrome
+// 2. NavigatorUAData.prototype — overrides brands/mobile/platform getters
+// 3. navigator.userAgentData.getHighEntropyValues — consistent versions
 // 4. SharedWorker constructor — wraps with UA patches for worker contexts
+// 5. navigator.connection.downlinkMax — spoofs for headless
+// 6. Background colour — sets non-default bg to avoid headless detection
+// Note: navigator.webdriver is handled entirely by --disable-blink-features=AutomationControlled
 // ServiceWorker UA is handled by --user-agent= Chromium flag (stealth.ts).
 //
 // Property descriptors use native-style getters with individually
@@ -68,32 +71,25 @@
 		return fn;
 	}
 
-	// --- 1. navigator.webdriver → false ---
-	Object.defineProperty(Navigator.prototype, "webdriver", {
-		get: makeNativeGetter("webdriver", Navigator.prototype, () => false),
-		configurable: true,
-	});
-
-	// --- 2. navigator.userAgent ---
+	// --- 1. navigator.userAgent ---
 	Object.defineProperty(Navigator.prototype, "userAgent", {
 		get: makeNativeGetter("userAgent", Navigator.prototype, () => patchedUA),
 		configurable: true,
 	});
 
-	// --- 3. navigator.userAgentData ---
-	// Capture the original userAgentData and its getHighEntropyValues before
-	// patching, so we can proxy real platform values (platformVersion,
-	// architecture, bitness, model, wow64) while only overriding brands/UA.
+	// --- 2. navigator.userAgentData ---
+	// Override getters directly on NavigatorUAData.prototype rather than
+	// creating a fake object. This ensures the real navigator.userAgentData
+	// instance (which the browser/CDP may recreate) always returns our values.
+	// Capture real high-entropy values before patching.
 	var origUAData = ("userAgentData" in navigator) ? navigator.userAgentData : null;
 	var origGetHEV = origUAData ? origUAData.getHighEntropyValues.bind(origUAData) : null;
 
-	// Fetch real high-entropy values before we patch. The promise resolves
-	// as a microtask at document_start — well before any page script runs.
 	var realHEVPromise = origGetHEV
 		? origGetHEV(["platformVersion", "architecture", "bitness", "model", "wow64"])
 		: Promise.resolve(null);
 
-	if (origUAData) {
+	if (origUAData && typeof NavigatorUAData !== "undefined") {
 		var brands = [
 			{ brand: "Chromium", version: chromeMajor },
 			{ brand: "Google Chrome", version: chromeMajor },
@@ -104,6 +100,25 @@
 			{ brand: "Google Chrome", version: chromeFullVersion },
 			{ brand: "Not-A.Brand", version: "8.0.0.0" },
 		];
+
+		// Override the prototype getters so ALL NavigatorUAData instances
+		// (including ones the browser recreates) return our spoofed values.
+		var uadProto = NavigatorUAData.prototype;
+		Object.defineProperty(uadProto, "brands", {
+			get: makeNativeGetter("brands", uadProto, function() { return brands; }),
+			configurable: true,
+			enumerable: true,
+		});
+		Object.defineProperty(uadProto, "mobile", {
+			get: makeNativeGetter("mobile", uadProto, function() { return false; }),
+			configurable: true,
+			enumerable: true,
+		});
+		Object.defineProperty(uadProto, "platform", {
+			get: makeNativeGetter("platform", uadProto, function() { return uaDataPlatform; }),
+			configurable: true,
+			enumerable: true,
+		});
 
 		var ghev = makeNativeFunction(
 			"getHighEntropyValues",
@@ -139,26 +154,9 @@
 			},
 		);
 
-		var toJSON = makeNativeFunction("toJSON", function toJSON() {
+		uadProto.getHighEntropyValues = ghev;
+		uadProto.toJSON = makeNativeFunction("toJSON", function toJSON() {
 			return { brands: brands, mobile: false, platform: uaDataPlatform };
-		});
-
-		var fakeUAData = {
-			brands: brands,
-			mobile: false,
-			platform: uaDataPlatform,
-			getHighEntropyValues: ghev,
-			toJSON: toJSON,
-		};
-
-		// Set prototype so instanceof NavigatorUAData returns true
-		if (typeof NavigatorUAData !== "undefined") {
-			Object.setPrototypeOf(fakeUAData, NavigatorUAData.prototype);
-		}
-
-		Object.defineProperty(Navigator.prototype, "userAgentData", {
-			get: makeNativeGetter("userAgentData", Navigator.prototype, () => fakeUAData),
-			configurable: true,
 		});
 	}
 
@@ -211,17 +209,64 @@
 		}
 	}
 
-	// --- 7. screen.availWidth/availHeight ---
-	// In headless, these equal screen dimensions exactly (no OS chrome).
-	if (screen.availHeight === screen.height) {
+	// --- 7. navigator.connection.downlinkMax ---
+	// In headless environments, NetworkInformation.downlinkMax is missing,
+	// which CreepJS uses as a headless signal. Real Chrome on Wi-Fi reports
+	// Infinity; on ethernet it varies. Spoof it to match Wi-Fi.
+	if (typeof navigator.connection !== "undefined") {
+		var conn = navigator.connection;
+		if (!("downlinkMax" in conn) || conn.downlinkMax === undefined) {
+			Object.defineProperty(Object.getPrototypeOf(conn), "downlinkMax", {
+				get: makeNativeGetter("downlinkMax", Object.getPrototypeOf(conn), function() { return Infinity; }),
+				configurable: true,
+				enumerable: true,
+			});
+		}
+	}
+
+	// --- 8. Background colour is handled via CDP
+	// Emulation.setDefaultBackgroundColorOverride in daemon.ts.
+
+	// --- 9. Screen dimensions ---
+	// Headless sets screen dimensions to match the viewport exactly, which
+	// triggers two CreepJS flags: noTaskbar (availHeight === height) and
+	// hasVvpScreenRes (viewport === screen). Fix both by spoofing screen
+	// dimensions to a common monitor resolution and subtracting OS chrome.
+	var realScreenW = screen.width;
+	var realScreenH = screen.height;
+
+	// Spoof screen to a plausible monitor resolution larger than the viewport.
+	// Use common resolutions per platform.
+	var spoofedW = navPlatform === "MacIntel" ? 1920
+		: navPlatform === "Win32" ? 1920 : 1920;
+	var spoofedH = navPlatform === "MacIntel" ? 1080
+		: navPlatform === "Win32" ? 1080 : 1080;
+
+	// Only spoof if screen matches viewport (headless indicator)
+	if (realScreenW === window.innerWidth && realScreenH === window.innerHeight) {
 		var dockOffset = navPlatform === "MacIntel" ? 74
 			: navPlatform === "Win32" ? 40 : 37;
 		var menuBarOffset = navPlatform === "MacIntel" ? 37 : 0;
 		var totalOffset = dockOffset + menuBarOffset;
 
+		Object.defineProperty(Screen.prototype, "width", {
+			get: makeNativeGetter("width", Screen.prototype,
+				function() { return spoofedW; }),
+			configurable: true,
+		});
+		Object.defineProperty(Screen.prototype, "height", {
+			get: makeNativeGetter("height", Screen.prototype,
+				function() { return spoofedH; }),
+			configurable: true,
+		});
+		Object.defineProperty(Screen.prototype, "availWidth", {
+			get: makeNativeGetter("availWidth", Screen.prototype,
+				function() { return spoofedW; }),
+			configurable: true,
+		});
 		Object.defineProperty(Screen.prototype, "availHeight", {
 			get: makeNativeGetter("availHeight", Screen.prototype,
-				function() { return screen.height - totalOffset; }),
+				function() { return spoofedH - totalOffset; }),
 			configurable: true,
 		});
 		Object.defineProperty(Screen.prototype, "availTop", {
@@ -231,7 +276,7 @@
 		});
 	}
 
-	// --- 8. SharedWorker interception ---
+	// --- 10. SharedWorker interception ---
 	// Note: ServiceWorker UA is handled by the --user-agent= Chromium flag
 	// at the browser process level (see stealthArgs in stealth.ts).
 	// Blob URLs cannot register ServiceWorkers, so JS-level interception
@@ -260,7 +305,7 @@
 			"var NPCtor=NP.constructor;",
 			"function wg(fn){return function(){if(!(this instanceof NPCtor))throw new TypeError('Illegal invocation');return fn()}}",
 			"try{Object.defineProperty(NP,'userAgent',{get:wg(function(){return ua}),configurable:true})}catch(e){}",
-			"try{Object.defineProperty(NP,'webdriver',{get:wg(function(){return false}),configurable:true})}catch(e){}",
+			"try{delete NP.webdriver}catch(e){}",
 			"try{if('userAgentData' in navigator){",
 			"  var fvl=[{brand:'Chromium',version:cfv},{brand:'Google Chrome',version:cfv},{brand:'Not-A.Brand',version:'8.0.0.0'}];",
 			"  var fakeUAData={brands:brands,mobile:false,platform:plat,",

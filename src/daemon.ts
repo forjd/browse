@@ -1244,12 +1244,62 @@ export async function startDaemon(
 		// patches navigator.userAgent in JS for dedicated workers.
 		// ServiceWorkers are covered by the --user-agent= Chromium flag
 		// passed via stealthArgs().
+		//
+		// Passing userAgentMetadata ensures navigator.userAgentData returns
+		// correct brands/platform/versions natively (via C++ slots) without
+		// needing JS-level prototype patching, which detection scripts like
+		// CreepJS can identify as tampered.
+		const uaDataPlatform =
+			opts.navigatorPlatform === "MacIntel"
+				? "macOS"
+				: opts.navigatorPlatform === "Win32"
+					? "Windows"
+					: "Linux";
+		const brandEntry = {
+			brand: "Chromium",
+			version: opts.chromeMajor,
+		};
+		const chromeEntry = {
+			brand: "Google Chrome",
+			version: opts.chromeMajor,
+		};
+		const notABrand = { brand: "Not-A.Brand", version: "8" };
+		const fullBrandEntry = {
+			brand: "Chromium",
+			version: opts.chromeFullVersion,
+		};
+		const fullChromeEntry = {
+			brand: "Google Chrome",
+			version: opts.chromeFullVersion,
+		};
+		const fullNotABrand = {
+			brand: "Not-A.Brand",
+			version: "8.0.0.0",
+		};
+
 		const applyUAOverride = async (p: Page) => {
 			try {
 				const cdp = await context.newCDPSession(p);
+				// Set default background colour to opaque white to avoid
+				// headless detection via hasKnownBgColor (headless uses
+				// transparent rgba(0,0,0,0) by default).
+				await cdp.send("Emulation.setDefaultBackgroundColorOverride", {
+					color: { r: 255, g: 255, b: 255, a: 1 },
+				});
 				await cdp.send("Emulation.setUserAgentOverride", {
 					userAgent: opts.userAgent,
 					platform: opts.navigatorPlatform,
+					userAgentMetadata: {
+						brands: [brandEntry, chromeEntry, notABrand],
+						fullVersionList: [fullBrandEntry, fullChromeEntry, fullNotABrand],
+						platform: uaDataPlatform,
+						platformVersion: opts.platformVersion,
+						architecture: opts.architecture,
+						model: "",
+						mobile: false,
+						bitness: opts.bitness,
+						wow64: false,
+					},
 				});
 			} catch {
 				// CDP session may fail for special pages (about:blank, etc.)

@@ -305,14 +305,19 @@ export async function applyStealthScripts(
 					);
 			}
 
-			// 3. navigator.webdriver → false
-			Object.defineProperty(Navigator.prototype, "webdriver", {
-				get: makeNativeGetter("webdriver", Navigator.prototype, () => false),
-				configurable: true,
-			});
+			// 3. navigator.webdriver — left untouched. The
+			// --disable-blink-features=AutomationControlled flag makes the
+			// native getter return false. Replacing or deleting it is
+			// detectable by CreepJS.
 
-			// 3. navigator.userAgentData (Chromium ≥90)
-			if ("userAgentData" in navigator) {
+			// 4. navigator.userAgentData (Chromium ≥90)
+			// Override getters on NavigatorUAData.prototype directly so that
+			// any instance (including ones the browser/CDP recreates) returns
+			// our spoofed values.
+			if (
+				"userAgentData" in navigator &&
+				typeof NavigatorUAData !== "undefined"
+			) {
 				const uaDataPlatform =
 					navigatorPlatform === "MacIntel"
 						? "macOS"
@@ -348,6 +353,23 @@ export async function applyStealthScripts(
 					wow64: false,
 				};
 
+				const uadProto = NavigatorUAData.prototype;
+				Object.defineProperty(uadProto, "brands", {
+					get: makeNativeGetter("brands", uadProto, () => brands),
+					configurable: true,
+					enumerable: true,
+				});
+				Object.defineProperty(uadProto, "mobile", {
+					get: makeNativeGetter("mobile", uadProto, () => false),
+					configurable: true,
+					enumerable: true,
+				});
+				Object.defineProperty(uadProto, "platform", {
+					get: makeNativeGetter("platform", uadProto, () => uaDataPlatform),
+					configurable: true,
+					enumerable: true,
+				});
+
 				const ghev = makeNativeFunction(
 					"getHighEntropyValues",
 					function getHighEntropyValues(
@@ -370,30 +392,13 @@ export async function applyStealthScripts(
 					},
 				);
 
-				const toJSON = makeNativeFunction("toJSON", function toJSON() {
-					return { brands, mobile: false, platform: uaDataPlatform };
-				});
-
-				const fakeUAData = {
-					brands,
-					mobile: false,
-					platform: uaDataPlatform,
-					getHighEntropyValues: ghev,
-					toJSON,
-				};
-
-				// Set prototype so instanceof NavigatorUAData returns true
-				if (typeof NavigatorUAData !== "undefined") {
-					Object.setPrototypeOf(fakeUAData, NavigatorUAData.prototype);
-				}
-
-				Object.defineProperty(Navigator.prototype, "userAgentData", {
-					get: makeNativeGetter(
-						"userAgentData",
-						Navigator.prototype,
-						() => fakeUAData,
-					),
-					configurable: true,
+				uadProto.getHighEntropyValues = ghev;
+				uadProto.toJSON = makeNativeFunction("toJSON", function toJSON() {
+					return {
+						brands,
+						mobile: false,
+						platform: uaDataPlatform,
+					};
 				});
 			}
 
@@ -407,9 +412,39 @@ export async function applyStealthScripts(
 				configurable: true,
 			});
 
-			// 5. screen.availWidth/availHeight — in headless these equal screen
-			// dimensions exactly (no OS chrome). Subtract a plausible offset.
-			if (screen.availHeight === screen.height) {
+			// 5. navigator.connection.downlinkMax — missing in headless
+			const nav = navigator as unknown as Record<string, unknown>;
+			if (typeof nav.connection !== "undefined" && nav.connection !== null) {
+				const conn = nav.connection as Record<string, unknown>;
+				if (!("downlinkMax" in conn) || conn.downlinkMax === undefined) {
+					const connProto = Object.getPrototypeOf(conn) as object;
+					Object.defineProperty(connProto, "downlinkMax", {
+						get: makeNativeGetter(
+							"downlinkMax",
+							connProto,
+							() => Number.POSITIVE_INFINITY,
+						),
+						configurable: true,
+						enumerable: true,
+					});
+				}
+			}
+
+			// 6. Background colour is handled via CDP
+			// Emulation.setDefaultBackgroundColorOverride in daemon.ts.
+
+			// 7. Screen dimensions — headless sets screen to match viewport,
+			// triggering noTaskbar and hasVvpScreenRes. Spoof to a common
+			// monitor resolution and subtract OS chrome.
+			const realScreenW = screen.width;
+			const realScreenH = screen.height;
+			const spoofedW = 1920;
+			const spoofedH = 1080;
+
+			if (
+				realScreenW === window.innerWidth &&
+				realScreenH === window.innerHeight
+			) {
 				const dockOffset =
 					navigatorPlatform === "MacIntel"
 						? 74
@@ -419,11 +454,23 @@ export async function applyStealthScripts(
 				const menuBarOffset = navigatorPlatform === "MacIntel" ? 37 : 0;
 				const totalOffset = dockOffset + menuBarOffset;
 
+				Object.defineProperty(Screen.prototype, "width", {
+					get: makeNativeGetter("width", Screen.prototype, () => spoofedW),
+					configurable: true,
+				});
+				Object.defineProperty(Screen.prototype, "height", {
+					get: makeNativeGetter("height", Screen.prototype, () => spoofedH),
+					configurable: true,
+				});
+				Object.defineProperty(Screen.prototype, "availWidth", {
+					get: makeNativeGetter("availWidth", Screen.prototype, () => spoofedW),
+					configurable: true,
+				});
 				Object.defineProperty(Screen.prototype, "availHeight", {
 					get: makeNativeGetter(
 						"availHeight",
 						Screen.prototype,
-						() => screen.height - totalOffset,
+						() => spoofedH - totalOffset,
 					),
 					configurable: true,
 				});
