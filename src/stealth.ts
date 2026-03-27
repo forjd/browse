@@ -281,6 +281,30 @@ export async function applyStealthScripts(
 					);
 			}
 
+			// chrome.runtime stub — real Chrome always exposes this, even without extensions.
+			if (typeof chrome !== "undefined") {
+				const chromeAny2 = chrome as Record<string, unknown>;
+				if (!chromeAny2.runtime) {
+					chromeAny2.runtime = {};
+				}
+				const runtime = chromeAny2.runtime as Record<string, unknown>;
+				if (!("connect" in runtime))
+					runtime.connect = makeNativeFunction("connect", function connect() {
+						throw new Error(
+							"Could not establish connection. Receiving end does not exist.",
+						);
+					});
+				if (!("sendMessage" in runtime))
+					runtime.sendMessage = makeNativeFunction(
+						"sendMessage",
+						function sendMessage() {
+							throw new Error(
+								"Could not establish connection. Receiving end does not exist.",
+							);
+						},
+					);
+			}
+
 			// 3. navigator.webdriver → false
 			Object.defineProperty(Navigator.prototype, "webdriver", {
 				get: makeNativeGetter("webdriver", Navigator.prototype, () => false),
@@ -382,6 +406,36 @@ export async function applyStealthScripts(
 				),
 				configurable: true,
 			});
+
+			// 5. screen.availWidth/availHeight — in headless these equal screen
+			// dimensions exactly (no OS chrome). Subtract a plausible offset.
+			if (screen.availHeight === screen.height) {
+				const dockOffset =
+					navigatorPlatform === "MacIntel"
+						? 74
+						: navigatorPlatform === "Win32"
+							? 40
+							: 37;
+				const menuBarOffset = navigatorPlatform === "MacIntel" ? 37 : 0;
+				const totalOffset = dockOffset + menuBarOffset;
+
+				Object.defineProperty(Screen.prototype, "availHeight", {
+					get: makeNativeGetter(
+						"availHeight",
+						Screen.prototype,
+						() => screen.height - totalOffset,
+					),
+					configurable: true,
+				});
+				Object.defineProperty(Screen.prototype, "availTop", {
+					get: makeNativeGetter(
+						"availTop",
+						Screen.prototype,
+						() => menuBarOffset,
+					),
+					configurable: true,
+				});
+			}
 		},
 		opts,
 	);
