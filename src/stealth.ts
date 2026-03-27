@@ -173,11 +173,23 @@ export async function applyStealthScripts(
 
 			// Spoof toString on individual functions without overriding
 			// Function.prototype.toString globally.
+			// Uses a regular function so `this` is the receiver — native
+			// getters throw TypeError when called on the prototype directly.
 			function makeNativeGetter(
 				name: string,
+				proto: object,
 				valueFn: () => unknown,
 			): () => unknown {
 				const getter = function (this: unknown) {
+					if (
+						!(
+							this instanceof
+							(proto as { constructor: new (...a: unknown[]) => unknown })
+								.constructor
+						)
+					) {
+						throw new TypeError("Illegal invocation");
+					}
 					return valueFn();
 				};
 				getter.toString = () => `function get ${name}() { [native code] }`;
@@ -196,7 +208,7 @@ export async function applyStealthScripts(
 
 			// 1. navigator.webdriver → false
 			Object.defineProperty(Navigator.prototype, "webdriver", {
-				get: makeNativeGetter("webdriver", () => false),
+				get: makeNativeGetter("webdriver", Navigator.prototype, () => false),
 				configurable: true,
 			});
 
@@ -276,14 +288,22 @@ export async function applyStealthScripts(
 				};
 
 				Object.defineProperty(Navigator.prototype, "userAgentData", {
-					get: makeNativeGetter("userAgentData", () => fakeUAData),
+					get: makeNativeGetter(
+						"userAgentData",
+						Navigator.prototype,
+						() => fakeUAData,
+					),
 					configurable: true,
 				});
 			}
 
 			// 3. navigator.userAgent
 			Object.defineProperty(Navigator.prototype, "userAgent", {
-				get: makeNativeGetter("userAgent", () => userAgent),
+				get: makeNativeGetter(
+					"userAgent",
+					Navigator.prototype,
+					() => userAgent,
+				),
 				configurable: true,
 			});
 		},
