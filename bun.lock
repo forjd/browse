@@ -8,7 +8,6 @@
         "@axe-core/playwright": "^4.11.1",
         "playwright": "npm:patchright@1.58.2",
         "playwright-core": "npm:patchright-core@1.58.2",
-        "user-agents": "^1.1.669",
       },
       "devDependencies": {
         "@biomejs/biome": "^2.4.6",
@@ -80,8 +79,6 @@
 
     "lefthook-windows-x64": ["lefthook-windows-x64@2.1.4", "", { "os": "win32", "cpu": "x64" }, "sha512-eE68LwnogxwcPgGsbVGPGxmghyMGmU9SdGwcc+uhGnUxPz1jL89oECMWJNc36zjVK24umNeDAzB5KA3lw1MuWw=="],
 
-    "lodash.clonedeep": ["lodash.clonedeep@4.5.0", "", {}, "sha512-H5ZhCF25riFd9uB5UCkVKo61m3S/xZk1x4wA6yp/L3RFP6Z/eHH1ymQcGLo7J3GMPfm0V/7m1tryHuGVxpqEBQ=="],
-
     "patchright-core": ["patchright-core@1.58.2", "", { "bin": { "patchright-core": "cli.js" } }, "sha512-f3r0u6as+4nd0Vmr4ndH/zwijMHj7ECxelSa5iMeIJPxtLOwbo22LQPC1qjZZtSIhAVzUDStx4nw/BW3MqhJIQ=="],
 
     "playwright": ["patchright@1.58.2", "", { "dependencies": { "patchright-core": "1.58.2" }, "optionalDependencies": { "fsevents": "2.3.2" }, "bin": { "patchright": "cli.js" } }, "sha512-B1pufT2A5uZKL4e5/s2cykUo4RpVupHfJ8eTvuS560D/B7H8McjLzN9n6ruYFIi5/e17WJL428bFMUOEgPL5OQ=="],
@@ -93,7 +90,5 @@
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@7.18.2", "", {}, "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w=="],
-
-    "user-agents": ["user-agents@1.1.671", "", { "dependencies": { "lodash.clonedeep": "^4.5.0" } }, "sha512-f6nnYA/kvDbJsEYRnsCJZqDC6PUZmcBW5wd42jWi24o31XUEZ6QGfPs4CpzXGCWKeL6bLdKmM+5czx+GxNvX5A=="],
   }
 }

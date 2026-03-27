@@ -116,7 +116,8 @@ import { parseRequest, serialiseResponse } from "./protocol.ts";
 import { clearRefs, markStale } from "./refs.ts";
 import {
 	applyStealthScripts,
-	generateUserAgent,
+	buildStealthUA,
+	type StealthOpts,
 	stealthArgs,
 } from "./stealth.ts";
 import { resolveTimeout, withTimeout } from "./timeout.ts";
@@ -288,11 +289,7 @@ export type DaemonHandle = {
 	shutdown: () => Promise<void>;
 };
 
-export type StealthOpts = {
-	userAgent: string;
-	navigatorPlatform: string;
-	chromeMajor: string;
-};
+export type { StealthOpts };
 
 export type ServerDeps = {
 	page: Page;
@@ -1202,9 +1199,6 @@ export async function startDaemon(
 	const userDataDir =
 		options.userDataDir ?? join(homedir(), ".bun-browse", "user-data");
 
-	// Stealth user-agent is only generated for Chromium
-	const stealthResult = isChromium ? generateUserAgent() : null;
-
 	const launcher = resolveBrowserType(browserName);
 
 	const launchOptions: Record<string, unknown> = {
@@ -1218,14 +1212,16 @@ export async function startDaemon(
 		launchOptions.proxy = proxyConfig;
 	}
 
+	// Detect Chrome version pre-launch to set the UA at the browser level.
+	// Setting userAgent at launch ensures all contexts (main, dedicated workers,
+	// shared workers, service workers) see the clean UA without HeadlessChrome.
+	let stealthOpts: StealthOpts | undefined;
 	if (isChromium) {
-		// Chromium-specific: channel, stealth args, and UA override
+		stealthOpts = await buildStealthUA("chrome");
 		launchOptions.channel = "chrome";
 		launchOptions.args = stealthArgs();
 		launchOptions.ignoreDefaultArgs = ["--enable-automation"];
-		if (stealthResult) {
-			launchOptions.userAgent = stealthResult.userAgent;
-		}
+		launchOptions.userAgent = stealthOpts.userAgent;
 	}
 
 	const context: BrowserContext = await launcher.launchPersistentContext(
@@ -1233,15 +1229,30 @@ export async function startDaemon(
 		launchOptions,
 	);
 
-	// Apply Chromium stealth scripts (fingerprint spoofing)
-	let stealthOpts: StealthOpts | undefined;
-	if (isChromium && stealthResult) {
-		stealthOpts = {
-			userAgent: stealthResult.userAgent,
-			navigatorPlatform: stealthResult.navigatorPlatform,
-			chromeMajor: stealthResult.chromeMajor,
+	// Apply stealth scripts (patches navigator properties in the JS context).
+	if (isChromium && stealthOpts) {
+		const opts = stealthOpts;
+		await applyStealthScripts(context, opts);
+
+		// Also use CDP Emulation.setUserAgentOverride per page.
+		// The launch-level userAgent only sets HTTP headers.
+		// CDP override patches navigator.userAgent in JS for dedicated workers.
+		// (SharedWorkers/ServiceWorkers require the extension's constructor wrapper.)
+		const applyUAOverride = async (p: Page) => {
+			try {
+				const cdp = await context.newCDPSession(p);
+				await cdp.send("Emulation.setUserAgentOverride", {
+					userAgent: opts.userAgent,
+					platform: opts.navigatorPlatform,
+				});
+			} catch {
+				// CDP session may fail for special pages (about:blank, etc.)
+			}
 		};
-		await applyStealthScripts(context, stealthOpts);
+		for (const p of context.pages()) {
+			await applyUAOverride(p);
+		}
+		context.on("page", applyUAOverride);
 	}
 
 	const page: Page = context.pages()[0] ?? (await context.newPage());

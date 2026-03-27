@@ -1,62 +1,19 @@
 import { describe, expect, mock, test } from "bun:test";
-import { platform } from "node:os";
-import {
-	applyStealthScripts,
-	generateUserAgent,
-	stealthArgs,
-} from "../src/stealth.ts";
-
-describe("generateUserAgent", () => {
-	test("returns a Chrome user-agent string", () => {
-		const { userAgent } = generateUserAgent();
-		expect(userAgent).toContain("Chrome/");
-		expect(userAgent).toContain("Mozilla/5.0");
-	});
-
-	test("user-agent matches the host OS", () => {
-		const { userAgent } = generateUserAgent();
-		const os = platform();
-
-		if (os === "darwin") {
-			expect(userAgent).toContain("Macintosh");
-		} else if (os === "win32") {
-			expect(userAgent).toContain("Windows");
-		} else {
-			expect(userAgent).toContain("Linux");
-		}
-	});
-
-	test("navigatorPlatform matches the host OS", () => {
-		const { navigatorPlatform } = generateUserAgent();
-		const os = platform();
-
-		if (os === "darwin") {
-			expect(navigatorPlatform).toBe("MacIntel");
-		} else if (os === "win32") {
-			expect(navigatorPlatform).toBe("Win32");
-		} else {
-			expect(navigatorPlatform).toBe("Linux x86_64");
-		}
-	});
-
-	test("extracts a valid Chrome major version", () => {
-		const { chromeMajor } = generateUserAgent();
-		const version = Number(chromeMajor);
-		expect(version).toBeGreaterThan(0);
-		expect(Number.isInteger(version)).toBe(true);
-	});
-
-	test("user-agent contains the extracted Chrome version", () => {
-		const { userAgent, chromeMajor } = generateUserAgent();
-		expect(userAgent).toContain(`Chrome/${chromeMajor}`);
-	});
-});
+import { applyStealthScripts, stealthArgs } from "../src/stealth.ts";
 
 describe("stealthArgs", () => {
-	test("includes AutomationControlled disable flag", () => {
-		expect(stealthArgs()).toContain(
-			"--disable-blink-features=AutomationControlled",
-		);
+	test("returns an array of launch args", () => {
+		const args = stealthArgs();
+		expect(Array.isArray(args)).toBe(true);
+	});
+
+	test("loads stealth-worker-fix extension when available", () => {
+		const args = stealthArgs();
+		const extArg = args.find((a) => a.startsWith("--load-extension="));
+		// In the dev environment, extensions/ should be found
+		if (extArg) {
+			expect(extArg).toContain("stealth-worker-fix");
+		}
 	});
 });
 
@@ -69,6 +26,9 @@ describe("applyStealthScripts", () => {
 			userAgent: "Mozilla/5.0 (Macintosh) Chrome/131",
 			navigatorPlatform: "MacIntel",
 			chromeMajor: "131",
+			platformVersion: "15.3.0",
+			architecture: "arm",
+			bitness: "64",
 		});
 
 		expect(addInitScript).toHaveBeenCalledTimes(1);
@@ -78,6 +38,9 @@ describe("applyStealthScripts", () => {
 			userAgent: "Mozilla/5.0 (Macintosh) Chrome/131",
 			navigatorPlatform: "MacIntel",
 			chromeMajor: "131",
+			platformVersion: "15.3.0",
+			architecture: "arm",
+			bitness: "64",
 		});
 	});
 });

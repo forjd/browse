@@ -1,0 +1,15 @@
+{
+	"manifest_version": 3,
+	"name": "Stealth Worker Fix",
+	"version": "1.0",
+	"description": "Patches SharedWorker/ServiceWorker UA leak and navigator property descriptors",
+	"content_scripts": [
+		{
+			"matches": ["<all_urls>"],
+			"js": ["fix.js"],
+			"run_at": "document_start",
+			"all_frames": true,
+			"world": "MAIN"
+		}
+	]
+}

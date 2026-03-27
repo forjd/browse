@@ -72,12 +72,14 @@ if [ "$(uname -s)" = "Darwin" ]; then
   echo "  ✓ ad-hoc signed"
 fi
 
-# Copy screenxy-fix extension alongside the binary
-if [ -d extensions/screenxy-fix ]; then
-  mkdir -p dist/extensions/screenxy-fix
-  cp extensions/screenxy-fix/* dist/extensions/screenxy-fix/
-  echo "  ✓ dist/extensions/screenxy-fix"
-fi
+# Copy extensions alongside the binary
+for ext in screenxy-fix stealth-worker-fix; do
+  if [ -d "extensions/$ext" ]; then
+    mkdir -p "dist/extensions/$ext"
+    cp "extensions/$ext"/* "dist/extensions/$ext/"
+    echo "  ✓ dist/extensions/$ext"
+  fi
+done
 
 echo "  ✓ dist/browse ($OS-$ARCH_LABEL)"
 
