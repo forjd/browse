@@ -5,9 +5,9 @@
 [![Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1.svg)](https://bun.sh)
 [![Playwright](https://img.shields.io/badge/browser-Playwright-2ead33.svg)](https://playwright.dev)
 
-A fast CLI for browser automation. Wraps Playwright behind a persistent daemon on a Unix socket — first call cold-starts in ~3s, every call after that runs in under 30ms.
+A fast CLI for browser automation with built-in stealth. Wraps Playwright behind a persistent daemon on a Unix socket — first call cold-starts in ~3s, every call after that runs in under 30ms.
 
-Built for AI agents doing QA, but works just as well by hand.
+Built for AI agents doing QA and web scraping, but works just as well by hand.
 
 **[Why Browse?](docs/why-browse.md)** — what makes it different for AI agent builders, DevOps, QA, security, accessibility, and more.
 
@@ -520,6 +520,21 @@ CLI ──JSON──▶ Unix socket ──▶ Daemon ──▶ Playwright ──
               TCP socket ──┘                          ├─▶ Firefox
                                                       └─▶ WebKit
 ```
+
+## Stealth
+
+Browse ships with built-in anti-detection for headless Chrome — no plugins or extra config needed. The stealth layer runs automatically and includes:
+
+- **Navigator patching** — clean user-agent string, consistent `userAgentData` brands/platform via CDP metadata
+- **Screen spoofing** — plausible monitor resolution and taskbar offset to avoid viewport-equals-screen detection
+- **Chrome stubs** — `chrome.app` and `chrome.runtime` stubs matching real Chrome
+- **Worker coverage** — user-agent and fingerprint patches in SharedWorker and ServiceWorker contexts
+- **Iframe protection** — randomised mouse event coordinates to prevent CDP coordinate leaks (Cloudflare Turnstile)
+- **Environment signals** — `navigator.connection.downlinkMax`, `screen.availHeight`, and background colour overrides
+
+Passes Sannysoft, Intoli, Pixelscan, and BrowserLeaks. Partially evades CreepJS (25% like-headless, 0% stealth library detection). See the [architecture docs](docs/architecture.md#stealth) for implementation details.
+
+> **Note:** Stealth features are Chromium-specific and are not applied to Firefox or WebKit.
 
 ## Performance
 
