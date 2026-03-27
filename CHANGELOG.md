@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.2](https://github.com/forjd/browse/compare/browse-v0.12.1...browse-v0.12.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* evade fpscanner WEBDRIVER detection with Blink feature flag ([2b63c91](https://github.com/forjd/browse/commit/2b63c9172d55c11268a711dc3703e94feb5ccb56)), closes [#115](https://github.com/forjd/browse/issues/115)
+* evade Pixelscan masking detection with real high-entropy values ([4616154](https://github.com/forjd/browse/commit/4616154d1ad566a53436dda243af5b0542a785b8)), closes [#118](https://github.com/forjd/browse/issues/118)
+* improve stealth detection evasion with extension-based UA patching ([1a06762](https://github.com/forjd/browse/commit/1a06762f098635dcae29ce20bda81bee895b4cd3))
+* make navigator getters throw TypeError on prototype access ([7decc73](https://github.com/forjd/browse/commit/7decc7399cfaf0b31b33e390cd3489f8ca463cee)), closes [#117](https://github.com/forjd/browse/issues/117)
+* use --user-agent= Chromium flag to patch ServiceWorker UA leak ([ec2a929](https://github.com/forjd/browse/commit/ec2a929aba866aa7c27152d7a60a46618981fa80)), closes [#116](https://github.com/forjd/browse/issues/116)
+
 ## [0.12.1](https://github.com/forjd/browse/compare/browse-v0.12.0...browse-v0.12.1) (2026-03-22)
 
 
