@@ -62,9 +62,10 @@ describe("applyStealthScripts", () => {
 		const context = { addInitScript } as never;
 
 		await applyStealthScripts(context, {
-			userAgent: "Mozilla/5.0 (Macintosh) Chrome/131",
+			userAgent: "Mozilla/5.0 (Macintosh) Chrome/131.0.6778.85",
 			navigatorPlatform: "MacIntel",
 			chromeMajor: "131",
+			chromeFullVersion: "131.0.6778.85",
 			platformVersion: "15.3.0",
 			architecture: "arm",
 			bitness: "64",
@@ -74,12 +75,31 @@ describe("applyStealthScripts", () => {
 		const [fn, args] = addInitScript.mock.calls[0];
 		expect(typeof fn).toBe("function");
 		expect(args).toEqual({
-			userAgent: "Mozilla/5.0 (Macintosh) Chrome/131",
+			userAgent: "Mozilla/5.0 (Macintosh) Chrome/131.0.6778.85",
 			navigatorPlatform: "MacIntel",
 			chromeMajor: "131",
+			chromeFullVersion: "131.0.6778.85",
 			platformVersion: "15.3.0",
 			architecture: "arm",
 			bitness: "64",
 		});
+	});
+
+	test("passes chromeFullVersion for HEV fullVersionList", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [, args] = addInitScript.mock.calls[0];
+		expect(args.chromeFullVersion).toBe("146.0.7680.165");
 	});
 });

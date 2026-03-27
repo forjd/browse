@@ -21,6 +21,8 @@
 	var patchedUA = currentUA.replace("HeadlessChrome", "Chrome");
 	var chromeMajorMatch = patchedUA.match(/Chrome\/(\d+)/);
 	var chromeMajor = chromeMajorMatch ? chromeMajorMatch[1] : "0";
+	var chromeFullMatch = patchedUA.match(/Chrome\/(\d+\.\d+\.\d+\.\d+)/);
+	var chromeFullVersion = chromeFullMatch ? chromeFullMatch[1] : chromeMajor + ".0.0.0";
 	var navPlatform = navigator.platform;
 	var uaDataPlatform =
 		navPlatform === "MacIntel"
@@ -86,8 +88,8 @@
 			{ brand: "Not-A.Brand", version: "8" },
 		];
 		var fullVersionList = [
-			{ brand: "Chromium", version: chromeMajor + ".0.0.0" },
-			{ brand: "Google Chrome", version: chromeMajor + ".0.0.0" },
+			{ brand: "Chromium", version: chromeFullVersion },
+			{ brand: "Google Chrome", version: chromeFullVersion },
 			{ brand: "Not-A.Brand", version: "8.0.0.0" },
 		];
 
@@ -104,7 +106,7 @@
 						architecture: realValues ? realValues.architecture : "x86",
 						bitness: realValues ? realValues.bitness : "64",
 						model: realValues ? realValues.model : "",
-						uaFullVersion: chromeMajor + ".0.0.0",
+						uaFullVersion: chromeFullVersion,
 						wow64: realValues ? realValues.wow64 : false,
 					};
 					if (!hints || hints.length === 0) {
@@ -199,6 +201,7 @@
 			"(function(){",
 			"var ua=" + JSON.stringify(patchedUA) + ";",
 			"var cm=" + JSON.stringify(chromeMajor) + ";",
+			"var cfv=" + JSON.stringify(chromeFullVersion) + ";",
 			"var plat=" + JSON.stringify(uaDataPlatform) + ";",
 			"var hev=" + JSON.stringify(hev) + ";",
 			"var brands=[{brand:'Chromium',version:cm},{brand:'Google Chrome',version:cm},{brand:'Not-A.Brand',version:'8'}];",
@@ -208,9 +211,9 @@
 			"try{Object.defineProperty(NP,'userAgent',{get:wg(function(){return ua}),configurable:true})}catch(e){}",
 			"try{Object.defineProperty(NP,'webdriver',{get:wg(function(){return false}),configurable:true})}catch(e){}",
 			"try{if('userAgentData' in navigator){",
-			"  var fvl=[{brand:'Chromium',version:cm+'.0.0.0'},{brand:'Google Chrome',version:cm+'.0.0.0'},{brand:'Not-A.Brand',version:'8.0.0.0'}];",
+			"  var fvl=[{brand:'Chromium',version:cfv},{brand:'Google Chrome',version:cfv},{brand:'Not-A.Brand',version:'8.0.0.0'}];",
 			"  var fakeUAData={brands:brands,mobile:false,platform:plat,",
-			"    getHighEntropyValues:function(h){var r={brands:brands,mobile:false,platform:plat,fullVersionList:fvl,uaFullVersion:cm+'.0.0.0',platformVersion:hev.platformVersion,architecture:hev.architecture,bitness:hev.bitness,model:hev.model,wow64:hev.wow64};if(!h)return Promise.resolve(r);var o={brands:brands,mobile:false,platform:plat};for(var i=0;i<h.length;i++){if(h[i] in r)o[h[i]]=r[h[i]]}return Promise.resolve(o)},",
+			"    getHighEntropyValues:function(h){var r={brands:brands,mobile:false,platform:plat,fullVersionList:fvl,uaFullVersion:cfv,platformVersion:hev.platformVersion,architecture:hev.architecture,bitness:hev.bitness,model:hev.model,wow64:hev.wow64};if(!h)return Promise.resolve(r);var o={brands:brands,mobile:false,platform:plat};for(var i=0;i<h.length;i++){if(h[i] in r)o[h[i]]=r[h[i]]}return Promise.resolve(o)},",
 			"    toJSON:function(){return{brands:brands,mobile:false,platform:plat}}",
 			"  };",
 			"  Object.defineProperty(NP,'userAgentData',{get:wg(function(){return fakeUAData}),configurable:true})",
