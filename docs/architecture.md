@@ -109,17 +109,28 @@ Each connection handles exactly one request: connect, send, receive, close.
 
 ## Stealth Mode
 
-Browse uses patchright (a Playwright fork) to reduce automation detection. A random desktop Chrome user-agent matching the host OS is selected via the `user-agents` package.
+Browse uses patchright (a Playwright fork) to reduce automation detection. A deterministic user-agent string is constructed from the installed Chrome version and host OS — no external UA generation dependency.
 
-Patches applied via `addInitScript`:
+Stealth is applied through three complementary layers:
 
-- `navigator.webdriver` set to `false` (on the prototype to avoid detection)
-- `navigator.userAgentData` brands spoofed to match the UA version
-- `navigator.userAgent` overridden
+### 1. Chromium launch arguments (`stealthArgs()`)
 
-Launch arguments include `--disable-blink-features=AutomationControlled` and `--disable-extensions-except` for the screenxy-fix extension.
+- `--disable-blink-features=AutomationControlled` — prevents the engine from setting `navigator.webdriver = true` at the C++ level across all execution contexts (main, workers, iframes)
+- `--user-agent=<ua>` — sets the UA at the Chromium process level so all contexts (including ServiceWorkers) see the clean string
+- Suppression of Playwright-default automation flags (`--disable-popup-blocking`, `--disable-component-update`, `--disable-default-apps`) via `ignoreDefaultArgs`
 
-The **screenxy-fix Chrome extension** patches a CDP mouse coordinate leak in cross-origin iframes (notably Cloudflare Turnstile).
+### 2. Chrome extensions (`extensions/`)
+
+- **stealth-worker-fix** — patches `navigator.userAgent`, `navigator.userAgentData`, `navigator.webdriver`, and `SharedWorker` constructor in all browsing contexts including workers. Uses `this instanceof` checks on prototype getters to throw `TypeError("Illegal invocation")` like native getters (evading CreepJS lie detection). Removes Playwright globals (`__pwInitScripts`, `__playwright__binding__`). Stubs `chrome.app` with native-looking methods. Sets `NavigatorUAData.prototype` on the faked `userAgentData` object so `instanceof` checks pass. Passes through real high-entropy values (`platformVersion`, `architecture`, `bitness`) from the host OS rather than hardcoded defaults.
+- **screenxy-fix** — patches a CDP mouse coordinate leak in cross-origin iframes (notably Cloudflare Turnstile).
+
+### 3. `addInitScript` fallback (`applyStealthScripts()`)
+
+Applies the same navigator patches as the extension, used for isolated (non-persistent) session contexts where the extension content script doesn't load.
+
+### Per-page CDP patching
+
+Each new page gets `Emulation.setUserAgentOverride` via CDP to patch `navigator.userAgent` in dedicated worker contexts where neither the extension nor `addInitScript` can reach.
 
 Stealth options are propagated to isolated session contexts.
 

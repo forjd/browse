@@ -67,7 +67,7 @@ browse network --all                      # full request/response log
 browse intercept add '**' --status 500    # test error handling
 ```
 
-Browse's stealth mode (via Patchright) includes anti-detection patches — `navigator.webdriver` spoofing, random user agents, headless detection bypass — for authorized penetration testing against bot-protected targets.
+Browse's stealth mode (via Patchright) includes multi-layered anti-detection — Chromium launch flags, a Chrome extension for worker/iframe context patching, and native-looking navigator property overrides — for authorised penetration testing against bot-protected targets.
 
 ## For Accessibility Specialists
 
