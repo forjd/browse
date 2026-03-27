@@ -184,31 +184,46 @@ export async function applyStealthScripts(
 			architecture,
 			bitness,
 		}) => {
-			const nativeToString = Function.prototype.toString;
+			// WeakMap-based toString spoofing — no own properties on functions,
+			// so hasOwnProperty('toString') returns false (matching native).
+			// biome-ignore lint/complexity/noBannedTypes: WeakMap key must be Function
+			const toStringMap = new WeakMap<Function, string>();
+			const originalToString = Function.prototype.toString;
+			// biome-ignore lint/suspicious/noShadowRestrictedNames: must match native Function.prototype.toString name
+			const patchedToString = function toString(
+				this: (...args: unknown[]) => unknown,
+			): string {
+				const spoofed = toStringMap.get(this);
+				if (spoofed !== undefined) return spoofed;
+				return originalToString.call(this);
+			};
+			toStringMap.set(patchedToString, "function toString() { [native code] }");
+			Function.prototype.toString = patchedToString;
 
-			// Spoof toString on individual functions without overriding
-			// Function.prototype.toString globally.
-			// Uses a regular function so `this` is the receiver — native
-			// getters throw TypeError when called on the prototype directly.
 			function makeNativeGetter(
 				name: string,
 				proto: object,
 				valueFn: () => unknown,
 			): () => unknown {
 				const getter = function (this: unknown) {
+					// Reject non-objects (primitives, null, undefined)
 					if (
-						!(
-							this instanceof
-							(proto as { constructor: new (...a: unknown[]) => unknown })
-								.constructor
-						)
+						this == null ||
+						(typeof this !== "object" && typeof this !== "function")
 					) {
 						throw new TypeError("Illegal invocation");
 					}
-					return valueFn();
+					// Walk the prototype chain to check if proto is an ancestor,
+					// matching native getter behaviour without relying on instanceof
+					// (which can fail across extension/page execution contexts).
+					let p = Object.getPrototypeOf(this);
+					while (p !== null) {
+						if (p === proto) return valueFn();
+						p = Object.getPrototypeOf(p);
+					}
+					throw new TypeError("Illegal invocation");
 				};
-				getter.toString = () => `function get ${name}() { [native code] }`;
-				getter.toString.toString = nativeToString.bind(nativeToString);
+				toStringMap.set(getter, `function get ${name}() { [native code] }`);
 				return getter;
 			}
 
@@ -216,10 +231,7 @@ export async function applyStealthScripts(
 				// biome-ignore lint/complexity/noBannedTypes: generic bound for callable values
 				T extends Function,
 			>(name: string, fn: T): T {
-				const f = fn as { toString: { toString: (this: unknown) => string } };
-				f.toString = (() =>
-					`function ${name}() { [native code] }`) as typeof f.toString;
-				f.toString.toString = nativeToString.bind(nativeToString);
+				toStringMap.set(fn, `function ${name}() { [native code] }`);
 				return fn;
 			}
 

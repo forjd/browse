@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot Detector</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; background: #0a0a0a; color: #e0e0e0; padding: 2rem; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.5rem; color: #fff; }
+  #verdict { font-size: 1.8rem; font-weight: bold; margin: 1rem 0; padding: 1rem; border-radius: 8px; text-align: center; }
+  #verdict.human { background: #0a3d0a; color: #4ade80; border: 2px solid #22c55e; }
+  #verdict.bot { background: #3d0a0a; color: #f87171; border: 2px solid #ef4444; }
+  #verdict.suspect { background: #3d2d0a; color: #fbbf24; border: 2px solid #f59e0b; }
+  .score { font-size: 0.9rem; color: #999; text-align: center; margin-bottom: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #222; font-size: 0.85rem; }
+  th { color: #888; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; }
+  .pass { color: #4ade80; }
+  .fail { color: #f87171; }
+  .warn { color: #fbbf24; }
+  .weight { color: #666; font-size: 0.75rem; }
+  .detail { color: #777; font-size: 0.75rem; max-width: 400px; word-break: break-all; }
+  #mouse-area { width: 100%; height: 80px; background: #111; border: 1px solid #333; border-radius: 4px; margin-top: 1rem; display: flex; align-items: center; justify-content: center; color: #555; font-size: 0.8rem; cursor: crosshair; }
+  #data-dump { margin-top: 2rem; }
+  #data-dump summary { cursor: pointer; color: #888; font-size: 0.8rem; }
+  #data-dump pre { background: #111; padding: 1rem; border-radius: 4px; font-size: 0.7rem; overflow-x: auto; margin-top: 0.5rem; color: #aaa; }
+</style>
+</head>
+<body>
+<h1>Bot / Automation Detector</h1>
+<div id="verdict">Running checks&hellip;</div>
+<div class="score" id="score-text"></div>
+<table>
+  <thead><tr><th>Check</th><th>Result</th><th>Weight</th><th>Detail</th></tr></thead>
+  <tbody id="results"></tbody>
+</table>
+<div id="mouse-area">Move your mouse here to test interaction patterns</div>
+<details id="data-dump"><summary>Raw data</summary><pre id="raw-data"></pre></details>
+
+<script>
+(() => {
+  'use strict';
+
+  const checks = [];
+  const rawData = {};
+
+  function addCheck(name, status, weight, detail) {
+    checks.push({ name, status, weight, detail: detail || '' });
+  }
+
+  // =========================================================================
+  // 1. Navigator plugins (not spoofed by browse)
+  // =========================================================================
+  function checkPlugins() {
+    const count = navigator.plugins ? navigator.plugins.length : 0;
+    rawData.pluginCount = count;
+    rawData.plugins = Array.from(navigator.plugins || []).map(p => p.name);
+    if (count === 0) {
+      addCheck('navigator.plugins', 'fail', 3, `Empty plugin list (${count} plugins)`);
+    } else {
+      addCheck('navigator.plugins', 'pass', 3, `${count} plugins: ${rawData.plugins.slice(0, 3).join(', ')}`);
+    }
+  }
+
+  // =========================================================================
+  // 2. WebGL renderer (not spoofed by browse)
+  // =========================================================================
+  function checkWebGL() {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) {
+        addCheck('WebGL renderer', 'fail', 3, 'WebGL not available');
+        return;
+      }
+      const dbgInfo = gl.getExtension('WEBGL_debug_renderer_info');
+      const renderer = dbgInfo ? gl.getParameter(dbgInfo.UNMASKED_RENDERER_WEBGL) : 'unknown';
+      const vendor = dbgInfo ? gl.getParameter(dbgInfo.UNMASKED_VENDOR_WEBGL) : 'unknown';
+      rawData.webglRenderer = renderer;
+      rawData.webglVendor = vendor;
+
+      const suspicious = /swiftshader|llvmpipe|mesa|software|microsoft basic/i.test(renderer);
+      if (suspicious) {
+        addCheck('WebGL renderer', 'fail', 3, `Software renderer: ${renderer}`);
+      } else {
+        addCheck('WebGL renderer', 'pass', 3, renderer.substring(0, 80));
+      }
+    } catch (e) {
+      addCheck('WebGL renderer', 'fail', 3, `Error: ${e.message}`);
+    }
+  }
+
+  // =========================================================================
+  // 3. Canvas fingerprint consistency (headless renders differently)
+  // =========================================================================
+  function checkCanvas() {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      // Draw something complex that differs between GPU/software rendering
+      ctx.fillStyle = '#f00';
+      ctx.fillRect(0, 0, 128, 64);
+      ctx.fillStyle = '#0f0';
+      ctx.beginPath();
+      ctx.arc(80, 32, 28, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#00f';
+      ctx.font = '18px Arial';
+      ctx.fillText('Bot?', 10, 45);
+      ctx.fillStyle = 'rgba(255,0,255,0.5)';
+      ctx.fillRect(100, 10, 100, 40);
+
+      const dataUrl = canvas.toDataURL();
+      // Simple hash of the data URL
+      let hash = 0;
+      for (let i = 0; i < dataUrl.length; i++) {
+        hash = ((hash << 5) - hash + dataUrl.charCodeAt(i)) | 0;
+      }
+      rawData.canvasHash = hash;
+      rawData.canvasLength = dataUrl.length;
+      // We can't definitively say fail without a known-good hash, but we record it
+      addCheck('Canvas fingerprint', 'pass', 0, `Hash: ${hash} (${dataUrl.length} bytes) — compare across sessions`);
+    } catch (e) {
+      addCheck('Canvas fingerprint', 'warn', 1, `Error: ${e.message}`);
+    }
+  }
+
+  // =========================================================================
+  // 4. navigator.webdriver property descriptor analysis
+  // =========================================================================
+  function checkWebdriverDescriptor() {
+    const desc = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver');
+    rawData.webdriverDescriptor = desc ? {
+      configurable: desc.configurable,
+      enumerable: desc.enumerable,
+      hasGetter: !!desc.get,
+    } : null;
+
+    if (!desc) {
+      addCheck('webdriver descriptor', 'fail', 2, 'Property descriptor missing from prototype');
+      return;
+    }
+
+    // In real Chrome, navigator.webdriver is true only when automation is active.
+    // browse sets it to false via a custom getter. We can detect the replacement
+    // by checking if the getter's behaviour differs from native.
+    const val = navigator.webdriver;
+    rawData.webdriverValue = val;
+
+    // Test 1: The native getter in non-automated Chrome returns false and the
+    // property is on the prototype. If someone redefined it, the getter function
+    // identity will differ from a freshly-created iframe's getter.
+    let iframeGetterMatch = null;
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+      const iframeDesc = Object.getOwnPropertyDescriptor(
+        iframe.contentWindow.Navigator.prototype, 'webdriver'
+      );
+      // In browse, the extension runs on all frames at document_start,
+      // so the iframe getter will also be replaced. But we create the
+      // iframe AFTER page load, so let's check.
+      if (iframeDesc && iframeDesc.get && desc.get) {
+        iframeGetterMatch = iframeDesc.get === desc.get;
+      }
+      document.body.removeChild(iframe);
+    } catch (e) {
+      // Cross-origin or sandboxed
+    }
+    rawData.webdriverIframeGetterMatch = iframeGetterMatch;
+
+    // Test 2: Call the getter with wrong `this` — native throws TypeError,
+    // spoofed may not throw if the instanceof check is broken.
+    let throwsBehavior = 'unknown';
+    try {
+      desc.get.call({});
+      throwsBehavior = 'no-throw'; // Suspicious — native should throw
+    } catch (e) {
+      throwsBehavior = e instanceof TypeError ? 'TypeError' : e.constructor.name;
+    }
+    rawData.webdriverThrows = throwsBehavior;
+
+    if (val === true) {
+      addCheck('webdriver descriptor', 'fail', 5, 'navigator.webdriver is true — automation detected');
+    } else if (throwsBehavior === 'no-throw') {
+      // Native webdriver getter throws TypeError when called with wrong this.
+      // If it doesn't throw, the getter has been replaced with a broken one.
+      addCheck('webdriver descriptor', 'fail', 3, `Getter does not throw with wrong this — replaced`);
+    } else if (throwsBehavior === 'TypeError') {
+      addCheck('webdriver descriptor', 'pass', 3, `value=${val}, throws correctly`);
+    } else {
+      addCheck('webdriver descriptor', 'warn', 3, `value=${val}, throws=${throwsBehavior}`);
+    }
+  }
+
+  // =========================================================================
+  // 5. toString spoofing depth analysis
+  // =========================================================================
+  function checkToStringChain() {
+    // browse's stealth uses: getter.toString = () => "function get X() { [native code] }"
+    // and getter.toString.toString = nativeToString.bind(nativeToString)
+    //
+    // A truly native getter's toString is Function.prototype.toString itself (inherited),
+    // not an own property. So if the getter has its own toString, it's been spoofed.
+    const signals = [];
+
+    const desc = Object.getOwnPropertyDescriptor(Navigator.prototype, 'webdriver');
+    if (desc && desc.get) {
+      const getter = desc.get;
+
+      // Check 1: Does the getter have its own toString? Native getters don't.
+      const hasOwnToString = Object.hasOwn(getter, 'toString');
+      rawData.webdriverGetterHasOwnToString = hasOwnToString;
+      if (hasOwnToString) {
+        signals.push('getter has own toString');
+      }
+
+      // Check 2: Native toString returns "function get webdriver() { [native code] }"
+      // but the getter's toString.name would be '' for an arrow function,
+      // while Function.prototype.toString.name is 'toString'.
+      if (hasOwnToString) {
+        const tsName = getter.toString.name;
+        rawData.webdriverToStringName = tsName;
+        if (tsName === '' || tsName !== 'toString') {
+          signals.push(`toString.name="${tsName}" (expected "toString")`);
+        }
+      }
+
+      // Check 3: getter.toString.toString should be Function.prototype.toString
+      // In browse, it's nativeToString.bind(nativeToString) which is a bound function.
+      // Bound functions have name = "bound toString" and length = 0.
+      if (hasOwnToString && Object.hasOwn(getter.toString, 'toString')) {
+        const tstsName = getter.toString.toString.name;
+        rawData.toStringToStringName = tstsName;
+        if (tstsName.startsWith('bound')) {
+          signals.push(`toString.toString.name="${tstsName}"`);
+        }
+      }
+
+      // Check 4: The spoofed toString is an arrow function. Arrow functions
+      // don't have a prototype property, while regular functions do.
+      // Native Function.prototype.toString is a regular function.
+      if (hasOwnToString) {
+        const hasPrototype = Object.hasOwn(getter.toString, 'prototype');
+        rawData.toStringHasPrototype = hasPrototype;
+        if (!hasPrototype) {
+          signals.push('toString has no prototype (arrow fn)');
+        }
+      }
+    }
+
+    rawData.toStringSignals = signals;
+
+    if (signals.length >= 2) {
+      addCheck('toString chain analysis', 'fail', 4, signals.join('; '));
+    } else if (signals.length === 1) {
+      addCheck('toString chain analysis', 'warn', 4, signals[0]);
+    } else {
+      addCheck('toString chain analysis', 'pass', 4, 'No spoofing signals detected');
+    }
+  }
+
+  // =========================================================================
+  // 6. userAgentData getHighEntropyValues analysis
+  // =========================================================================
+  async function checkUAData() {
+    if (!navigator.userAgentData) {
+      addCheck('userAgentData', 'warn', 1, 'Not available');
+      return;
+    }
+
+    try {
+      const hev = await navigator.userAgentData.getHighEntropyValues([
+        'platformVersion', 'architecture', 'bitness', 'fullVersionList', 'uaFullVersion'
+      ]);
+      rawData.highEntropyValues = hev;
+
+      // browse spoofs fullVersionList with X.0.0.0 pattern — real Chrome has
+      // actual build numbers like 136.0.7103.113
+      const signals = [];
+      if (hev.fullVersionList) {
+        for (const entry of hev.fullVersionList) {
+          if (entry.brand === 'Google Chrome' || entry.brand === 'Chromium') {
+            if (/^\d+\.0\.0\.0$/.test(entry.version)) {
+              signals.push(`${entry.brand} version ${entry.version} looks synthetic (X.0.0.0)`);
+            }
+          }
+        }
+      }
+
+      // Also check uaFullVersion
+      if (hev.uaFullVersion && /^\d+\.0\.0\.0$/.test(hev.uaFullVersion)) {
+        signals.push(`uaFullVersion=${hev.uaFullVersion} looks synthetic`);
+      }
+
+      // Check that the UA string version matches the fullVersionList
+      const uaMatch = navigator.userAgent.match(/Chrome\/([\d.]+)/);
+      if (uaMatch && hev.fullVersionList) {
+        const uaVersion = uaMatch[1];
+        const hevChrome = hev.fullVersionList.find(e => e.brand === 'Google Chrome');
+        if (hevChrome && hevChrome.version !== uaVersion) {
+          signals.push(`UA version ${uaVersion} != HEV version ${hevChrome.version}`);
+        }
+      }
+
+      rawData.uaDataSignals = signals;
+      if (signals.length > 0) {
+        addCheck('userAgentData HEV', 'fail', 3, signals.join('; '));
+      } else {
+        addCheck('userAgentData HEV', 'pass', 3, 'Versions look genuine');
+      }
+    } catch (e) {
+      addCheck('userAgentData HEV', 'warn', 1, `Error: ${e.message}`);
+    }
+  }
+
+  // =========================================================================
+  // 7. Notification permission (headless always 'denied')
+  // =========================================================================
+  function checkNotification() {
+    if (typeof Notification === 'undefined') {
+      addCheck('Notification API', 'fail', 2, 'Notification API missing');
+      return;
+    }
+    const perm = Notification.permission;
+    rawData.notificationPermission = perm;
+    // 'default' is the normal state for a site that hasn't asked yet.
+    // 'denied' can happen in real browsers too, but combined with other signals it's telling.
+    if (perm === 'denied') {
+      addCheck('Notification API', 'warn', 1, `permission="${perm}" — could indicate headless`);
+    } else {
+      addCheck('Notification API', 'pass', 1, `permission="${perm}"`);
+    }
+  }
+
+  // =========================================================================
+  // 8. Connection RTT (often 0 in headless)
+  // =========================================================================
+  function checkConnection() {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!conn) {
+      addCheck('Network connection', 'warn', 1, 'Connection API not available');
+      return;
+    }
+    rawData.connection = { rtt: conn.rtt, downlink: conn.downlink, effectiveType: conn.effectiveType };
+    if (conn.rtt === 0) {
+      addCheck('Network connection', 'fail', 2, `rtt=0ms — typical of automated browsers`);
+    } else {
+      addCheck('Network connection', 'pass', 2, `rtt=${conn.rtt}ms, downlink=${conn.downlink}Mbps`);
+    }
+  }
+
+  // =========================================================================
+  // 9. chrome.runtime (not stubbed by browse)
+  // =========================================================================
+  function checkChromeRuntime() {
+    // Real Chrome with no extensions: chrome.runtime exists but chrome.runtime.id is undefined
+    // Headless Chrome: chrome.runtime may be missing entirely
+    // browse: stubs chrome.app but NOT chrome.runtime
+    if (typeof chrome === 'undefined') {
+      addCheck('chrome.runtime', 'fail', 2, 'chrome object missing entirely');
+      return;
+    }
+
+    rawData.chromeKeys = Object.keys(chrome);
+
+    // browse loads extensions, so chrome.runtime should exist from that.
+    // But let's check for the expected shape.
+    if (!chrome.runtime) {
+      addCheck('chrome.runtime', 'fail', 2, 'chrome.runtime missing');
+    } else if (!chrome.runtime.connect) {
+      addCheck('chrome.runtime', 'warn', 1, 'chrome.runtime.connect missing');
+    } else {
+      addCheck('chrome.runtime', 'pass', 2, 'Present with expected API shape');
+    }
+  }
+
+  // =========================================================================
+  // 10. Permissions API timing (headless resolves differently)
+  // =========================================================================
+  async function checkPermissions() {
+    if (!navigator.permissions) {
+      addCheck('Permissions API', 'warn', 1, 'Not available');
+      return;
+    }
+    try {
+      const start = performance.now();
+      const result = await navigator.permissions.query({ name: 'notifications' });
+      const elapsed = performance.now() - start;
+      rawData.permissionsQuery = { state: result.state, elapsed };
+      // Headless often resolves permissions queries near-instantly
+      if (result.state === 'denied' && elapsed < 1) {
+        addCheck('Permissions API', 'warn', 1, `state=denied, resolved in ${elapsed.toFixed(2)}ms`);
+      } else {
+        addCheck('Permissions API', 'pass', 1, `state=${result.state}, ${elapsed.toFixed(2)}ms`);
+      }
+    } catch (e) {
+      addCheck('Permissions API', 'warn', 1, `Error: ${e.message}`);
+    }
+  }
+
+  // =========================================================================
+  // 11. Viewport consistency (browse always uses 1440x900)
+  // =========================================================================
+  function checkViewport() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    rawData.viewport = { innerWidth: w, innerHeight: h, outerWidth: window.outerWidth, outerHeight: window.outerHeight };
+
+    // In headless mode, outerWidth/outerHeight often equals innerWidth/innerHeight
+    // (no browser chrome). In headed mode, outer > inner.
+    const outerMatchesInner = window.outerWidth === w && window.outerHeight === h;
+    rawData.outerMatchesInner = outerMatchesInner;
+
+    if (outerMatchesInner) {
+      addCheck('Viewport outer=inner', 'fail', 2, `outer(${window.outerWidth}x${window.outerHeight}) == inner(${w}x${h}) — no browser chrome`);
+    } else {
+      addCheck('Viewport outer=inner', 'pass', 2, `outer(${window.outerWidth}x${window.outerHeight}) != inner(${w}x${h})`);
+    }
+  }
+
+  // =========================================================================
+  // 12. Screen dimensions consistency
+  // =========================================================================
+  function checkScreen() {
+    rawData.screen = {
+      width: screen.width, height: screen.height,
+      availWidth: screen.availWidth, availHeight: screen.availHeight,
+      colorDepth: screen.colorDepth, pixelDepth: screen.pixelDepth,
+    };
+
+    // Headless often reports screen === viewport with no taskbar offset
+    if (screen.availHeight === screen.height && screen.availWidth === screen.width) {
+      addCheck('Screen dimensions', 'warn', 1, `avail matches screen exactly — no OS chrome?`);
+    } else {
+      addCheck('Screen dimensions', 'pass', 1, `${screen.width}x${screen.height}, avail=${screen.availWidth}x${screen.availHeight}`);
+    }
+  }
+
+  // =========================================================================
+  // 13. Media devices (headless has none or fake ones)
+  // =========================================================================
+  async function checkMediaDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      addCheck('Media devices', 'fail', 2, 'mediaDevices API missing');
+      return;
+    }
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      rawData.mediaDevices = devices.map(d => ({ kind: d.kind, label: d.label }));
+      const audioInput = devices.filter(d => d.kind === 'audioinput').length;
+      const videoInput = devices.filter(d => d.kind === 'videoinput').length;
+      const audioOutput = devices.filter(d => d.kind === 'audiooutput').length;
+
+      if (audioInput === 0 && videoInput === 0) {
+        addCheck('Media devices', 'fail', 2, `No audio/video inputs — typical of headless`);
+      } else {
+        addCheck('Media devices', 'pass', 2, `${audioInput} mic, ${videoInput} cam, ${audioOutput} speakers`);
+      }
+    } catch (e) {
+      addCheck('Media devices', 'warn', 1, `Error: ${e.message}`);
+    }
+  }
+
+  // =========================================================================
+  // 14. SharedWorker blob URL detection
+  // =========================================================================
+  function checkSharedWorkerBlob() {
+    // browse wraps SharedWorker scripts in blob URLs.
+    // We can detect this by creating a SharedWorker and checking its origin from inside.
+    if (typeof SharedWorker === 'undefined') {
+      addCheck('SharedWorker blob', 'warn', 0, 'SharedWorker not available');
+      return;
+    }
+
+    // Check if SharedWorker constructor has been wrapped.
+    // The original SharedWorker.prototype.constructor should be SharedWorker itself.
+    // browse replaces window.SharedWorker with a wrapper function.
+    const swStr = SharedWorker.toString();
+    rawData.sharedWorkerToString = swStr;
+
+    // Native SharedWorker.toString() returns "function SharedWorker() { [native code] }"
+    // browse's makeNativeFunction spoofs this, but we can check deeper.
+    const hasOwnToString = Object.hasOwn(SharedWorker, 'toString');
+    rawData.sharedWorkerHasOwnToString = hasOwnToString;
+
+    if (hasOwnToString) {
+      addCheck('SharedWorker toString', 'fail', 3, 'SharedWorker has own toString — constructor replaced');
+    } else {
+      addCheck('SharedWorker toString', 'pass', 3, 'SharedWorker toString is inherited (native)');
+    }
+  }
+
+  // =========================================================================
+  // 15. Property tampering: check multiple navigator getters at once
+  // =========================================================================
+  function checkNavigatorGetterTampering() {
+    // Check several navigator properties for signs of redefinition
+    const propsToCheck = ['userAgent', 'webdriver', 'userAgentData', 'platform', 'languages'];
+    const tampered = [];
+
+    for (const prop of propsToCheck) {
+      const desc = Object.getOwnPropertyDescriptor(Navigator.prototype, prop);
+      if (desc && desc.get) {
+        // Native getters don't have own toString
+        if (Object.hasOwn(desc.get, 'toString')) {
+          tampered.push(prop);
+        }
+      }
+    }
+
+    rawData.tamperedNavigatorProps = tampered;
+
+    if (tampered.length >= 2) {
+      addCheck('Navigator getter tampering', 'fail', 4, `${tampered.length} props with own toString: ${tampered.join(', ')}`);
+    } else if (tampered.length === 1) {
+      addCheck('Navigator getter tampering', 'warn', 4, `1 prop with own toString: ${tampered[0]}`);
+    } else {
+      addCheck('Navigator getter tampering', 'pass', 4, 'No getter tampering detected');
+    }
+  }
+
+  // =========================================================================
+  // 16. Playwright/CDP residue
+  // =========================================================================
+  function checkPlaywrightResidues() {
+    const signals = [];
+
+    // Check for known Playwright/Puppeteer globals
+    const globals = [
+      '__pwInitScripts', '__playwright__binding__',
+      '__puppeteer_evaluation_script__', 'callPhantom', '_phantom',
+      '__nightmare', 'domAutomation', 'domAutomationController',
+    ];
+
+    for (const g of globals) {
+      if (g in window) {
+        signals.push(`window.${g} exists`);
+      }
+    }
+
+    // Check for CDP-injected bindings in document
+    if (document.__playwright_target_closed_callback) {
+      signals.push('document.__playwright_target_closed_callback');
+    }
+
+    // Check performance entries for suspicious script injections
+    try {
+      const entries = performance.getEntriesByType('resource');
+      const suspiciousEntries = entries.filter(e =>
+        /playwright|puppeteer|selenium|webdriver/i.test(e.name)
+      );
+      if (suspiciousEntries.length > 0) {
+        signals.push(`${suspiciousEntries.length} suspicious resource entries`);
+      }
+    } catch (e) {}
+
+    rawData.playwrightResidues = signals;
+
+    if (signals.length > 0) {
+      addCheck('Automation residue', 'fail', 5, signals.join('; '));
+    } else {
+      addCheck('Automation residue', 'pass', 5, 'No automation globals detected');
+    }
+  }
+
+  // =========================================================================
+  // 17. Mouse movement analysis (behavioural)
+  // =========================================================================
+  function setupMouseAnalysis() {
+    const mouseArea = document.getElementById('mouse-area');
+    const events = [];
+    let analysisTimeout;
+
+    mouseArea.addEventListener('mousemove', (e) => {
+      events.push({
+        x: e.clientX,
+        y: e.clientY,
+        ts: performance.now(),
+        movementX: e.movementX,
+        movementY: e.movementY,
+      });
+
+      clearTimeout(analysisTimeout);
+      analysisTimeout = setTimeout(() => analyseMouseEvents(events), 2000);
+    });
+
+    // Also analyse click patterns
+    mouseArea.addEventListener('click', (e) => {
+      events.push({
+        x: e.clientX,
+        y: e.clientY,
+        ts: performance.now(),
+        type: 'click',
+        isTrusted: e.isTrusted,
+      });
+    });
+  }
+
+  function analyseMouseEvents(events) {
+    if (events.length < 5) return;
+
+    const moveEvents = events.filter(e => !e.type);
+    rawData.mouseEvents = moveEvents.length;
+
+    // Check 1: Time deltas — real humans have variable intervals
+    const deltas = [];
+    for (let i = 1; i < moveEvents.length; i++) {
+      deltas.push(moveEvents[i].ts - moveEvents[i - 1].ts);
+    }
+    const avgDelta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+    const variance = deltas.reduce((a, b) => a + (b - avgDelta) ** 2, 0) / deltas.length;
+    const stdDev = Math.sqrt(variance);
+    const cv = avgDelta > 0 ? stdDev / avgDelta : 0; // coefficient of variation
+
+    rawData.mouseTimingCV = cv;
+    rawData.mouseAvgDelta = avgDelta;
+
+    // Check 2: Movement angles — real humans have smooth curves, bots have straight lines
+    const angles = [];
+    for (let i = 2; i < moveEvents.length; i++) {
+      const dx1 = moveEvents[i-1].x - moveEvents[i-2].x;
+      const dy1 = moveEvents[i-1].y - moveEvents[i-2].y;
+      const dx2 = moveEvents[i].x - moveEvents[i-1].x;
+      const dy2 = moveEvents[i].y - moveEvents[i-1].y;
+      const angle = Math.atan2(dy2, dx2) - Math.atan2(dy1, dx1);
+      angles.push(Math.abs(angle));
+    }
+    const avgAngleChange = angles.length > 0 ? angles.reduce((a, b) => a + b, 0) / angles.length : 0;
+    rawData.mouseAvgAngleChange = avgAngleChange;
+
+    // Automated movements tend to have very low timing variance and straight-line paths
+    const signals = [];
+    if (cv < 0.1 && moveEvents.length > 10) {
+      signals.push(`Very regular timing (CV=${cv.toFixed(3)})`);
+    }
+    if (avgAngleChange < 0.01 && moveEvents.length > 10) {
+      signals.push(`Perfectly straight path (avg angle change=${avgAngleChange.toFixed(4)})`);
+    }
+
+    // Remove any previous mouse check
+    const idx = checks.findIndex(c => c.name === 'Mouse movement');
+    if (idx !== -1) checks.splice(idx, 1);
+
+    if (signals.length > 0) {
+      addCheck('Mouse movement', 'fail', 2, signals.join('; '));
+    } else if (moveEvents.length >= 10) {
+      addCheck('Mouse movement', 'pass', 2, `${moveEvents.length} events, CV=${cv.toFixed(3)}, angle=${avgAngleChange.toFixed(3)}`);
+    } else {
+      addCheck('Mouse movement', 'warn', 0, `Only ${moveEvents.length} events — need more data`);
+    }
+
+    render();
+  }
+
+  // =========================================================================
+  // 18. CDP Runtime.evaluate detection via Error stack traces
+  // =========================================================================
+  function checkErrorStacks() {
+    try {
+      // Create an error to inspect the stack
+      const err = new Error('detection probe');
+      const stack = err.stack || '';
+      rawData.errorStack = stack.substring(0, 500);
+
+      // CDP-evaluated scripts may show __playwright_evaluation_script__ or
+      // unusual protocol:// prefixes in stack traces
+      const suspicious = /playwright|puppeteer|evaluate|__cdp|devtools/i.test(stack);
+      if (suspicious) {
+        addCheck('Error stack traces', 'fail', 2, 'Suspicious automation references in stack');
+      } else {
+        addCheck('Error stack traces', 'pass', 2, 'Stack traces look normal');
+      }
+    } catch (e) {
+      addCheck('Error stack traces', 'warn', 0, 'Could not inspect');
+    }
+  }
+
+  // =========================================================================
+  // 19. WebDriver protocol ports (check for open debugger)
+  // =========================================================================
+  function checkDebuggerPort() {
+    // Playwright connects via a debugging port. We can try to detect if
+    // one is active by checking the `--remote-debugging-port` effect:
+    // the presence of certain performance observer behaviours.
+    // Simple heuristic: check if there are devtools-related entries.
+    try {
+      const entries = performance.getEntriesByType('navigation');
+      const nav = entries[0];
+      rawData.navigationTiming = nav ? {
+        type: nav.type,
+        redirectCount: nav.redirectCount,
+        transferSize: nav.transferSize,
+      } : null;
+    } catch (e) {}
+    // This check is informational only — no strong signal from this alone
+  }
+
+  // =========================================================================
+  // 20. Headless-specific API differences
+  // =========================================================================
+  function checkHeadlessAPIs() {
+    const signals = [];
+
+    // In headless, window.speechSynthesis.getVoices() returns empty
+    if (window.speechSynthesis) {
+      const voices = window.speechSynthesis.getVoices();
+      rawData.speechVoices = voices.length;
+      if (voices.length === 0) {
+        // Voices load async — schedule a recheck
+        window.speechSynthesis.onvoiceschanged = () => {
+          const v = window.speechSynthesis.getVoices();
+          rawData.speechVoicesAsync = v.length;
+        };
+        signals.push(`speechSynthesis voices=0 (may load async)`);
+      }
+    }
+
+    // Check for Bluetooth API — often missing in headless
+    if (!navigator.bluetooth) {
+      signals.push('Bluetooth API missing');
+    }
+
+    // Check for USB API
+    if (!navigator.usb) {
+      signals.push('USB API missing');
+    }
+
+    rawData.headlessAPISignals = signals;
+    // These are weak signals individually
+    if (signals.length >= 2) {
+      addCheck('Headless API gaps', 'warn', 1, signals.join('; '));
+    } else {
+      addCheck('Headless API gaps', 'pass', 1, 'Device APIs present');
+    }
+  }
+
+  // =========================================================================
+  // Render results
+  // =========================================================================
+  function render() {
+    const tbody = document.getElementById('results');
+    tbody.innerHTML = '';
+
+    let totalWeight = 0;
+    let failWeight = 0;
+    let warnWeight = 0;
+
+    for (const check of checks) {
+      const tr = document.createElement('tr');
+      const statusClass = check.status === 'pass' ? 'pass' : check.status === 'fail' ? 'fail' : 'warn';
+      const statusSymbol = check.status === 'pass' ? '&#10003;' : check.status === 'fail' ? '&#10007;' : '&#9888;';
+
+      tr.innerHTML = `
+        <td>${check.name}</td>
+        <td class="${statusClass}">${statusSymbol} ${check.status}</td>
+        <td class="weight">${check.weight}</td>
+        <td class="detail">${check.detail}</td>
+      `;
+      tbody.appendChild(tr);
+
+      totalWeight += check.weight;
+      if (check.status === 'fail') failWeight += check.weight;
+      if (check.status === 'warn') warnWeight += check.weight * 0.3;
+    }
+
+    const score = totalWeight > 0 ? ((failWeight + warnWeight) / totalWeight) * 100 : 0;
+    const verdictEl = document.getElementById('verdict');
+    const scoreEl = document.getElementById('score-text');
+
+    if (score >= 40) {
+      verdictEl.textContent = 'BOT DETECTED';
+      verdictEl.className = 'bot';
+    } else if (score >= 20) {
+      verdictEl.textContent = 'SUSPICIOUS';
+      verdictEl.className = 'suspect';
+    } else {
+      verdictEl.textContent = 'LIKELY HUMAN';
+      verdictEl.className = 'human';
+    }
+
+    scoreEl.textContent = `Confidence score: ${score.toFixed(1)}% bot likelihood (${failWeight}/${totalWeight} weighted fail points)`;
+
+    // Update raw data
+    document.getElementById('raw-data').textContent = JSON.stringify(rawData, null, 2);
+  }
+
+  // =========================================================================
+  // Run all checks
+  // =========================================================================
+  async function runAllChecks() {
+    // Synchronous checks
+    checkPlugins();
+    checkWebGL();
+    checkCanvas();
+    checkWebdriverDescriptor();
+    checkToStringChain();
+    checkNotification();
+    checkConnection();
+    checkChromeRuntime();
+    checkViewport();
+    checkScreen();
+    checkSharedWorkerBlob();
+    checkNavigatorGetterTampering();
+    checkPlaywrightResidues();
+    checkErrorStacks();
+    checkDebuggerPort();
+    checkHeadlessAPIs();
+
+    // Async checks
+    await checkUAData();
+    await checkPermissions();
+    await checkMediaDevices();
+
+    render();
+    setupMouseAnalysis();
+  }
+
+  // Start when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', runAllChecks);
+  } else {
+    runAllChecks();
+  }
+})();
+</script>
+</body>
+</html>

@@ -85,6 +85,27 @@ describe("applyStealthScripts", () => {
 		});
 	});
 
+	test("init script must not set own toString on getters", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		// The old approach set own toString on each getter — detectable
+		expect(source).not.toContain("getter.toString =");
+		expect(source).not.toContain("f.toString =");
+	});
+
 	test("passes chromeFullVersion for HEV fullVersionList", async () => {
 		const addInitScript = mock(() => Promise.resolve());
 		const context = { addInitScript } as never;

@@ -31,28 +31,40 @@
 				? "Windows"
 				: "Linux";
 
-	// Helper: create a getter function with a spoofed toString that
-	// looks like a native getter. Does NOT modify Function.prototype.toString.
-	// Uses a regular function (not arrow) so `this` is the receiver — native
-	// getters throw TypeError when called on the prototype instead of an instance.
-	var nativeToString = Function.prototype.toString;
+	// WeakMap-based toString spoofing — no own properties on functions,
+	// so hasOwnProperty('toString') returns false (matching native).
+	var toStringMap = new WeakMap();
+	var originalToString = Function.prototype.toString;
+	var patchedToString = function toString() {
+		var spoofed = toStringMap.get(this);
+		if (spoofed !== undefined) return spoofed;
+		return originalToString.call(this);
+	};
+	toStringMap.set(patchedToString, "function toString() { [native code] }");
+	Function.prototype.toString = patchedToString;
+
 	function makeNativeGetter(name, proto, valueFn) {
 		var getter = function () {
-			if (!(this instanceof proto.constructor)) {
+			// Reject non-objects (primitives, null, undefined)
+			if (this == null || (typeof this !== "object" && typeof this !== "function")) {
 				throw new TypeError("Illegal invocation");
 			}
-			return valueFn();
+			// Walk the prototype chain to check if proto is an ancestor,
+			// matching native getter behaviour without relying on instanceof
+			// (which can fail across extension/page execution contexts).
+			var p = Object.getPrototypeOf(this);
+			while (p !== null) {
+				if (p === proto) return valueFn();
+				p = Object.getPrototypeOf(p);
+			}
+			throw new TypeError("Illegal invocation");
 		};
-		// Spoof toString on the individual function instance
-		getter.toString = () => "function get " + name + "() { [native code] }";
-		// Also spoof the toString's own toString to look native
-		getter.toString.toString = nativeToString.bind(nativeToString);
+		toStringMap.set(getter, "function get " + name + "() { [native code] }");
 		return getter;
 	}
 
 	function makeNativeFunction(name, fn) {
-		fn.toString = () => "function " + name + "() { [native code] }";
-		fn.toString.toString = nativeToString.bind(nativeToString);
+		toStringMap.set(fn, "function " + name + "() { [native code] }");
 		return fn;
 	}
 
