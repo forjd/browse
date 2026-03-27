@@ -1217,22 +1217,38 @@ export async function startDaemon(
 	// shared workers, service workers) see the clean UA without HeadlessChrome.
 	let stealthOpts: StealthOpts | undefined;
 	if (isChromium) {
-		stealthOpts = await buildStealthUA("chrome");
-		launchOptions.channel = "chrome";
-		launchOptions.args = stealthArgs(stealthOpts.userAgent);
+		// Try pre-launch detection (requires system Chrome binary).
+		// If it fails (e.g. only Playwright-bundled Chromium is available),
+		// we launch first and fall back to CDP-based detection post-launch.
+		try {
+			stealthOpts = await buildStealthUA("chrome");
+		} catch {
+			// Will retry with context after launch
+		}
+		if (stealthOpts) {
+			launchOptions.channel = "chrome";
+			launchOptions.args = stealthArgs(stealthOpts.userAgent);
+			launchOptions.userAgent = stealthOpts.userAgent;
+		}
 		launchOptions.ignoreDefaultArgs = [
 			"--enable-automation",
 			"--disable-popup-blocking",
 			"--disable-component-update",
 			"--disable-default-apps",
 		];
-		launchOptions.userAgent = stealthOpts.userAgent;
 	}
 
 	const context: BrowserContext = await launcher.launchPersistentContext(
 		userDataDir,
 		launchOptions,
 	);
+
+	// If pre-launch detection failed, detect via CDP now that the browser is running.
+	if (isChromium && !stealthOpts) {
+		stealthOpts = await buildStealthUA("chrome", context);
+		// Apply stealth args that we couldn't set at launch time.
+		// The UA is at least patched via CDP override below.
+	}
 
 	// Apply stealth scripts (patches navigator properties in the JS context).
 	if (isChromium && stealthOpts) {
