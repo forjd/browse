@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.12.3](https://github.com/forjd/browse/compare/browse-v0.12.2...browse-v0.12.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* improve stealth against CreepJS detection ([#126](https://github.com/forjd/browse/issues/126), [#127](https://github.com/forjd/browse/issues/127), [#128](https://github.com/forjd/browse/issues/128)) ([0d11340](https://github.com/forjd/browse/commit/0d1134015e6e3c17bfbe90f7d4aa647791a2e62b))
+* stub chrome.runtime and spoof screen.availHeight ([#132](https://github.com/forjd/browse/issues/132), [#133](https://github.com/forjd/browse/issues/133)) ([3317ba3](https://github.com/forjd/browse/commit/3317ba3503dfacba30d43f66fb9255b073865b0a))
+* use real Chrome version in userAgentData fullVersionList ([#130](https://github.com/forjd/browse/issues/130)) ([0aaa9c0](https://github.com/forjd/browse/commit/0aaa9c03b66ce12f3c8158bfd895a8c3be65abb7))
+* use WeakMap toString spoofing and prototype-walk TypeError ([#129](https://github.com/forjd/browse/issues/129), [#131](https://github.com/forjd/browse/issues/131)) ([b4173e7](https://github.com/forjd/browse/commit/b4173e72cd6ca65aa6d70d425104d6cd52e605dd))
+
 ## [0.12.2](https://github.com/forjd/browse/compare/browse-v0.12.1...browse-v0.12.2) (2026-03-27)
 
 
