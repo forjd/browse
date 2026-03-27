@@ -536,6 +536,10 @@ Passes Sannysoft, Intoli, Pixelscan, and BrowserLeaks. Partially evades CreepJS 
 
 > **Note:** Stealth features are Chromium-specific and are not applied to Firefox or WebKit.
 
+### AI agent integration
+
+Browse is designed as a browser backend for AI agents. The CLI interface, JSON responses, persistent daemon, and built-in stealth make it a drop-in browser layer for agent frameworks like [OpenClaw](https://openclaw.ai), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and custom pipelines. Agents get sub-30ms command latency, named sessions for parallel work, and headless Chrome that passes bot detection — no browser config needed.
+
 ## Performance
 
 Measured with `browse benchmark`:
