@@ -1219,7 +1219,7 @@ export async function startDaemon(
 	if (isChromium) {
 		stealthOpts = await buildStealthUA("chrome");
 		launchOptions.channel = "chrome";
-		launchOptions.args = stealthArgs();
+		launchOptions.args = stealthArgs(stealthOpts.userAgent);
 		launchOptions.ignoreDefaultArgs = ["--enable-automation"];
 		launchOptions.userAgent = stealthOpts.userAgent;
 	}
@@ -1235,9 +1235,10 @@ export async function startDaemon(
 		await applyStealthScripts(context, opts);
 
 		// Also use CDP Emulation.setUserAgentOverride per page.
-		// The launch-level userAgent only sets HTTP headers.
-		// CDP override patches navigator.userAgent in JS for dedicated workers.
-		// (SharedWorkers/ServiceWorkers require the extension's constructor wrapper.)
+		// The launch-level userAgent only sets HTTP headers; CDP override
+		// patches navigator.userAgent in JS for dedicated workers.
+		// ServiceWorkers are covered by the --user-agent= Chromium flag
+		// passed via stealthArgs().
 		const applyUAOverride = async (p: Page) => {
 			try {
 				const cdp = await context.newCDPSession(p);

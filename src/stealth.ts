@@ -311,8 +311,16 @@ function resolveExtensionDir(name: string): string | null {
  * - screenxy-fix: patches CDP mouse coordinate leak in cross-origin iframes
  * - stealth-worker-fix: patches SharedWorker/ServiceWorker UA leak
  */
-export function stealthArgs(): string[] {
+export function stealthArgs(userAgent?: string): string[] {
 	const args: string[] = [];
+
+	// Set UA at the Chromium process level so ALL contexts — including
+	// ServiceWorkers and SharedWorkers — see the clean UA string.
+	// This is distinct from Playwright's userAgent option (HTTP headers only)
+	// and CDP Emulation.setUserAgentOverride (page/dedicated workers only).
+	if (userAgent) {
+		args.push(`--user-agent=${userAgent}`);
+	}
 
 	const extNames = ["screenxy-fix", "stealth-worker-fix"];
 	const extDirs: string[] = [];
