@@ -7,6 +7,11 @@ describe("stealthArgs", () => {
 		expect(Array.isArray(args)).toBe(true);
 	});
 
+	test("includes --disable-blink-features=AutomationControlled", () => {
+		const args = stealthArgs();
+		expect(args).toContain("--disable-blink-features=AutomationControlled");
+	});
+
 	test("loads stealth-worker-fix extension when available", () => {
 		const args = stealthArgs();
 		const extArg = args.find((a) => a.startsWith("--load-extension="));
