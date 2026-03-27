@@ -150,7 +150,7 @@ bun run build
 
 Build compiles `src/cli.ts` into a self-contained binary at `dist/browse` using `bun build --compile`. External dependencies (`electron`, `chromium-bidi`) are excluded.
 
-The setup.sh script also copies the `extensions/screenxy-fix` Chrome extension alongside the binary.
+The setup.sh script also copies the Chrome extensions (`extensions/screenxy-fix`, `extensions/stealth-worker-fix`) alongside the binary.
 
 **Important**: Rebuilding does not restart a running daemon. Run `browse quit` first so the next call cold-starts with the new binary.
 
@@ -188,7 +188,6 @@ The setup.sh script also copies the `extensions/screenxy-fix` Chrome extension a
 |---------|---------|
 | `playwright` (patchright@1.58.2) | Browser automation (Chromium) — patched fork for stealth |
 | `@axe-core/playwright` | Accessibility auditing |
-| `user-agents` | Random desktop Chrome UA string generation |
 | `@biomejs/biome` | Linting and formatting |
 | `lefthook` | Git hooks |
 
