@@ -433,6 +433,41 @@ export async function applyStealthScripts(
 			// 6. Background colour is handled via CDP
 			// Emulation.setDefaultBackgroundColorOverride in daemon.ts.
 
+			// 6b. Override getComputedStyle to fix ActiveText system color detection.
+			// CreepJS detects hasKnownBgColor by checking if ActiveText resolves to red (rgb(255,0,0)),
+			// which is a headless Chrome signature. We intercept getComputedStyle and return
+			// a normal colour (black) for elements using ActiveText.
+			const originalGetComputedStyle = window.getComputedStyle;
+			window.getComputedStyle = function getComputedStyle(
+				elem: Element,
+				pseudoElt?: string | null,
+			) {
+				const style = originalGetComputedStyle.call(window, elem, pseudoElt);
+				// Check if element has background-color: ActiveText set
+				if (elem instanceof HTMLElement) {
+					const inlineBg = elem.style.backgroundColor;
+					if (
+						inlineBg.toLowerCase() === "activetext" ||
+						elem.getAttribute("style")?.includes("ActiveText")
+					) {
+						// Return proxy that intercepts backgroundColor access
+						return new Proxy(style, {
+							get(target, prop) {
+								if (prop === "backgroundColor") {
+									return "rgb(0, 0, 0)"; // Return black instead of red
+								}
+								return (target as Record<string | symbol, unknown>)[prop];
+							},
+						});
+					}
+				}
+				return style;
+			};
+			toStringMap.set(
+				window.getComputedStyle,
+				"function getComputedStyle() { [native code] }",
+			);
+
 			// 7. Screen dimensions — headless sets screen to match viewport,
 			// triggering noTaskbar and hasVvpScreenRes. Spoof to a common
 			// monitor resolution and subtract OS chrome.

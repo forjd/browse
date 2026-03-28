@@ -127,6 +127,64 @@ export async function handleGoto(
 		}
 
 		await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+
+		// Inject stealth patches to fix CreepJS detection.
+		// This runs on every navigation since addInitScript only affects new pages.
+		try {
+			await page.evaluate(() => {
+				// Only inject once per page
+				if ((window as Record<string, unknown>).__stealthGotoInjected) return;
+				(window as Record<string, unknown>).__stealthGotoInjected = true;
+
+				// WeakMap-based toString spoofing
+				const toStringMap = new WeakMap<(...args: never) => unknown, string>();
+				const originalToString = Function.prototype.toString;
+				const patchedToString = function toStringPatch(this: unknown) {
+					const spoofed = toStringMap.get(this as () => unknown);
+					if (spoofed !== undefined) return spoofed;
+					return originalToString.call(this);
+				};
+				toStringMap.set(
+					patchedToString,
+					"function toString() { [native code] }",
+				);
+				Function.prototype.toString = patchedToString;
+
+				// Override getComputedStyle to fix ActiveText
+				const originalGetComputedStyle = window.getComputedStyle;
+				window.getComputedStyle = function getComputedStyle(
+					elem: Element,
+					pseudoElt?: string | null,
+				) {
+					const style = originalGetComputedStyle.call(window, elem, pseudoElt);
+					if (elem instanceof HTMLElement) {
+						const inlineBg = elem.style.backgroundColor;
+						const elemStyle = elem.getAttribute("style");
+						if (
+							inlineBg.toLowerCase() === "activetext" ||
+							elemStyle?.includes("ActiveText")
+						) {
+							return new Proxy(style, {
+								get(target, prop) {
+									if (prop === "backgroundColor") {
+										return "rgb(0, 0, 0)";
+									}
+									return (target as Record<string | symbol, unknown>)[prop];
+								},
+							});
+						}
+					}
+					return style;
+				};
+				toStringMap.set(
+					window.getComputedStyle,
+					"function getComputedStyle() { [native code] }",
+				);
+			});
+		} catch {
+			// Injection may fail on some pages (e.g., about:blank)
+		}
+
 		const title = await page.title();
 
 		let result: string;
