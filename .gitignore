@@ -44,3 +44,4 @@ test.flow.json
 .github/workflows/browse-qa.yml
 .gitlab-ci.yml
 .circleci/config.yml
+.worktrees/
