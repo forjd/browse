@@ -565,32 +565,29 @@ export async function applyStealthScripts(
 			// 6b. Override getComputedStyle to fix ActiveText system color detection.
 			// CreepJS detects hasKnownBgColor by checking if ActiveText resolves to red (rgb(255,0,0)),
 			// which is a headless Chrome signature. We intercept getComputedStyle and return
-			// a normal colour (black) for elements using ActiveText.
+			// a normal colour (black) when the computed background color is red.
 			const originalGetComputedStyle = window.getComputedStyle;
 			window.getComputedStyle = function getComputedStyle(
 				elem: Element,
 				pseudoElt?: string | null,
 			) {
 				const style = originalGetComputedStyle.call(window, elem, pseudoElt);
-				// Check if element has background-color: ActiveText set
-				if (elem instanceof HTMLElement) {
-					const inlineBg = elem.style.backgroundColor;
-					if (
-						inlineBg.toLowerCase() === "activetext" ||
-						elem.getAttribute("style")?.includes("ActiveText")
-					) {
-						// Return proxy that intercepts backgroundColor access
-						return new Proxy(style, {
-							get(target, prop) {
-								if (prop === "backgroundColor") {
-									return "rgb(0, 0, 0)"; // Return black instead of red
-								}
-								return (target as Record<string | symbol, unknown>)[prop];
-							},
-						});
-					}
-				}
-				return style;
+
+				// Always wrap in proxy to intercept backgroundColor access
+				// This handles both ActiveText detection and any other cases where
+				// the browser returns red as the default background
+				return new Proxy(style, {
+					get(target, prop) {
+						const value = (target as Record<string | symbol, string>)[
+							prop as string
+						];
+						// If the computed background color is red (headless signature), return black
+						if (prop === "backgroundColor" && value === "rgb(255, 0, 0)") {
+							return "rgb(0, 0, 0)"; // Return black instead of red
+						}
+						return value;
+					},
+				});
 			};
 			toStringMap.set(
 				window.getComputedStyle,

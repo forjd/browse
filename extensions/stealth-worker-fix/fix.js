@@ -358,33 +358,26 @@
 	// --- 9b. Override getComputedStyle to fix ActiveText system color detection ---
 	// CreepJS detects hasKnownBgColor by checking if ActiveText resolves to red (rgb(255,0,0)),
 	// which is a headless Chrome signature. We intercept getComputedStyle and return
-	// a normal colour (black) for elements using ActiveText.
+	// a normal colour (black) when the computed background color is red.
 	try {
 		window.__getComputedStylePatchLoaded = true;
 		var originalGetComputedStyle = window.getComputedStyle;
 		window.getComputedStyle = function getComputedStyle(elem, pseudoElt) {
 			var style = originalGetComputedStyle.call(window, elem, pseudoElt);
-			// Check if element has background-color: ActiveText set
-			if (elem instanceof HTMLElement) {
-				var inlineBg = elem.style.backgroundColor;
-				var elemStyle = elem.getAttribute("style");
-				var hasActiveText = inlineBg.toLowerCase() === "activetext" || (elemStyle && elemStyle.indexOf("ActiveText") !== -1);
-				console.log('[StealthExt] getComputedStyle called, hasActiveText:', hasActiveText, 'inlineBg:', inlineBg, 'elemStyle:', elemStyle);
-				if (hasActiveText) {
-					console.log('[StealthExt] Returning proxy for ActiveText');
-					// Return proxy that intercepts backgroundColor access
-					return new Proxy(style, {
-						get: function(target, prop) {
-							console.log('[StealthExt] Proxy get called for prop:', prop);
-							if (prop === "backgroundColor") {
-								return "rgb(0, 0, 0)"; // Return black instead of red
-							}
-							return target[prop];
-						}
-					});
+
+			// Always wrap in proxy to intercept backgroundColor access
+			// This handles both ActiveText detection and any other cases where
+			// the browser returns red as the default background
+			return new Proxy(style, {
+				get: function(target, prop) {
+					var value = target[prop];
+					// If the computed background color is red (headless signature), return black
+					if (prop === "backgroundColor" && value === "rgb(255, 0, 0)") {
+						return "rgb(0, 0, 0)"; // Return black instead of red
+					}
+					return value;
 				}
-			}
-			return style;
+			});
 		};
 		toStringMap.set(window.getComputedStyle, "function getComputedStyle() { [native code] }");
 	} catch (e) {
