@@ -1,6 +1,6 @@
 {
 	"name": "browse",
-	"version": "0.12.3",
+	"version": "0.12.4",
 	"module": "index.ts",
 	"type": "module",
 	"private": true,
