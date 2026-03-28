@@ -198,6 +198,71 @@
 			chrome.runtime = {};
 		}
 		var rt = chrome.runtime;
+
+		// Helper to create Chrome-style event objects
+		function createChromeEvent() {
+			var listeners = [];
+			return {
+				addListener: makeNativeFunction("addListener", function addListener(callback) {
+					listeners.push(callback);
+				}),
+				removeListener: makeNativeFunction("removeListener", function removeListener(callback) {
+					var idx = listeners.indexOf(callback);
+					if (idx > -1) listeners.splice(idx, 1);
+				}),
+				hasListener: makeNativeFunction("hasListener", function hasListener(callback) {
+					return listeners.indexOf(callback) > -1;
+				}),
+				hasListeners: makeNativeFunction("hasListeners", function hasListeners() {
+					return listeners.length > 0;
+				}),
+			};
+		}
+
+		// Properties
+		if (!("id" in rt)) rt.id = undefined;
+		if (!("lastError" in rt)) rt.lastError = undefined;
+
+		// Methods
+		if (!("getManifest" in rt)) {
+			rt.getManifest = makeNativeFunction("getManifest", function getManifest() { return {}; });
+		}
+		if (!("getURL" in rt)) {
+			rt.getURL = makeNativeFunction("getURL", function getURL(path) {
+				return "chrome-extension://invalid/" + (path || "");
+			});
+		}
+		if (!("getPlatformInfo" in rt)) {
+			rt.getPlatformInfo = makeNativeFunction("getPlatformInfo", function getPlatformInfo(callback) {
+				var info = {
+					os: navigator.platform.indexOf("Win") > -1 ? "win" : 
+						navigator.platform.indexOf("Mac") > -1 ? "mac" : 
+						navigator.platform.indexOf("Linux") > -1 ? "linux" : "unknown",
+					arch: "x86-64",
+					nacl_arch: "x86-64",
+				};
+				if (callback) callback(info);
+				return Promise.resolve(info);
+			});
+		}
+		if (!("getVersion" in rt)) {
+			rt.getVersion = makeNativeFunction("getVersion", function getVersion() { return "0"; });
+		}
+		if (!("reload" in rt)) {
+			rt.reload = makeNativeFunction("reload", function reload() { window.location.reload(); });
+		}
+		if (!("openOptionsPage" in rt)) {
+			rt.openOptionsPage = makeNativeFunction("openOptionsPage", function openOptionsPage(callback) {
+				if (callback) callback();
+				return Promise.resolve();
+			});
+		}
+		if (!("setUninstallURL" in rt)) {
+			rt.setUninstallURL = makeNativeFunction("setUninstallURL", function setUninstallURL(url, callback) {
+				if (callback) callback();
+				return Promise.resolve();
+			});
+		}
 		if (!("connect" in rt)) {
 			rt.connect = makeNativeFunction("connect", function connect() {
 				throw new Error("Could not establish connection. Receiving end does not exist.");
@@ -208,6 +273,25 @@
 				throw new Error("Could not establish connection. Receiving end does not exist.");
 			});
 		}
+		if (!("connectNative" in rt)) {
+			rt.connectNative = makeNativeFunction("connectNative", function connectNative() {
+				throw new Error("Access to native messaging requires the nativeMessaging permission.");
+			});
+		}
+		if (!("sendNativeMessage" in rt)) {
+			rt.sendNativeMessage = makeNativeFunction("sendNativeMessage", function sendNativeMessage() {
+				throw new Error("Access to native messaging requires the nativeMessaging permission.");
+			});
+		}
+
+		// Events
+		if (!("onMessage" in rt)) rt.onMessage = createChromeEvent();
+		if (!("onConnect" in rt)) rt.onConnect = createChromeEvent();
+		if (!("onInstalled" in rt)) rt.onInstalled = createChromeEvent();
+		if (!("onStartup" in rt)) rt.onStartup = createChromeEvent();
+		if (!("onSuspend" in rt)) rt.onSuspend = createChromeEvent();
+		if (!("onMessageExternal" in rt)) rt.onMessageExternal = createChromeEvent();
+		if (!("onConnectExternal" in rt)) rt.onConnectExternal = createChromeEvent();
 	}
 
 	// --- 7. navigator.connection.downlinkMax ---
@@ -233,80 +317,67 @@
 	// triggers two CreepJS flags: noTaskbar (availHeight === height) and
 	// hasVvpScreenRes (viewport === screen). Fix both by spoofing screen
 	// dimensions to a common monitor resolution and subtracting OS chrome.
-	var realScreenW = screen.width;
-	var realScreenH = screen.height;
-
-	// Spoof screen to a plausible monitor resolution larger than the viewport.
-	// Use common resolutions per platform.
+	// Note: We always spoof screen dimensions unconditionally to ensure
+	// headless detection signals are consistently masked.
 	var spoofedW = navPlatform === "MacIntel" ? 1920
 		: navPlatform === "Win32" ? 1920 : 1920;
 	var spoofedH = navPlatform === "MacIntel" ? 1080
 		: navPlatform === "Win32" ? 1080 : 1080;
 
-	// Only spoof if screen matches viewport (headless indicator)
-	if (realScreenW === window.innerWidth && realScreenH === window.innerHeight) {
-		var dockOffset = navPlatform === "MacIntel" ? 74
-			: navPlatform === "Win32" ? 40 : 37;
-		var menuBarOffset = navPlatform === "MacIntel" ? 37 : 0;
-		var totalOffset = dockOffset + menuBarOffset;
+	var dockOffset = navPlatform === "MacIntel" ? 74
+		: navPlatform === "Win32" ? 40 : 37;
+	var menuBarOffset = navPlatform === "MacIntel" ? 37 : 0;
+	var totalOffset = dockOffset + menuBarOffset;
 
-		Object.defineProperty(Screen.prototype, "width", {
-			get: makeNativeGetter("width", Screen.prototype,
-				function() { return spoofedW; }),
-			configurable: true,
-		});
-		Object.defineProperty(Screen.prototype, "height", {
-			get: makeNativeGetter("height", Screen.prototype,
-				function() { return spoofedH; }),
-			configurable: true,
-		});
-		Object.defineProperty(Screen.prototype, "availWidth", {
-			get: makeNativeGetter("availWidth", Screen.prototype,
-				function() { return spoofedW; }),
-			configurable: true,
-		});
-		Object.defineProperty(Screen.prototype, "availHeight", {
-			get: makeNativeGetter("availHeight", Screen.prototype,
-				function() { return spoofedH - totalOffset; }),
-			configurable: true,
-		});
-		Object.defineProperty(Screen.prototype, "availTop", {
-			get: makeNativeGetter("availTop", Screen.prototype,
-				function() { return menuBarOffset; }),
-			configurable: true,
-		});
-	}
+	Object.defineProperty(Screen.prototype, "width", {
+		get: makeNativeGetter("width", Screen.prototype,
+			function() { return spoofedW; }),
+		configurable: true,
+	});
+	Object.defineProperty(Screen.prototype, "height", {
+		get: makeNativeGetter("height", Screen.prototype,
+			function() { return spoofedH; }),
+		configurable: true,
+	});
+	Object.defineProperty(Screen.prototype, "availWidth", {
+		get: makeNativeGetter("availWidth", Screen.prototype,
+			function() { return spoofedW; }),
+		configurable: true,
+	});
+	Object.defineProperty(Screen.prototype, "availHeight", {
+		get: makeNativeGetter("availHeight", Screen.prototype,
+			function() { return spoofedH - totalOffset; }),
+		configurable: true,
+	});
+	Object.defineProperty(Screen.prototype, "availTop", {
+		get: makeNativeGetter("availTop", Screen.prototype,
+			function() { return menuBarOffset; }),
+		configurable: true,
+	});
 
 	// --- 9b. Override getComputedStyle to fix ActiveText system color detection ---
 	// CreepJS detects hasKnownBgColor by checking if ActiveText resolves to red (rgb(255,0,0)),
 	// which is a headless Chrome signature. We intercept getComputedStyle and return
-	// a normal colour (black) for elements using ActiveText.
+	// a normal colour (black) when the computed background color is red.
 	try {
 		window.__getComputedStylePatchLoaded = true;
 		var originalGetComputedStyle = window.getComputedStyle;
 		window.getComputedStyle = function getComputedStyle(elem, pseudoElt) {
 			var style = originalGetComputedStyle.call(window, elem, pseudoElt);
-			// Check if element has background-color: ActiveText set
-			if (elem instanceof HTMLElement) {
-				var inlineBg = elem.style.backgroundColor;
-				var elemStyle = elem.getAttribute("style");
-				var hasActiveText = inlineBg.toLowerCase() === "activetext" || (elemStyle && elemStyle.indexOf("ActiveText") !== -1);
-				console.log('[StealthExt] getComputedStyle called, hasActiveText:', hasActiveText, 'inlineBg:', inlineBg, 'elemStyle:', elemStyle);
-				if (hasActiveText) {
-					console.log('[StealthExt] Returning proxy for ActiveText');
-					// Return proxy that intercepts backgroundColor access
-					return new Proxy(style, {
-						get: function(target, prop) {
-							console.log('[StealthExt] Proxy get called for prop:', prop);
-							if (prop === "backgroundColor") {
-								return "rgb(0, 0, 0)"; // Return black instead of red
-							}
-							return target[prop];
-						}
-					});
+
+			// Always wrap in proxy to intercept backgroundColor access
+			// This handles both ActiveText detection and any other cases where
+			// the browser returns red as the default background
+			return new Proxy(style, {
+				get: function(target, prop) {
+					var value = target[prop];
+					// If the computed background color is red (headless signature), return black
+					if (prop === "backgroundColor" && value === "rgb(255, 0, 0)") {
+						return "rgb(0, 0, 0)"; // Return black instead of red
+					}
+					return value;
 				}
-			}
-			return style;
+			});
 		};
 		toStringMap.set(window.getComputedStyle, "function getComputedStyle() { [native code] }");
 	} catch (e) {
@@ -333,17 +404,18 @@
 		var workerPatchCode = [
 			"(function(){",
 			"var ua=" + JSON.stringify(patchedUA) + ";",
-			"var cm=" + JSON.stringify(chromeMajor) + ";",
-			"var cfv=" + JSON.stringify(chromeFullVersion) + ";",
-			"var plat=" + JSON.stringify(uaDataPlatform) + ";",
-			"var hev=" + JSON.stringify(hev) + ";",
-			"var brands=[{brand:'Chromium',version:cm},{brand:'Google Chrome',version:cm},{brand:'Not-A.Brand',version:'8'}];",
-			"var NP=Object.getPrototypeOf(navigator);",
-			"var NPCtor=NP.constructor;",
-			"function wg(fn){return function(){if(!(this instanceof NPCtor))throw new TypeError('Illegal invocation');return fn()}}",
-			"try{Object.defineProperty(NP,'userAgent',{get:wg(function(){return ua}),configurable:true})}catch(e){}",
-			"try{delete NP.webdriver}catch(e){}",
-			"try{if('userAgentData' in navigator){",
+		"var cm=" + JSON.stringify(chromeMajor) + ";",
+		"var cfv=" + JSON.stringify(chromeFullVersion) + ";",
+		"var plat=" + JSON.stringify(uaDataPlatform) + ";",
+		"var hev=" + JSON.stringify(hev) + ";",
+		"var brands=[{brand:'Chromium',version:cm},{brand:'Google Chrome',version:cm},{brand:'Not-A.Brand',version:'8'}];",
+		"var NP=Object.getPrototypeOf(navigator);",
+		"var NPCtor=NP.constructor;",
+		"function wg(fn){return function(){if(!(this instanceof NPCtor))throw new TypeError('Illegal invocation');return fn()}}",
+		"try{Object.defineProperty(NP,'userAgent',{get:wg(function(){return ua}),configurable:true})}catch(e){}",
+		// Note: navigator.webdriver is handled entirely by --disable-blink-features=AutomationControlled
+		// Deleting or modifying it here creates detectable signatures that CreepJS can detect.
+		"try{if('userAgentData' in navigator){",
 			"  var fvl=[{brand:'Chromium',version:cfv},{brand:'Google Chrome',version:cfv},{brand:'Not-A.Brand',version:'8.0.0.0'}];",
 			"  var fakeUAData={brands:brands,mobile:false,platform:plat,",
 			"    getHighEntropyValues:function(h){var r={brands:brands,mobile:false,platform:plat,fullVersionList:fvl,uaFullVersion:cfv,platformVersion:hev.platformVersion,architecture:hev.architecture,bitness:hev.bitness,model:hev.model,wow64:hev.wow64};if(!h)return Promise.resolve(r);var o={brands:brands,mobile:false,platform:plat};for(var i=0;i<h.length;i++){if(h[i] in r)o[h[i]]=r[h[i]]}return Promise.resolve(o)},",

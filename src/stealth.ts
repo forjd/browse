@@ -288,6 +288,105 @@ export async function applyStealthScripts(
 					chromeAny2.runtime = {};
 				}
 				const runtime = chromeAny2.runtime as Record<string, unknown>;
+
+				// Helper to create event objects with proper Chrome-style API
+				function createChromeEvent() {
+					const listeners: Array<(...args: unknown[]) => void> = [];
+					return {
+						addListener: makeNativeFunction(
+							"addListener",
+							function addListener(callback: (...args: unknown[]) => void) {
+								listeners.push(callback);
+							},
+						),
+						removeListener: makeNativeFunction(
+							"removeListener",
+							function removeListener(callback: (...args: unknown[]) => void) {
+								const idx = listeners.indexOf(callback);
+								if (idx > -1) listeners.splice(idx, 1);
+							},
+						),
+						hasListener: makeNativeFunction(
+							"hasListener",
+							function hasListener(callback: (...args: unknown[]) => void) {
+								return listeners.includes(callback);
+							},
+						),
+						hasListeners: makeNativeFunction(
+							"hasListeners",
+							function hasListeners() {
+								return listeners.length > 0;
+							},
+						),
+					};
+				}
+
+				// Properties
+				if (!("id" in runtime)) runtime.id = undefined;
+				if (!("lastError" in runtime)) runtime.lastError = undefined;
+
+				// Methods
+				if (!("getManifest" in runtime))
+					runtime.getManifest = makeNativeFunction(
+						"getManifest",
+						function getManifest() {
+							return {};
+						},
+					);
+				if (!("getURL" in runtime))
+					runtime.getURL = makeNativeFunction(
+						"getURL",
+						function getURL(path: string) {
+							return `chrome-extension://invalid/${path || ""}`;
+						},
+					);
+				if (!("getPlatformInfo" in runtime))
+					runtime.getPlatformInfo = makeNativeFunction(
+						"getPlatformInfo",
+						function getPlatformInfo(callback: (info: unknown) => void) {
+							const info = {
+								os:
+									navigator.platform.indexOf("Win") > -1
+										? "win"
+										: navigator.platform.indexOf("Mac") > -1
+											? "mac"
+											: navigator.platform.indexOf("Linux") > -1
+												? "linux"
+												: "unknown",
+								arch: "x86-64",
+								nacl_arch: "x86-64",
+							};
+							if (callback) callback(info);
+							return Promise.resolve(info);
+						},
+					);
+				if (!("getVersion" in runtime))
+					runtime.getVersion = makeNativeFunction(
+						"getVersion",
+						function getVersion() {
+							return chromeVersion || "0";
+						},
+					);
+				if (!("reload" in runtime))
+					runtime.reload = makeNativeFunction("reload", function reload() {
+						window.location.reload();
+					});
+				if (!("openOptionsPage" in runtime))
+					runtime.openOptionsPage = makeNativeFunction(
+						"openOptionsPage",
+						function openOptionsPage(callback: () => void) {
+							if (callback) callback();
+							return Promise.resolve();
+						},
+					);
+				if (!("setUninstallURL" in runtime))
+					runtime.setUninstallURL = makeNativeFunction(
+						"setUninstallURL",
+						function setUninstallURL(url: string, callback: () => void) {
+							if (callback) callback();
+							return Promise.resolve();
+						},
+					);
 				if (!("connect" in runtime))
 					runtime.connect = makeNativeFunction("connect", function connect() {
 						throw new Error(
@@ -303,6 +402,36 @@ export async function applyStealthScripts(
 							);
 						},
 					);
+				if (!("connectNative" in runtime))
+					runtime.connectNative = makeNativeFunction(
+						"connectNative",
+						function connectNative() {
+							throw new Error(
+								"Access to native messaging requires the nativeMessaging permission.",
+							);
+						},
+					);
+				if (!("sendNativeMessage" in runtime))
+					runtime.sendNativeMessage = makeNativeFunction(
+						"sendNativeMessage",
+						function sendNativeMessage() {
+							throw new Error(
+								"Access to native messaging requires the nativeMessaging permission.",
+							);
+						},
+					);
+
+				// Events
+				if (!("onMessage" in runtime)) runtime.onMessage = createChromeEvent();
+				if (!("onConnect" in runtime)) runtime.onConnect = createChromeEvent();
+				if (!("onInstalled" in runtime))
+					runtime.onInstalled = createChromeEvent();
+				if (!("onStartup" in runtime)) runtime.onStartup = createChromeEvent();
+				if (!("onSuspend" in runtime)) runtime.onSuspend = createChromeEvent();
+				if (!("onMessageExternal" in runtime))
+					runtime.onMessageExternal = createChromeEvent();
+				if (!("onConnectExternal" in runtime))
+					runtime.onConnectExternal = createChromeEvent();
 			}
 
 			// 3. navigator.webdriver — left untouched. The
@@ -436,32 +565,29 @@ export async function applyStealthScripts(
 			// 6b. Override getComputedStyle to fix ActiveText system color detection.
 			// CreepJS detects hasKnownBgColor by checking if ActiveText resolves to red (rgb(255,0,0)),
 			// which is a headless Chrome signature. We intercept getComputedStyle and return
-			// a normal colour (black) for elements using ActiveText.
+			// a normal colour (black) when the computed background color is red.
 			const originalGetComputedStyle = window.getComputedStyle;
 			window.getComputedStyle = function getComputedStyle(
 				elem: Element,
 				pseudoElt?: string | null,
 			) {
 				const style = originalGetComputedStyle.call(window, elem, pseudoElt);
-				// Check if element has background-color: ActiveText set
-				if (elem instanceof HTMLElement) {
-					const inlineBg = elem.style.backgroundColor;
-					if (
-						inlineBg.toLowerCase() === "activetext" ||
-						elem.getAttribute("style")?.includes("ActiveText")
-					) {
-						// Return proxy that intercepts backgroundColor access
-						return new Proxy(style, {
-							get(target, prop) {
-								if (prop === "backgroundColor") {
-									return "rgb(0, 0, 0)"; // Return black instead of red
-								}
-								return (target as Record<string | symbol, unknown>)[prop];
-							},
-						});
-					}
-				}
-				return style;
+
+				// Always wrap in proxy to intercept backgroundColor access
+				// This handles both ActiveText detection and any other cases where
+				// the browser returns red as the default background
+				return new Proxy(style, {
+					get(target, prop) {
+						const value = (target as Record<string | symbol, string>)[
+							prop as string
+						];
+						// If the computed background color is red (headless signature), return black
+						if (prop === "backgroundColor" && value === "rgb(255, 0, 0)") {
+							return "rgb(0, 0, 0)"; // Return black instead of red
+						}
+						return value;
+					},
+				});
 			};
 			toStringMap.set(
 				window.getComputedStyle,
@@ -471,53 +597,47 @@ export async function applyStealthScripts(
 			// 7. Screen dimensions — headless sets screen to match viewport,
 			// triggering noTaskbar and hasVvpScreenRes. Spoof to a common
 			// monitor resolution and subtract OS chrome.
-			const realScreenW = screen.width;
-			const realScreenH = screen.height;
+			// Note: We always spoof screen dimensions unconditionally to ensure
+			// headless detection signals are consistently masked.
 			const spoofedW = 1920;
 			const spoofedH = 1080;
+			const dockOffset =
+				navigatorPlatform === "MacIntel"
+					? 74
+					: navigatorPlatform === "Win32"
+						? 40
+						: 37;
+			const menuBarOffset = navigatorPlatform === "MacIntel" ? 37 : 0;
+			const totalOffset = dockOffset + menuBarOffset;
 
-			if (
-				realScreenW === window.innerWidth &&
-				realScreenH === window.innerHeight
-			) {
-				const dockOffset =
-					navigatorPlatform === "MacIntel"
-						? 74
-						: navigatorPlatform === "Win32"
-							? 40
-							: 37;
-				const menuBarOffset = navigatorPlatform === "MacIntel" ? 37 : 0;
-				const totalOffset = dockOffset + menuBarOffset;
-
-				Object.defineProperty(Screen.prototype, "width", {
-					get: makeNativeGetter("width", Screen.prototype, () => spoofedW),
-					configurable: true,
-				});
-				Object.defineProperty(Screen.prototype, "height", {
-					get: makeNativeGetter("height", Screen.prototype, () => spoofedH),
-					configurable: true,
-				});
-				Object.defineProperty(Screen.prototype, "availWidth", {
-					get: makeNativeGetter("availWidth", Screen.prototype, () => spoofedW),
-					configurable: true,
-				});
-				Object.defineProperty(Screen.prototype, "availHeight", {
-					get: makeNativeGetter(
-						"availHeight",
-						Screen.prototype,
-						() => spoofedH - totalOffset,
-					),
-					configurable: true,
-				});
-				Object.defineProperty(Screen.prototype, "availTop", {
-					get: makeNativeGetter(
-						"availTop",
-						Screen.prototype,
-						() => menuBarOffset,
-					),
-					configurable: true,
-				});
-			}
+			Object.defineProperty(Screen.prototype, "width", {
+				get: makeNativeGetter("width", Screen.prototype, () => spoofedW),
+				configurable: true,
+			});
+			Object.defineProperty(Screen.prototype, "height", {
+				get: makeNativeGetter("height", Screen.prototype, () => spoofedH),
+				configurable: true,
+			});
+			Object.defineProperty(Screen.prototype, "availWidth", {
+				get: makeNativeGetter("availWidth", Screen.prototype, () => spoofedW),
+				configurable: true,
+			});
+			Object.defineProperty(Screen.prototype, "availHeight", {
+				get: makeNativeGetter(
+					"availHeight",
+					Screen.prototype,
+					() => spoofedH - totalOffset,
+				),
+				configurable: true,
+			});
+			Object.defineProperty(Screen.prototype, "availTop", {
+				get: makeNativeGetter(
+					"availTop",
+					Screen.prototype,
+					() => menuBarOffset,
+				),
+				configurable: true,
+			});
 		},
 		opts,
 	);
