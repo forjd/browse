@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.4](https://github.com/forjd/browse/compare/browse-v0.12.3...browse-v0.12.4) (2026-03-28)
+
+
+### Bug Fixes
+
+* CreepJS hasKnownBgColor detection by patching getComputedStyle for ActiveText ([1c9bc08](https://github.com/forjd/browse/commit/1c9bc08acc023d370942557f1f5ae305c20c458a))
+* stealth detection issues ([#139](https://github.com/forjd/browse/issues/139), [#137](https://github.com/forjd/browse/issues/137), [#127](https://github.com/forjd/browse/issues/127)) ([47a64ff](https://github.com/forjd/browse/commit/47a64ff8352db9c10a4fefd36ac518b6b4366a11))
+* stealth detection issues ([#139](https://github.com/forjd/browse/issues/139), [#137](https://github.com/forjd/browse/issues/137), [#127](https://github.com/forjd/browse/issues/127)) ([ad6d025](https://github.com/forjd/browse/commit/ad6d02516008b79ba829669904e44411e625a892))
+
 ## [0.12.3](https://github.com/forjd/browse/compare/browse-v0.12.2...browse-v0.12.3) (2026-03-27)
 
 
