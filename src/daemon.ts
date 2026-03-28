@@ -1286,6 +1286,11 @@ export async function startDaemon(
 				await cdp.send("Emulation.setDefaultBackgroundColorOverride", {
 					color: { r: 255, g: 255, b: 255, a: 1 },
 				});
+				// Set prefers-color-scheme to dark to avoid prefersLightColor detection
+				// (headless defaults to light, real browsers are often set to dark)
+				await cdp.send("Emulation.setEmulatedMedia", {
+					features: [{ name: "prefers-color-scheme", value: "dark" }],
+				});
 				await cdp.send("Emulation.setUserAgentOverride", {
 					userAgent: opts.userAgent,
 					platform: opts.navigatorPlatform,
