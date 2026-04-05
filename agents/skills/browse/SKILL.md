@@ -92,6 +92,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Events** | `subscribe` (`--events navigation,console,network`, `--level`, `--idle-timeout`) |
 | **Watch/REPL** | `watch <flow-file>`, `repl` |
 | **Tooling** | `init`, `report --out <path>`, `replay --out <path>`, `flow-share export/import/list/install/publish`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status [--json] [--watch] [--exit-code]` |
+| **Plugins** | Custom commands via plugins — see the `browse-plugins` skill. Plugin commands appear in `browse help` output |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.
 

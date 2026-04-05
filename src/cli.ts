@@ -1,13 +1,57 @@
 import { connect } from "node:net";
 import { readToken } from "./auth.ts";
 import type { BrowserName } from "./config.ts";
-import { VALID_BROWSER_NAMES } from "./config.ts";
+import {
+	loadConfig,
+	resolveConfigPath,
+	VALID_BROWSER_NAMES,
+} from "./config.ts";
 import { startDaemon } from "./daemon.ts";
-import { formatCommandHelp, formatOverview } from "./help.ts";
+import {
+	formatCommandHelp,
+	formatOverview,
+	type PluginHelpEntry,
+} from "./help.ts";
 import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
+import { discoverPluginPaths, validatePlugin } from "./plugin-loader.ts";
 import type { Response } from "./protocol.ts";
 import { sendWithRetry } from "./retry.ts";
 import { formatVersion } from "./version.ts";
+
+/**
+ * Load plugin help entries by discovering and importing plugins.
+ * Best-effort — errors are silently ignored since this is just for help text.
+ */
+async function loadPluginHelp(
+	configPath?: string,
+): Promise<Record<string, PluginHelpEntry>> {
+	const entries: Record<string, PluginHelpEntry> = {};
+	try {
+		const resolvedPath = resolveConfigPath(configPath);
+		let plugins: string[] | undefined;
+		if (resolvedPath) {
+			const { config } = loadConfig(resolvedPath);
+			plugins = config?.plugins;
+		}
+		const paths = discoverPluginPaths(plugins, resolvedPath);
+		for (const path of paths) {
+			try {
+				const mod = await import(path);
+				const raw = mod.default ?? mod;
+				const result = validatePlugin(raw, path);
+				if (typeof result === "string") continue;
+				for (const cmd of result.commands ?? []) {
+					entries[cmd.name] = { summary: cmd.summary, usage: cmd.usage };
+				}
+			} catch {
+				// Skip unloadable plugins in help
+			}
+		}
+	} catch {
+		// Config not found or invalid — no plugin help
+	}
+	return entries;
+}
 
 function isHeadedMode(): boolean {
 	return (
@@ -332,30 +376,34 @@ async function runCli(): Promise<void> {
 
 	// Handle help command and --help / -h flags (client-side, no daemon)
 	if (cmd === "help" || cmd === "--help" || cmd === "-h") {
+		const pluginHelp = await loadPluginHelp(configPath);
 		const target = args[0];
 		if (target) {
-			const detail = formatCommandHelp(target);
+			const detail = formatCommandHelp(target, pluginHelp);
 			if (detail) {
 				process.stdout.write(`${detail}\n`);
 			} else {
 				process.stderr.write(
-					`Unknown command: ${target}\n\n${formatOverview()}\n`,
+					`Unknown command: ${target}\n\n${formatOverview(pluginHelp)}\n`,
 				);
 				process.exit(1);
 			}
 		} else {
-			process.stdout.write(`${formatOverview()}\n`);
+			process.stdout.write(`${formatOverview(pluginHelp)}\n`);
 		}
 		return;
 	}
 
 	// Handle `browse <command> --help`
 	if (args.includes("--help")) {
-		const detail = formatCommandHelp(cmd);
+		const pluginHelp = await loadPluginHelp(configPath);
+		const detail = formatCommandHelp(cmd, pluginHelp);
 		if (detail) {
 			process.stdout.write(`${detail}\n`);
 		} else {
-			process.stderr.write(`Unknown command: ${cmd}\n\n${formatOverview()}\n`);
+			process.stderr.write(
+				`Unknown command: ${cmd}\n\n${formatOverview(pluginHelp)}\n`,
+			);
 			process.exit(1);
 		}
 		return;

@@ -37,8 +37,18 @@ bunx opensrc <owner>/<repo>      # GitHub repo (e.g., bunx opensrc vercel/ai)
 
 This project includes `browse`, a CLI tool for AI-agent-driven browser automation.
 
-- **Skill file:** See `SKILL.md` for the full command reference and QA methodology.
+- **Skill file:** See `agents/skills/browse/SKILL.md` for the full command reference and QA methodology.
 - **Binary:** `dist/browse` (compile with `./setup.sh`).
 - **Prefer this tool** over any MCP browser tools for QA tasks against this project's application.
 - The tool manages its own daemon — just run commands directly.
 - Run `browse help` for a command overview, or `browse help <command>` for detailed usage.
+
+### Plugins
+
+Browse supports plugins that add custom commands and lifecycle hooks. See `docs/plugins.md` for the full guide.
+
+- **Types:** `src/plugin.ts` — `BrowsePlugin`, `PluginCommand`, `CommandContext`, `PluginHooks`
+- **Loader:** `src/plugin-loader.ts` — discovery, validation, registration
+- **Config:** Add `"plugins": ["./path/to/plugin.ts"]` to `browse.config.json`
+- **Global plugins:** `~/.browse/plugins/` — auto-discovered `.ts`/`.js` files
+- **Example:** `examples/plugin-example.ts`

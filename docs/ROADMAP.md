@@ -80,8 +80,8 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 
 ### Plugin System
 
-- [ ] **Plugin architecture** — Load external plugins from `~/.browse/plugins/`
-- [ ] **Plugin API** — Stable API for adding custom commands and reporters
+- [x] **Plugin architecture** — Load external plugins from `~/.browse/plugins/`
+- [x] **Plugin API** — Stable API for adding custom commands and reporters
 - [ ] **Plugin marketplace** — Registry/discovery for community plugins
 - [ ] **Official plugins** — First-party plugins for popular tools (Slack, Discord, JIRA)
 

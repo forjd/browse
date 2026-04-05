@@ -85,6 +85,9 @@ const VALID_COMMANDS = [
 
 export type Command = (typeof VALID_COMMANDS)[number];
 
+/** Set of all built-in command names, for plugin collision checks. */
+export const BUILTIN_COMMANDS: ReadonlySet<string> = new Set(VALID_COMMANDS);
+
 export type Request = {
 	cmd: Command;
 	args: string[];
@@ -101,7 +104,10 @@ export type Response =
 	| { ok: true; data: string }
 	| { ok: false; error: string };
 
-export function parseRequest(raw: string): Request {
+export function parseRequest(
+	raw: string,
+	extraCommands?: ReadonlySet<string>,
+): Request {
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(raw);
@@ -124,7 +130,7 @@ export function parseRequest(raw: string): Request {
 	}
 
 	const cmd = obj.cmd as string;
-	if (!VALID_COMMANDS.includes(cmd as Command)) {
+	if (!VALID_COMMANDS.includes(cmd as Command) && !extraCommands?.has(cmd)) {
 		throw new Error(`Unknown command: ${cmd}`);
 	}
 

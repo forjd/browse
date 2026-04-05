@@ -55,6 +55,7 @@ browse click @e2
   - [Network Interception](#network-interception)
   - [Multi-browser Support](#multi-browser-support)
   - [Proxy Support](#proxy-support)
+- [Plugins](#plugins)
 - [Configuration](#configuration)
 - [Architecture & Stealth](#architecture--stealth)
 - [Performance](#performance)
@@ -396,6 +397,45 @@ BROWSE_HEADED=1 browse goto https://example.com
 ```
 
 > **Note:** Environment variable must be set before the daemon starts. If already running, run `browse quit` first.
+
+---
+
+## Plugins
+
+Extend browse with custom commands and lifecycle hooks. Plugins are TypeScript or JavaScript files that export a `BrowsePlugin` object.
+
+```typescript
+// plugins/hello.ts
+import type { BrowsePlugin } from "browse/plugin";
+
+const plugin: BrowsePlugin = {
+  name: "hello",
+  version: "1.0.0",
+  commands: [{
+    name: "hello",
+    summary: "Say hello",
+    usage: "browse hello [name]",
+    handler: async (ctx) => ({
+      ok: true,
+      data: `Hello, ${ctx.args[0] ?? "world"}!`,
+    }),
+  }],
+};
+
+export default plugin;
+```
+
+Register in `browse.config.json`:
+
+```json
+{
+  "plugins": ["./plugins/hello.ts"]
+}
+```
+
+Plugins can also hook into the command lifecycle (`beforeCommand`, `afterCommand`, `cleanup`) and maintain per-session state. Place personal plugins in `~/.browse/plugins/` for auto-discovery across all projects.
+
+See the **[plugin authoring guide](docs/plugins.md)** for full documentation.
 
 ---
 

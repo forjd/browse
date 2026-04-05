@@ -117,6 +117,8 @@ export type BrowseConfig = {
 	browser?: BrowserName;
 	proxy?: ProxyConfig;
 	playwright?: PlaywrightPassthrough;
+	/** Plugin paths — relative to config file, absolute, or npm package names. */
+	plugins?: string[];
 };
 
 /** Passed alongside config so commands can distinguish "not found" from "invalid". */

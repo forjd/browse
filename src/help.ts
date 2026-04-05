@@ -832,23 +832,6 @@ Examples:
   browse vrt update --all
   browse vrt list`,
 	},
-	do: {
-		summary: "Execute a task described in natural language",
-		usage: `browse do "<instruction>" [--dry-run] [--provider <anthropic|openai>] [--model <model>]
-
-Uses an LLM to translate natural language into browse commands.
-
-Flags:
-  --dry-run               Show planned commands without executing
-  --provider <provider>   AI provider: anthropic (default), openai
-  --model <model>         Model to use
-  --base-url <url>        Custom API base URL
-  --env <name>            Environment for login context
-
-Examples:
-  browse do "go to staging and check the dashboard loads"
-  browse do "fill the search box with 'test' and press enter" --dry-run`,
-	},
 	"ci-init": {
 		summary: "Scaffold CI/CD configuration for browse",
 		usage: `browse ci-init [--ci <github|gitlab|circleci>] [--force]
@@ -1046,14 +1029,30 @@ Flags:
 	},
 };
 
-export function formatOverview(): string {
+export type PluginHelpEntry = {
+	summary: string;
+	usage: string;
+};
+
+export function formatOverview(
+	pluginCommands?: Record<string, PluginHelpEntry>,
+): string {
+	const allCommands = { ...COMMANDS, ...pluginCommands };
 	const lines = ["Usage: browse <command> [args...]", "", "Commands:"];
 
 	// Find longest command name for alignment
-	const maxLen = Math.max(...Object.keys(COMMANDS).map((c) => c.length));
+	const builtinNames = Object.keys(COMMANDS);
+	const maxLen = Math.max(...Object.keys(allCommands).map((c) => c.length));
 
-	for (const [name, { summary }] of Object.entries(COMMANDS)) {
-		lines.push(`  ${name.padEnd(maxLen + 2)}${summary}`);
+	for (const name of builtinNames) {
+		lines.push(`  ${name.padEnd(maxLen + 2)}${COMMANDS[name].summary}`);
+	}
+
+	if (pluginCommands && Object.keys(pluginCommands).length > 0) {
+		lines.push("", "Plugin commands:");
+		for (const [name, { summary }] of Object.entries(pluginCommands)) {
+			lines.push(`  ${name.padEnd(maxLen + 2)}${summary}`);
+		}
 	}
 
 	lines.push(
@@ -1080,8 +1079,11 @@ export function formatOverview(): string {
 	return lines.join("\n");
 }
 
-export function formatCommandHelp(cmd: string): string | null {
-	const entry = COMMANDS[cmd];
+export function formatCommandHelp(
+	cmd: string,
+	pluginCommands?: Record<string, PluginHelpEntry>,
+): string | null {
+	const entry = COMMANDS[cmd] ?? pluginCommands?.[cmd];
 	if (!entry) return null;
 
 	return `${entry.summary}\n\nUsage:\n  ${entry.usage}`;

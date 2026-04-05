@@ -111,8 +111,23 @@ import {
 	type LifecycleConfig,
 	writePidFile,
 } from "./lifecycle.ts";
+import type { CommandContext } from "./plugin.ts";
+import {
+	createEmptyRegistry,
+	discoverPluginPaths,
+	getPluginSessionState,
+	loadPlugins,
+	type PluginRegistry,
+	runAfterHooks,
+	runBeforeHooks,
+	runCleanupHooks,
+} from "./plugin-loader.ts";
 import type { Response } from "./protocol.ts";
-import { parseRequest, serialiseResponse } from "./protocol.ts";
+import {
+	BUILTIN_COMMANDS,
+	parseRequest,
+	serialiseResponse,
+} from "./protocol.ts";
 import { clearRefs, markStale } from "./refs.ts";
 import {
 	applyStealthScripts,
@@ -305,6 +320,8 @@ export type ServerDeps = {
 	browserName?: BrowserName;
 	/** Resolved proxy config for propagation to isolated contexts. */
 	proxyConfig?: ProxyConfig;
+	/** Resolved config file path — used for plugin path resolution. */
+	configPath?: string | null;
 };
 
 function attachPageListeners(
@@ -389,6 +406,7 @@ export async function startServer(
 		tcpListen,
 		browserName,
 		proxyConfig,
+		configPath,
 	} = deps;
 	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
@@ -455,8 +473,29 @@ export async function startServer(
 		tabRegistry: defaultTabRegistry,
 		attachListeners: (p: Page, ts: TabState) =>
 			attachPageListeners(p, ts, browserName),
+		pluginState: new Map(),
 	};
 	sessionRegistry.sessions.set("default", defaultSession);
+
+	// Load plugins
+	const pluginPaths = discoverPluginPaths(config?.plugins, configPath ?? null);
+	let pluginRegistry: PluginRegistry;
+	if (pluginPaths.length > 0) {
+		const { registry, errors } = await loadPlugins(
+			pluginPaths,
+			config,
+			BUILTIN_COMMANDS,
+		);
+		pluginRegistry = registry;
+		for (const err of errors) {
+			console.error(`Plugin warning: ${err}`);
+		}
+	} else {
+		pluginRegistry = createEmptyRegistry();
+	}
+	const pluginCommandNames: ReadonlySet<string> = new Set(
+		pluginRegistry.commands.keys(),
+	);
 
 	/** Resolve which session to use for a request */
 	function resolveSession(sessionName?: string): Session | { error: string } {
@@ -501,6 +540,7 @@ export async function startServer(
 		idleTimer.clear();
 		server.close();
 		tcpServer?.close();
+		await runCleanupHooks(pluginRegistry);
 		await onShutdown();
 		cleanupFiles(lifecycleConfig);
 	}
@@ -550,7 +590,7 @@ export async function startServer(
 		idleTimer.reset();
 
 		try {
-			const request = parseRequest(data);
+			const request = parseRequest(data, pluginCommandNames);
 
 			// Validate auth token if the daemon has one
 			if (token && request.token !== token) {
@@ -697,7 +737,9 @@ export async function startServer(
 			const sessionContext = session.context;
 
 			// Reject unknown flags before dispatching
-			const knownFlags = KNOWN_FLAGS[request.cmd];
+			const knownFlags =
+				KNOWN_FLAGS[request.cmd] ??
+				pluginRegistry.commands.get(request.cmd)?.command.flags;
 			if (knownFlags) {
 				const unknown = checkUnknownFlags(request.args, knownFlags);
 				if (unknown.length > 0) {
@@ -1011,20 +1053,95 @@ export async function startServer(
 						return handleMonitor(page, request.args);
 					case "quit":
 						return handleQuit();
-					default:
+					default: {
+						// Dispatch to plugin commands
+						const pluginCmd = pluginRegistry.commands.get(request.cmd);
+						if (pluginCmd) {
+							const ctx: CommandContext = {
+								page,
+								context: sessionContext,
+								config,
+								args: request.args,
+								sessionState: getPluginSessionState(
+									session.pluginState,
+									pluginCmd.plugin,
+								),
+								request: {
+									session: request.session,
+									json: request.json,
+									timeout: request.timeout,
+								},
+							};
+							try {
+								return await pluginCmd.command.handler(ctx);
+							} catch (err) {
+								const message =
+									err instanceof Error ? err.message : String(err);
+								return {
+									ok: false,
+									error: `Plugin '${pluginCmd.plugin}' error: ${message}`,
+								};
+							}
+						}
 						return {
 							ok: false,
 							error: `Command '${request.cmd}' is not yet implemented.`,
 						};
+					}
 				}
 			}
 
+			// Build plugin context for hooks (only if hooks are registered)
+			const hasHooks =
+				pluginRegistry.hooks.beforeCommand.length > 0 ||
+				pluginRegistry.hooks.afterCommand.length > 0;
+			let pluginCtx: CommandContext | undefined;
+			if (hasHooks) {
+				const pluginCmd = pluginRegistry.commands.get(request.cmd);
+				pluginCtx = {
+					page,
+					context: sessionContext,
+					config,
+					args: request.args,
+					sessionState: pluginCmd
+						? getPluginSessionState(session.pluginState, pluginCmd.plugin)
+						: {},
+					request: {
+						session: request.session,
+						json: request.json,
+						timeout: request.timeout,
+					},
+				};
+			}
+
+			// Run beforeCommand hooks
+			if (pluginCtx) {
+				const hookResponse = await runBeforeHooks(
+					pluginRegistry,
+					request.cmd,
+					pluginCtx,
+				);
+				if (hookResponse) {
+					return reply(serialiseResponse(hookResponse));
+				}
+			}
+
+			const isExempt =
+				TIMEOUT_EXEMPT.has(request.cmd) ||
+				pluginRegistry.commands.get(request.cmd)?.command.timeoutExempt ===
+					true;
+
 			let response: Response;
-			if (TIMEOUT_EXEMPT.has(request.cmd)) {
+			if (isExempt) {
 				response = await executeCommand();
 			} else {
 				const timeoutMs = resolveTimeout(request.timeout, config?.timeout);
 				response = await withTimeout(executeCommand, timeoutMs);
+			}
+
+			// Run afterCommand hooks
+			if (pluginCtx) {
+				await runAfterHooks(pluginRegistry, request.cmd, pluginCtx, response);
 			}
 
 			return reply(serialiseResponse(response), request.cmd === "quit");
@@ -1342,6 +1459,7 @@ export async function startDaemon(
 			tcpListen: options.tcpListen,
 			browserName,
 			proxyConfig,
+			configPath: resolvedConfigPath,
 		},
 		lifecycleConfig,
 		async () => {

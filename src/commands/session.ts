@@ -21,6 +21,8 @@ export type Session = {
 	interceptState: InterceptState;
 	/** Callback to attach page listeners to new tabs in this session */
 	attachListeners: (page: Page, tabState: TabState) => void;
+	/** Per-plugin state, keyed by plugin name. */
+	pluginState: Map<string, Record<string, unknown>>;
 };
 
 export type SessionRegistry = {
@@ -130,6 +132,7 @@ async function handleCreate(
 		interceptState,
 		tabRegistry,
 		attachListeners: callbacks.attachListeners,
+		pluginState: new Map(),
 	});
 
 	return {
