@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.0](https://github.com/forjd/browse/compare/browse-v0.12.3...browse-v0.13.0) (2026-04-08)
+
+
+### Features
+
+* add plugin system for custom commands and lifecycle hooks ([55a4d03](https://github.com/forjd/browse/commit/55a4d03ebc77e89017b574def8c50f30a67a32a3))
+
+
+### Bug Fixes
+
+* CreepJS hasKnownBgColor detection by patching getComputedStyle for ActiveText ([1c9bc08](https://github.com/forjd/browse/commit/1c9bc08acc023d370942557f1f5ae305c20c458a))
+* propagate TAG env var to Homebrew formula generation step ([9e0627b](https://github.com/forjd/browse/commit/9e0627bec970f4fb368f22952a448f38968cfb48))
+* stealth detection issues ([#139](https://github.com/forjd/browse/issues/139), [#137](https://github.com/forjd/browse/issues/137), [#127](https://github.com/forjd/browse/issues/127)) ([47a64ff](https://github.com/forjd/browse/commit/47a64ff8352db9c10a4fefd36ac518b6b4366a11))
+* stealth detection issues ([#139](https://github.com/forjd/browse/issues/139), [#137](https://github.com/forjd/browse/issues/137), [#127](https://github.com/forjd/browse/issues/127)) ([ad6d025](https://github.com/forjd/browse/commit/ad6d02516008b79ba829669904e44411e625a892))
+
 ## [0.12.3](https://github.com/forjd/browse/compare/browse-v0.12.2...browse-v0.12.3) (2026-03-27)
 
 
