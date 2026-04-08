@@ -96,6 +96,7 @@ jobs:
           done
 
           # Extract version from tag (e.g. browse-v0.11.0 -> 0.11.0)
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
           echo "VERSION=${TAG#browse-v}" >> "$GITHUB_ENV"
 
       - name: Generate formula
