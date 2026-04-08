@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.0](https://github.com/forjd/browse/compare/browse-v0.13.0...browse-v0.14.0) (2026-04-08)
+
+
+### Features
+
+* add disambiguation for flow click/fill/select steps ([cf9c3c6](https://github.com/forjd/browse/commit/cf9c3c600c2572dc6bc1a357ecf3ad447d3d3531)), closes [#148](https://github.com/forjd/browse/issues/148)
+* support file-based flow definitions in flows/ directory ([756a1c5](https://github.com/forjd/browse/commit/756a1c51d3c78839793b50887cfa524edf1330fe))
+
 ## [0.13.0](https://github.com/forjd/browse/compare/browse-v0.12.3...browse-v0.13.0) (2026-04-08)
 
 
