@@ -96,8 +96,15 @@ describe("Phase 4 config — flows", () => {
 					steps: [
 						{ goto: "https://example.com" },
 						{ click: "Submit" },
+						{ click: { name: "Yes", index: 1 } },
+						{ click: { name: "Yes", near: "Selling?" } },
+						{ click: { selector: ".btn" } },
 						{ fill: { Email: "test@test.com" } },
+						{ fill: { Email: { value: "test@test.com", index: 0 } } },
+						{ fill: { selector: "input", value: "test" } },
 						{ select: { Role: "Admin" } },
+						{ select: { Role: { value: "Admin", index: 0 } } },
+						{ select: { selector: "#role", value: "Admin" } },
 						{ screenshot: true },
 						{ screenshot: "/tmp/shot.png" },
 						{ console: "error" },
@@ -130,6 +137,188 @@ describe("Phase 4 config — flows", () => {
 		const result = loadConfig(path);
 		expect(result.error).toBeNull();
 		expect(result.config?.flows?.signup.steps).toHaveLength(1);
+	});
+});
+
+describe("Flow step disambiguation validation", () => {
+	// --- click ---
+	test("accepts click with name + index", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ click: { name: "Yes", index: 1 } }] },
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("accepts click with name + near", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ click: { name: "Yes", near: "Are you selling?" } }],
+				},
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("accepts click with selector", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ click: { selector: ".q2 button" } }] },
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("accepts click with name only (object form)", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ click: { name: "Submit" } }] },
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("rejects click with both index and near", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ click: { name: "Yes", index: 1, near: "Question" } }],
+				},
+			},
+		});
+		expect(result).toContain("index");
+		expect(result).toContain("near");
+	});
+
+	test("rejects click with negative index", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ click: { name: "Yes", index: -1 } }] },
+			},
+		});
+		expect(result).toContain("index");
+	});
+
+	test("rejects click with non-integer index", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ click: { name: "Yes", index: 1.5 } }] },
+			},
+		});
+		expect(result).toContain("index");
+	});
+
+	test("rejects click with empty object", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ click: {} }] },
+			},
+		});
+		expect(result).not.toBeNull();
+	});
+
+	test("rejects click with selector + name", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ click: { selector: ".btn", name: "Submit" } }],
+				},
+			},
+		});
+		expect(result).not.toBeNull();
+	});
+
+	test("rejects click with wrong type", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ click: 123 }] },
+			},
+		});
+		expect(result).not.toBeNull();
+	});
+
+	// --- fill ---
+	test("accepts fill with selector + value", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ fill: { selector: "input.email", value: "a@b.com" } }],
+				},
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("accepts fill with per-field index", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ fill: { Email: { value: "a@b.com", index: 1 } } }],
+				},
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("rejects fill selector without value", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: { steps: [{ fill: { selector: "input" } }] },
+			},
+		});
+		expect(result).not.toBeNull();
+	});
+
+	test("rejects fill with per-field negative index", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ fill: { Email: { value: "a@b.com", index: -1 } } }],
+				},
+			},
+		});
+		expect(result).toContain("index");
+	});
+
+	// --- select ---
+	test("accepts select with selector + value", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ select: { selector: "#country", value: "UK" } }],
+				},
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("accepts select with per-field index", () => {
+		const result = validateConfig({
+			...MINIMAL_ENVS,
+			flows: {
+				test: {
+					steps: [{ select: { Country: { value: "UK", index: 0 } } }],
+				},
+			},
+		});
+		expect(result).toBeNull();
 	});
 });
 

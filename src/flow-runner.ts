@@ -12,9 +12,12 @@ import { handleScreenshot } from "./commands/screenshot.ts";
 import { handleSnapshot } from "./commands/snapshot.ts";
 import type {
 	BrowseConfig,
+	ClickTarget,
+	FillTarget,
 	FlowCondition,
 	FlowConfig,
 	FlowStep,
+	SelectTarget,
 	WaitCondition,
 } from "./config.ts";
 import { compileSafePattern } from "./safe-pattern.ts";
@@ -98,13 +101,27 @@ function generateFlowScreenshotPath(flowName: string, stepNum: number): string {
 
 function stepDescription(step: FlowStep): string {
 	if ("goto" in step) return `goto ${step.goto}`;
-	if ("click" in step) return `click ${step.click}`;
+	if ("click" in step) {
+		const t = step.click;
+		if (typeof t === "string") return `click ${t}`;
+		if ("selector" in t)
+			return `click [selector=${JSON.stringify(t.selector)}]`;
+		let desc = `click "${t.name}"`;
+		if (t.index !== undefined) desc += ` [index=${t.index}]`;
+		if (t.near) desc += ` [near=${JSON.stringify(t.near)}]`;
+		return desc;
+	}
 	if ("fill" in step) {
-		const fields = Object.keys(step.fill).join(", ");
+		const t = step.fill;
+		if ("selector" in t) return `fill [selector=${JSON.stringify(t.selector)}]`;
+		const fields = Object.keys(t).join(", ");
 		return `fill ${fields}`;
 	}
 	if ("select" in step) {
-		const fields = Object.keys(step.select).join(", ");
+		const t = step.select;
+		if ("selector" in t)
+			return `select [selector=${JSON.stringify(t.selector)}]`;
+		const fields = Object.keys(t).join(", ");
 		return `select ${fields}`;
 	}
 	if ("screenshot" in step) return "screenshot";
@@ -288,16 +305,87 @@ async function evaluateFlowCondition(
 	return false;
 }
 
-async function findAndClickByName(page: Page, name: string): Promise<void> {
-	// Try button, then link, then generic clickable
+async function findNearestMatch(
+	page: Page,
+	locator: ReturnType<Page["getByRole"]>,
+	nearText: string,
+): Promise<ReturnType<Page["getByRole"]>> {
+	const anchorLocator = page.getByText(nearText, { exact: false });
+	if ((await anchorLocator.count()) === 0) {
+		throw new Error(`Near text not found: '${nearText}'`);
+	}
+	const anchorBox = await anchorLocator.first().boundingBox();
+	if (!anchorBox) {
+		throw new Error(`Near text not visible: '${nearText}'`);
+	}
+	const anchorCentre = {
+		x: anchorBox.x + anchorBox.width / 2,
+		y: anchorBox.y + anchorBox.height / 2,
+	};
+
+	const count = await locator.count();
+	let bestIndex = 0;
+	let bestDist = Number.POSITIVE_INFINITY;
+	let foundAny = false;
+
+	for (let i = 0; i < count; i++) {
+		const box = await locator.nth(i).boundingBox();
+		if (!box) continue;
+		foundAny = true;
+		const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+		const dist = Math.hypot(
+			centre.x - anchorCentre.x,
+			centre.y - anchorCentre.y,
+		);
+		if (dist < bestDist) {
+			bestDist = dist;
+			bestIndex = i;
+		}
+	}
+
+	if (!foundAny) {
+		throw new Error(`No visible elements found near '${nearText}'`);
+	}
+
+	return locator.nth(bestIndex);
+}
+
+async function findAndClick(page: Page, target: ClickTarget): Promise<void> {
+	// Selector escape hatch
+	if (typeof target === "object" && "selector" in target) {
+		await page.locator(target.selector).first().click({ timeout: 5_000 });
+		return;
+	}
+
+	const name = typeof target === "string" ? target : target.name;
+	const index =
+		typeof target === "object" && "index" in target ? target.index : undefined;
+	const near =
+		typeof target === "object" && "near" in target ? target.near : undefined;
+
 	for (const role of ["button", "link", "menuitem", "tab"] as const) {
 		try {
 			const locator = page.getByRole(role, { name });
 			if ((await locator.count()) > 0) {
-				await locator.first().click({ timeout: 5_000 });
+				if (near) {
+					const nearest = await findNearestMatch(page, locator, near);
+					await nearest.click({ timeout: 5_000 });
+				} else if (index !== undefined) {
+					await locator.nth(index).click({ timeout: 5_000 });
+				} else {
+					await locator.first().click({ timeout: 5_000 });
+				}
 				return;
 			}
-		} catch {
+		} catch (err) {
+			// Re-throw disambiguation errors (near text not found, etc.)
+			if (
+				err instanceof Error &&
+				(err.message.startsWith("Near text") ||
+					err.message.startsWith("No visible elements"))
+			) {
+				throw err;
+			}
 			// Try next role
 		}
 	}
@@ -306,11 +394,27 @@ async function findAndClickByName(page: Page, name: string): Promise<void> {
 	);
 }
 
-async function findAndFillByName(
-	page: Page,
-	fields: Record<string, string>,
-): Promise<void> {
-	for (const [name, value] of Object.entries(fields)) {
+async function findAndFill(page: Page, target: FillTarget): Promise<void> {
+	// Selector escape hatch
+	if ("selector" in target && "value" in target) {
+		await page
+			.locator(target.selector)
+			.first()
+			.fill(target.value, { timeout: 5_000 });
+		return;
+	}
+
+	const fields = target as Record<
+		string,
+		string | { value: string; index?: number }
+	>;
+	for (const [name, fieldVal] of Object.entries(fields)) {
+		const value = typeof fieldVal === "string" ? fieldVal : fieldVal.value;
+		const index =
+			typeof fieldVal === "object" && fieldVal.index !== undefined
+				? fieldVal.index
+				: undefined;
+
 		let filled = false;
 		for (const role of [
 			"textbox",
@@ -321,7 +425,11 @@ async function findAndFillByName(
 			try {
 				const locator = page.getByRole(role, { name });
 				if ((await locator.count()) > 0) {
-					await locator.first().fill(value, { timeout: 5_000 });
+					if (index !== undefined) {
+						await locator.nth(index).fill(value, { timeout: 5_000 });
+					} else {
+						await locator.first().fill(value, { timeout: 5_000 });
+					}
 					filled = true;
 					break;
 				}
@@ -337,15 +445,35 @@ async function findAndFillByName(
 	}
 }
 
-async function findAndSelectByName(
-	page: Page,
-	fields: Record<string, string>,
-): Promise<void> {
-	for (const [name, value] of Object.entries(fields)) {
+async function findAndSelect(page: Page, target: SelectTarget): Promise<void> {
+	// Selector escape hatch
+	if ("selector" in target && "value" in target) {
+		await page
+			.locator(target.selector)
+			.first()
+			.selectOption(target.value, { timeout: 5_000 });
+		return;
+	}
+
+	const fields = target as Record<
+		string,
+		string | { value: string; index?: number }
+	>;
+	for (const [name, fieldVal] of Object.entries(fields)) {
+		const value = typeof fieldVal === "string" ? fieldVal : fieldVal.value;
+		const index =
+			typeof fieldVal === "object" && fieldVal.index !== undefined
+				? fieldVal.index
+				: undefined;
+
 		try {
 			const locator = page.getByRole("combobox", { name });
 			if ((await locator.count()) > 0) {
-				await locator.first().selectOption(value, { timeout: 5_000 });
+				if (index !== undefined) {
+					await locator.nth(index).selectOption(value, { timeout: 5_000 });
+				} else {
+					await locator.first().selectOption(value, { timeout: 5_000 });
+				}
 				continue;
 			}
 		} catch {
@@ -354,7 +482,11 @@ async function findAndSelectByName(
 		try {
 			const locator = page.getByLabel(name);
 			if ((await locator.count()) > 0) {
-				await locator.first().selectOption(value, { timeout: 5_000 });
+				if (index !== undefined) {
+					await locator.nth(index).selectOption(value, { timeout: 5_000 });
+				} else {
+					await locator.first().selectOption(value, { timeout: 5_000 });
+				}
 				continue;
 			}
 		} catch {
@@ -440,11 +572,11 @@ export async function runFlow(
 			if ("goto" in step) {
 				await handleGoto(deps.page, [step.goto]);
 			} else if ("click" in step) {
-				await findAndClickByName(deps.page, step.click);
+				await findAndClick(deps.page, step.click);
 			} else if ("fill" in step) {
-				await findAndFillByName(deps.page, step.fill);
+				await findAndFill(deps.page, step.fill);
 			} else if ("select" in step) {
-				await findAndSelectByName(deps.page, step.select);
+				await findAndSelect(deps.page, step.select);
 			} else if ("screenshot" in step) {
 				const path =
 					typeof step.screenshot === "string"

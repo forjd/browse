@@ -116,11 +116,49 @@ All 13 step types are listed below.
 | `if` | Conditional branch | `{ "if": { "condition": { "elementVisible": ".modal" }, "then": [...], "else": [...] } }` |
 | `while` | Loop while condition holds | `{ "while": { "condition": { "elementVisible": ".next" }, "steps": [...], "maxIterations": 100 } }` |
 
-**Important**: `click` and `fill` in flows use **accessible names** (not CSS selectors or refs). The flow runner looks for elements by role:
+`click`, `fill`, and `select` also support an [object form for disambiguation](#disambiguation) when multiple elements share the same name.
+
+**Important**: `click` and `fill` in flows use **accessible names** (not CSS selectors or refs) by default. The flow runner looks for elements by role:
 
 - `click` tries: button, link, menuitem, tab
 - `fill` tries: textbox, searchbox, combobox, spinbutton
 - `select` tries: combobox, then falls back to label
+
+### Disambiguation
+
+When a page has multiple elements with the same accessible name (e.g., several "Yes"/"No" button pairs), the simple string form always clicks the first match. Use the object form to target a specific element:
+
+#### By index (nth match, zero-based)
+
+```json
+{ "click": { "name": "Yes", "index": 1 } }
+```
+
+Clicks the **second** "Yes" button. Works with `fill` and `select` too:
+
+```json
+{ "fill": { "Email": { "value": "user@example.com", "index": 1 } } }
+```
+
+#### By proximity (`click` only)
+
+```json
+{ "click": { "name": "Yes", "near": "Are you selling a property?" } }
+```
+
+Finds all elements matching the name, then clicks the one **nearest** (by pixel distance) to the specified text on the page. This mirrors how a human reads the page: "click Yes under the selling question."
+
+`index` and `near` are mutually exclusive — use one or the other.
+
+#### By CSS selector (escape hatch)
+
+```json
+{ "click": { "selector": ".question-2 button:first-child" } }
+{ "fill": { "selector": "input.email", "value": "user@example.com" } }
+{ "select": { "selector": "#country", "value": "United Kingdom" } }
+```
+
+Use when accessible names are insufficient. The `selector` form bypasses role-based matching entirely.
 
 ### Wait Conditions
 

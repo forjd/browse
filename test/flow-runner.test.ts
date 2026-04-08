@@ -1130,3 +1130,347 @@ describe("formatFlowReport", () => {
 		expect(report).toContain("→ Unexpected failure after save");
 	});
 });
+
+// --- Click disambiguation tests ---
+
+describe("click disambiguation", () => {
+	test("describes click with index", async () => {
+		const flow: FlowConfig = {
+			steps: [{ click: { name: "Yes", index: 1 } }],
+		};
+		const nthClick = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(3)),
+				first: mock(() => ({ click: mock(() => Promise.resolve()) })),
+				nth: mock(() => ({ click: nthClick })),
+			})),
+		});
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].description).toBe('click "Yes" [index=1]');
+	});
+
+	test("describes click with near", async () => {
+		const flow: FlowConfig = {
+			steps: [{ click: { name: "Yes", near: "Are you selling?" } }],
+		};
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(2)),
+				first: mock(() => ({ click: mock(() => Promise.resolve()) })),
+				nth: mock(() => ({
+					click: mock(() => Promise.resolve()),
+					boundingBox: mock(() =>
+						Promise.resolve({ x: 0, y: 0, width: 50, height: 30 }),
+					),
+				})),
+			})),
+			getByText: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({
+					boundingBox: mock(() =>
+						Promise.resolve({ x: 0, y: 0, width: 100, height: 20 }),
+					),
+				})),
+			})),
+		});
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].description).toBe(
+			'click "Yes" [near="Are you selling?"]',
+		);
+	});
+
+	test("describes click with selector", async () => {
+		const flow: FlowConfig = {
+			steps: [{ click: { selector: ".q2 button" } }],
+		};
+		const deps = createMockDeps();
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].description).toBe('click [selector=".q2 button"]');
+	});
+
+	test("click with index uses nth instead of first", async () => {
+		const nthClick = mock(() => Promise.resolve());
+		const firstClick = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(3)),
+				first: mock(() => ({ click: firstClick })),
+				nth: mock((_n: number) => ({ click: nthClick })),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ click: { name: "Yes", index: 2 } }],
+		};
+		await runFlow("test", flow, {}, deps, false);
+		expect(nthClick).toHaveBeenCalled();
+		expect(firstClick).not.toHaveBeenCalled();
+	});
+
+	test("click with selector uses page.locator", async () => {
+		const locatorClick = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			locator: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({
+					click: locatorClick,
+					fill: mock(() => Promise.resolve()),
+					selectOption: mock(() => Promise.resolve()),
+					isVisible: mock(() => Promise.resolve(true)),
+					screenshot: mock(() => Promise.resolve(Buffer.from(""))),
+					innerText: mock(() => Promise.resolve("mock text")),
+				})),
+				ariaSnapshot: mock(() => Promise.resolve('- button "OK"')),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ click: { selector: ".q2 button" } }],
+		};
+		await runFlow("test", flow, {}, deps, false);
+		expect(deps.page.locator).toHaveBeenCalledWith(".q2 button");
+		expect(locatorClick).toHaveBeenCalled();
+	});
+
+	test("click with near selects nearest match by bounding box", async () => {
+		const clickFns = [
+			mock(() => Promise.resolve()),
+			mock(() => Promise.resolve()),
+		];
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(2)),
+				first: mock(() => ({ click: mock(() => Promise.resolve()) })),
+				nth: mock((n: number) => ({
+					click: clickFns[n],
+					boundingBox: mock(() =>
+						Promise.resolve(
+							n === 0
+								? { x: 0, y: 0, width: 50, height: 30 } // far from anchor
+								: { x: 100, y: 100, width: 50, height: 30 }, // close to anchor
+						),
+					),
+				})),
+			})),
+			getByText: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({
+					boundingBox: mock(() =>
+						Promise.resolve({ x: 110, y: 110, width: 100, height: 20 }),
+					),
+				})),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ click: { name: "Yes", near: "Are you selling?" } }],
+		};
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].passed).toBe(true);
+		// Element at index 1 is closer to anchor, so it should be clicked
+		expect(clickFns[1]).toHaveBeenCalled();
+		expect(clickFns[0]).not.toHaveBeenCalled();
+	});
+
+	test("click with near throws when near text not found", async () => {
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(2)),
+				first: mock(() => ({ click: mock(() => Promise.resolve()) })),
+				nth: mock(() => ({
+					click: mock(() => Promise.resolve()),
+					boundingBox: mock(() =>
+						Promise.resolve({ x: 0, y: 0, width: 50, height: 30 }),
+					),
+				})),
+			})),
+			getByText: mock(() => ({
+				count: mock(() => Promise.resolve(0)),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ click: { name: "Yes", near: "Nonexistent" } }],
+		};
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].passed).toBe(false);
+		expect(results[0].error).toContain("Near text not found");
+	});
+
+	test("click with name-only object works like string", async () => {
+		const firstClick = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({ click: firstClick })),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ click: { name: "Submit" } }],
+		};
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].passed).toBe(true);
+		expect(results[0].description).toBe('click "Submit"');
+		expect(firstClick).toHaveBeenCalled();
+	});
+
+	test("backward compat: string click still works", async () => {
+		const firstClick = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({ click: firstClick })),
+			})),
+		});
+		const flow: FlowConfig = { steps: [{ click: "Submit" }] };
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].passed).toBe(true);
+		expect(results[0].description).toBe("click Submit");
+		expect(firstClick).toHaveBeenCalled();
+	});
+});
+
+// --- Fill/Select disambiguation tests ---
+
+describe("fill disambiguation", () => {
+	test("describes fill with selector", async () => {
+		const locatorFill = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			locator: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({
+					fill: locatorFill,
+					click: mock(() => Promise.resolve()),
+					selectOption: mock(() => Promise.resolve()),
+					isVisible: mock(() => Promise.resolve(true)),
+					screenshot: mock(() => Promise.resolve(Buffer.from(""))),
+					innerText: mock(() => Promise.resolve("mock text")),
+				})),
+				ariaSnapshot: mock(() => Promise.resolve('- textbox "Email"')),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ fill: { selector: "input.email", value: "a@b.com" } as any }],
+		};
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].description).toBe('fill [selector="input.email"]');
+		expect(results[0].passed).toBe(true);
+		expect(locatorFill).toHaveBeenCalledWith("a@b.com", { timeout: 5_000 });
+	});
+
+	test("fill with per-field index uses nth", async () => {
+		const nthFill = mock(() => Promise.resolve());
+		const firstFill = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(3)),
+				first: mock(() => ({ fill: firstFill })),
+				nth: mock((_n: number) => ({ fill: nthFill })),
+				fill: mock(() => Promise.resolve()),
+				click: mock(() => Promise.resolve()),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [
+				{
+					fill: {
+						Email: { value: "a@b.com", index: 1 },
+					} as any,
+				},
+			],
+		};
+		await runFlow("test", flow, {}, deps, false);
+		expect(nthFill).toHaveBeenCalled();
+		expect(firstFill).not.toHaveBeenCalled();
+	});
+
+	test("backward compat: record fill still works", async () => {
+		const firstFill = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({
+					fill: firstFill,
+					click: mock(() => Promise.resolve()),
+				})),
+				fill: mock(() => Promise.resolve()),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ fill: { Email: "a@b.com" } }],
+		};
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].passed).toBe(true);
+		expect(results[0].description).toBe("fill Email");
+		expect(firstFill).toHaveBeenCalled();
+	});
+});
+
+describe("select disambiguation", () => {
+	test("select with selector uses page.locator", async () => {
+		const locatorSelect = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			locator: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({
+					selectOption: locatorSelect,
+					click: mock(() => Promise.resolve()),
+					fill: mock(() => Promise.resolve()),
+					isVisible: mock(() => Promise.resolve(true)),
+					screenshot: mock(() => Promise.resolve(Buffer.from(""))),
+					innerText: mock(() => Promise.resolve("mock text")),
+				})),
+				ariaSnapshot: mock(() => Promise.resolve('- combobox "Role"')),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ select: { selector: "#country", value: "UK" } as any }],
+		};
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].description).toBe('select [selector="#country"]');
+		expect(results[0].passed).toBe(true);
+		expect(locatorSelect).toHaveBeenCalledWith("UK", { timeout: 5_000 });
+	});
+
+	test("select with per-field index uses nth", async () => {
+		const nthSelect = mock(() => Promise.resolve());
+		const firstSelect = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(3)),
+				first: mock(() => ({ selectOption: firstSelect })),
+				nth: mock((_n: number) => ({ selectOption: nthSelect })),
+			})),
+			getByLabel: mock(() => ({
+				count: mock(() => Promise.resolve(0)),
+				first: mock(() => ({ selectOption: mock(() => Promise.resolve()) })),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [
+				{
+					select: {
+						Country: { value: "UK", index: 1 },
+					} as any,
+				},
+			],
+		};
+		await runFlow("test", flow, {}, deps, false);
+		expect(nthSelect).toHaveBeenCalled();
+		expect(firstSelect).not.toHaveBeenCalled();
+	});
+
+	test("backward compat: record select still works", async () => {
+		const firstSelect = mock(() => Promise.resolve());
+		const deps = createMockDeps({
+			getByRole: mock(() => ({
+				count: mock(() => Promise.resolve(1)),
+				first: mock(() => ({ selectOption: firstSelect })),
+			})),
+		});
+		const flow: FlowConfig = {
+			steps: [{ select: { Country: "UK" } }],
+		};
+		const { results } = await runFlow("test", flow, {}, deps, false);
+		expect(results[0].passed).toBe(true);
+		expect(results[0].description).toBe("select Country");
+		expect(firstSelect).toHaveBeenCalled();
+	});
+});

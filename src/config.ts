@@ -43,11 +43,28 @@ export type FlowCondition =
 	| { elementNotVisible: string }
 	| { textVisible: string };
 
+// Flow step disambiguation types
+
+export type ClickTarget =
+	| string
+	| { name: string; index?: number; near?: string }
+	| { selector: string };
+
+export type FillFieldValue = string | { value: string; index?: number };
+export type FillTarget =
+	| Record<string, FillFieldValue>
+	| { selector: string; value: string };
+
+export type SelectFieldValue = string | { value: string; index?: number };
+export type SelectTarget =
+	| Record<string, SelectFieldValue>
+	| { selector: string; value: string };
+
 export type FlowStep =
 	| { goto: string }
-	| { click: string }
-	| { fill: Record<string, string> }
-	| { select: Record<string, string> }
+	| { click: ClickTarget }
+	| { fill: FillTarget }
+	| { select: SelectTarget }
 	| { screenshot: true | string }
 	| { console: "error" | "warning" | "all" }
 	| { network: true }
@@ -261,6 +278,102 @@ export function validateFlowStep(
 	const stepKeys = Object.keys(stepObj);
 	if (stepKeys.length === 0 || !VALID_FLOW_STEP_KEYS.has(stepKeys[0])) {
 		return `Invalid ${sourceLabel}: ${context} has invalid type. Valid step types: ${[...VALID_FLOW_STEP_KEYS].join(", ")}.`;
+	}
+
+	// Validate click disambiguation
+	if ("click" in stepObj) {
+		const click = stepObj.click;
+		if (typeof click === "string") {
+			// Valid: simple string form
+		} else if (
+			typeof click === "object" &&
+			click !== null &&
+			!Array.isArray(click)
+		) {
+			const clickObj = click as Record<string, unknown>;
+			if ("selector" in clickObj) {
+				if (typeof clickObj.selector !== "string") {
+					return `Invalid ${sourceLabel}: ${context} 'click.selector' must be a string.`;
+				}
+				const extraKeys = Object.keys(clickObj).filter((k) => k !== "selector");
+				if (extraKeys.length > 0) {
+					return `Invalid ${sourceLabel}: ${context} 'click' with selector must not have other keys (found: ${extraKeys.join(", ")}).`;
+				}
+			} else if ("name" in clickObj) {
+				if (typeof clickObj.name !== "string") {
+					return `Invalid ${sourceLabel}: ${context} 'click.name' must be a string.`;
+				}
+				if (clickObj.index !== undefined && clickObj.near !== undefined) {
+					return `Invalid ${sourceLabel}: ${context} 'click' cannot have both index and near.`;
+				}
+				if (clickObj.index !== undefined) {
+					if (
+						typeof clickObj.index !== "number" ||
+						!Number.isInteger(clickObj.index) ||
+						clickObj.index < 0
+					) {
+						return `Invalid ${sourceLabel}: ${context} 'click.index' must be a non-negative integer.`;
+					}
+				}
+				if (clickObj.near !== undefined && typeof clickObj.near !== "string") {
+					return `Invalid ${sourceLabel}: ${context} 'click.near' must be a string.`;
+				}
+			} else {
+				return `Invalid ${sourceLabel}: ${context} 'click' object must have 'name' or 'selector'.`;
+			}
+		} else {
+			return `Invalid ${sourceLabel}: ${context} 'click' must be a string or object.`;
+		}
+	}
+
+	// Validate fill/select disambiguation
+	if ("fill" in stepObj || "select" in stepObj) {
+		const stepType = "fill" in stepObj ? "fill" : "select";
+		const target = stepObj[stepType];
+		if (
+			typeof target !== "object" ||
+			target === null ||
+			Array.isArray(target)
+		) {
+			return `Invalid ${sourceLabel}: ${context} '${stepType}' must be an object.`;
+		}
+		const targetObj = target as Record<string, unknown>;
+		if ("selector" in targetObj) {
+			if (typeof targetObj.selector !== "string") {
+				return `Invalid ${sourceLabel}: ${context} '${stepType}.selector' must be a string.`;
+			}
+			if (!("value" in targetObj) || typeof targetObj.value !== "string") {
+				return `Invalid ${sourceLabel}: ${context} '${stepType}' with selector must have a string 'value'.`;
+			}
+			const extraKeys = Object.keys(targetObj).filter(
+				(k) => k !== "selector" && k !== "value",
+			);
+			if (extraKeys.length > 0) {
+				return `Invalid ${sourceLabel}: ${context} '${stepType}' with selector must not have other keys (found: ${extraKeys.join(", ")}).`;
+			}
+		} else {
+			// Record form — validate per-field values
+			for (const [field, val] of Object.entries(targetObj)) {
+				if (typeof val === "string") continue;
+				if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+					const valObj = val as Record<string, unknown>;
+					if (!("value" in valObj) || typeof valObj.value !== "string") {
+						return `Invalid ${sourceLabel}: ${context} '${stepType}.${field}' object must have a string 'value'.`;
+					}
+					if (valObj.index !== undefined) {
+						if (
+							typeof valObj.index !== "number" ||
+							!Number.isInteger(valObj.index) ||
+							valObj.index < 0
+						) {
+							return `Invalid ${sourceLabel}: ${context} '${stepType}.${field}.index' must be a non-negative integer.`;
+						}
+					}
+				} else {
+					return `Invalid ${sourceLabel}: ${context} '${stepType}.${field}' must be a string or object.`;
+				}
+			}
+		}
 	}
 
 	// Recursively validate if/while structures
