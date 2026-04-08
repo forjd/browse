@@ -104,6 +104,12 @@ import { generateCompletions } from "./completions.ts";
 import type { BrowseConfig, BrowserName, ProxyConfig } from "./config.ts";
 import { loadConfig, resolveConfigPath } from "./config.ts";
 import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
+import type { FlowSource } from "./flow-loader.ts";
+import {
+	discoverFlowDirectories,
+	loadFlowsFromDirectories,
+	mergeFlows,
+} from "./flow-loader.ts";
 import {
 	cleanupFiles,
 	createIdleTimer,
@@ -322,6 +328,8 @@ export type ServerDeps = {
 	proxyConfig?: ProxyConfig;
 	/** Resolved config file path — used for plugin path resolution. */
 	configPath?: string | null;
+	/** Provenance map for flows (inline vs file-based). */
+	flowSources?: Map<string, FlowSource>;
 };
 
 function attachPageListeners(
@@ -407,6 +415,7 @@ export async function startServer(
 		browserName,
 		proxyConfig,
 		configPath,
+		flowSources,
 	} = deps;
 	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
@@ -817,6 +826,7 @@ export async function startServer(
 								networkBuffer: getActiveNetworkBuffer(session),
 							},
 							configCtx,
+							flowSources,
 						);
 					case "assert":
 						return handleAssert(config, page, request.args);
@@ -1303,6 +1313,29 @@ export async function startDaemon(
 		}
 	}
 
+	// Load flow files from flows/ directories and merge with inline flows
+	let flowSources: Map<string, FlowSource> | undefined;
+	if (config) {
+		const flowDirs = discoverFlowDirectories(resolvedConfigPath);
+		if (flowDirs.length > 0) {
+			const {
+				flows: fileFlows,
+				errors: flowErrors,
+				sources: fileSources,
+			} = loadFlowsFromDirectories(flowDirs);
+			const { merged, sources } = mergeFlows(
+				config.flows,
+				fileFlows,
+				fileSources,
+			);
+			config = { ...config, flows: merged };
+			flowSources = sources;
+			for (const err of flowErrors) {
+				console.error(`Flow warning: ${err}`);
+			}
+		}
+	}
+
 	// Browser precedence: CLI flag / env var > config file > default ("chrome")
 	const browserName: BrowserName =
 		options.browser ?? config?.browser ?? "chrome";
@@ -1460,6 +1493,7 @@ export async function startDaemon(
 			browserName,
 			proxyConfig,
 			configPath: resolvedConfigPath,
+			flowSources,
 		},
 		lifecycleConfig,
 		async () => {

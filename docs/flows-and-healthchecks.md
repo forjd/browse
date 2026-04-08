@@ -4,13 +4,15 @@
 
 ### What Are Flows?
 
-Reusable browser automation sequences defined in `browse.config.json`. Run them with `browse flow <name>`. Useful for:
+Reusable browser automation sequences defined in `browse.config.json` or as individual JSON files in a `flows/` directory. Run them with `browse flow <name>`. Useful for:
 
 - Repeatable test scenarios (signup, checkout, onboarding)
 - Smoke tests before deployment
 - Regression testing of critical paths
 
 ### Defining a Flow
+
+#### Inline (in browse.config.json)
 
 ```json
 {
@@ -30,6 +32,51 @@ Reusable browser automation sequences defined in `browse.config.json`. Run them 
   }
 }
 ```
+
+#### File-based (in flows/ directory)
+
+For better readability and maintainability, flows can be defined as individual JSON files in a `flows/` directory next to your `browse.config.json`. The flow name is derived from the filename (minus `.json`).
+
+```
+project/
+├── browse.config.json
+└── flows/
+    ├── signup.json
+    ├── checkout.json
+    └── smoke-test.json
+```
+
+Each file contains a bare flow definition — the same shape as what goes inside the `flows` object in the config:
+
+```json
+// flows/signup.json
+{
+  "description": "Test the signup flow",
+  "variables": ["base_url", "test_email"],
+  "steps": [
+    { "goto": "{{base_url}}/register" },
+    { "fill": { "Email": "{{test_email}}" } },
+    { "click": "Submit" },
+    { "wait": { "urlContains": "/welcome" } },
+    { "assert": { "textContains": "Welcome" } },
+    { "screenshot": true }
+  ]
+}
+```
+
+#### Global flows
+
+Flows placed in `~/.browse/flows/` are available across all projects.
+
+#### Precedence
+
+When the same flow name exists in multiple locations, the following precedence applies:
+
+1. **Inline** (in `browse.config.json`) — highest priority
+2. **Local files** (in `flows/` next to config)
+3. **Global files** (in `~/.browse/flows/`) — lowest priority
+
+`browse flow list` shows the source of each flow so you can see where it comes from.
 
 ### Running Flows
 

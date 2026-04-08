@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { RingBuffer } from "../buffers.ts";
 import type { BrowseConfig, ConfigContext } from "../config.ts";
+import type { FlowSource } from "../flow-loader.ts";
 import {
 	dryRunFlow,
 	formatFlowReport,
@@ -33,6 +34,7 @@ export async function handleFlow(
 	args: string[],
 	deps?: FlowDeps,
 	configCtx?: ConfigContext,
+	flowSources?: Map<string, FlowSource>,
 ): Promise<Response> {
 	if (!config) {
 		return {
@@ -56,13 +58,25 @@ export async function handleFlow(
 	// flow list
 	if (subcommand === "list") {
 		if (!config.flows || Object.keys(config.flows).length === 0) {
-			return { ok: true, data: "No flows defined in browse.config.json." };
+			return {
+				ok: true,
+				data: "No flows defined. Add flows to browse.config.json or create JSON files in a flows/ directory.",
+			};
 		}
 
 		const lines: string[] = [];
 		for (const [name, flow] of Object.entries(config.flows)) {
 			const desc = flow.description ? ` — ${flow.description}` : "";
-			lines.push(`${name}${desc}`);
+			let sourceTag = "";
+			if (flowSources) {
+				const source = flowSources.get(name);
+				if (source?.type === "file") {
+					sourceTag = `  [file: ${source.path}]`;
+				} else if (source?.type === "inline") {
+					sourceTag = "  [inline]";
+				}
+			}
+			lines.push(`${name}${desc}${sourceTag}`);
 			if (flow.variables && flow.variables.length > 0) {
 				lines.push(`  Variables: ${flow.variables.join(", ")}`);
 			}

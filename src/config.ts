@@ -234,57 +234,68 @@ const VALID_ASSERT_CONDITION_KEYS = new Set([
 	"elementCount",
 ]);
 
-function validateFlowCondition(
+export function validateFlowCondition(
 	condition: unknown,
 	context: string,
+	sourceLabel = "browse.config.json",
 ): string | null {
 	if (typeof condition !== "object" || condition === null) {
-		return `Invalid browse.config.json: ${context} condition must be an object.`;
+		return `Invalid ${sourceLabel}: ${context} condition must be an object.`;
 	}
 	const keys = Object.keys(condition as Record<string, unknown>);
 	if (keys.length !== 1 || !VALID_CONDITION_KEYS.has(keys[0])) {
-		return `Invalid browse.config.json: ${context} has invalid condition. Valid keys: ${[...VALID_CONDITION_KEYS].join(", ")}.`;
+		return `Invalid ${sourceLabel}: ${context} has invalid condition. Valid keys: ${[...VALID_CONDITION_KEYS].join(", ")}.`;
 	}
 	return null;
 }
 
-function validateFlowStep(step: unknown, context: string): string | null {
+export function validateFlowStep(
+	step: unknown,
+	context: string,
+	sourceLabel = "browse.config.json",
+): string | null {
 	if (typeof step !== "object" || step === null) {
-		return `Invalid browse.config.json: ${context} must be an object.`;
+		return `Invalid ${sourceLabel}: ${context} must be an object.`;
 	}
 	const stepObj = step as Record<string, unknown>;
 	const stepKeys = Object.keys(stepObj);
 	if (stepKeys.length === 0 || !VALID_FLOW_STEP_KEYS.has(stepKeys[0])) {
-		return `Invalid browse.config.json: ${context} has invalid type. Valid step types: ${[...VALID_FLOW_STEP_KEYS].join(", ")}.`;
+		return `Invalid ${sourceLabel}: ${context} has invalid type. Valid step types: ${[...VALID_FLOW_STEP_KEYS].join(", ")}.`;
 	}
 
 	// Recursively validate if/while structures
 	if ("if" in stepObj) {
 		const ifBlock = stepObj.if;
 		if (typeof ifBlock !== "object" || ifBlock === null) {
-			return `Invalid browse.config.json: ${context} 'if' must be an object.`;
+			return `Invalid ${sourceLabel}: ${context} 'if' must be an object.`;
 		}
 		const ifObj = ifBlock as Record<string, unknown>;
-		const condErr = validateFlowCondition(ifObj.condition, context);
+		const condErr = validateFlowCondition(
+			ifObj.condition,
+			context,
+			sourceLabel,
+		);
 		if (condErr) return condErr;
 		if (!Array.isArray(ifObj.then)) {
-			return `Invalid browse.config.json: ${context} 'if' must have a 'then' array.`;
+			return `Invalid ${sourceLabel}: ${context} 'if' must have a 'then' array.`;
 		}
 		for (let i = 0; i < ifObj.then.length; i++) {
 			const err = validateFlowStep(
 				ifObj.then[i],
 				`${context} then step ${i + 1}`,
+				sourceLabel,
 			);
 			if (err) return err;
 		}
 		if (ifObj.else !== undefined) {
 			if (!Array.isArray(ifObj.else)) {
-				return `Invalid browse.config.json: ${context} 'if.else' must be an array.`;
+				return `Invalid ${sourceLabel}: ${context} 'if.else' must be an array.`;
 			}
 			for (let i = 0; i < ifObj.else.length; i++) {
 				const err = validateFlowStep(
 					ifObj.else[i],
 					`${context} else step ${i + 1}`,
+					sourceLabel,
 				);
 				if (err) return err;
 			}
@@ -294,18 +305,23 @@ function validateFlowStep(step: unknown, context: string): string | null {
 	if ("while" in stepObj) {
 		const whileBlock = stepObj.while;
 		if (typeof whileBlock !== "object" || whileBlock === null) {
-			return `Invalid browse.config.json: ${context} 'while' must be an object.`;
+			return `Invalid ${sourceLabel}: ${context} 'while' must be an object.`;
 		}
 		const whileObj = whileBlock as Record<string, unknown>;
-		const condErr = validateFlowCondition(whileObj.condition, context);
+		const condErr = validateFlowCondition(
+			whileObj.condition,
+			context,
+			sourceLabel,
+		);
 		if (condErr) return condErr;
 		if (!Array.isArray(whileObj.steps)) {
-			return `Invalid browse.config.json: ${context} 'while' must have a 'steps' array.`;
+			return `Invalid ${sourceLabel}: ${context} 'while' must have a 'steps' array.`;
 		}
 		for (let i = 0; i < whileObj.steps.length; i++) {
 			const err = validateFlowStep(
 				whileObj.steps[i],
 				`${context} while step ${i + 1}`,
+				sourceLabel,
 			);
 			if (err) return err;
 		}
@@ -313,7 +329,7 @@ function validateFlowStep(step: unknown, context: string): string | null {
 			whileObj.maxIterations !== undefined &&
 			typeof whileObj.maxIterations !== "number"
 		) {
-			return `Invalid browse.config.json: ${context} 'while.maxIterations' must be a number.`;
+			return `Invalid ${sourceLabel}: ${context} 'while.maxIterations' must be a number.`;
 		}
 	}
 

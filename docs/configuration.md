@@ -87,7 +87,7 @@ The optional fields `usernameField`, `passwordField`, and `submitButton` are **a
 
 ## Flows (optional)
 
-Flows are reusable automation sequences run with `browse flow <name>`.
+Flows are reusable automation sequences run with `browse flow <name>`. They can be defined inline in `browse.config.json` or as individual JSON files in a `flows/` directory (see [File-based flows](#file-based-flows) below).
 
 ```typescript
 type FlowConfig = {
@@ -149,6 +149,39 @@ browse flow create-user --var name="Alice" --var role="admin"
   }
 }
 ```
+
+### File-based flows
+
+Instead of defining flows inline, you can place individual JSON files in a `flows/` directory next to your `browse.config.json`. The flow name is taken from the filename (minus `.json`):
+
+```
+project/
+├── browse.config.json
+└── flows/
+    └── create-user.json
+```
+
+```json
+// flows/create-user.json
+{
+  "description": "Create a new user and verify the confirmation page",
+  "variables": ["name", "role"],
+  "steps": [
+    { "login": "staging" },
+    { "goto": "https://staging.example.com/admin/users/new" },
+    { "fill": { "Full name": "{{name}}", "Email": "{{name}}@example.com" } },
+    { "select": { "Role": "{{role}}" } },
+    { "click": "Create user" },
+    { "wait": { "textVisible": "User created successfully" } },
+    { "assert": { "urlContains": "/admin/users/" } },
+    { "screenshot": true }
+  ]
+}
+```
+
+Global flows in `~/.browse/flows/` are available across all projects.
+
+**Precedence:** inline config > local `flows/` directory > global `~/.browse/flows/`.
 
 ## Wait Conditions
 

@@ -281,7 +281,7 @@ browse responsive --breakpoints 320x568,768x1024,1920x1080  # custom breakpoints
 
 ### Flows and assertions
 
-Define reusable flows in `browse.config.json`, then run them:
+Define reusable flows in `browse.config.json` or as individual JSON files in a `flows/` directory, then run them:
 
 ```bash
 browse flow list

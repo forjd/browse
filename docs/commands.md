@@ -726,7 +726,7 @@ browse assert permission admin-panel granted --var role=admin
 browse flow list
 ```
 
-List all defined flows.
+List all defined flows. Shows source annotations (`[inline]` or `[file: ...]`) indicating where each flow is defined.
 
 ### flow
 
@@ -734,7 +734,7 @@ List all defined flows.
 browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream] [--webhook <url>]
 ```
 
-Execute a named flow defined in `browse.config.json`.
+Execute a named flow. Flows can be defined inline in `browse.config.json` or as individual JSON files in a `flows/` directory next to the config file. Global flows in `~/.browse/flows/` are also loaded. See [configuration docs](configuration.md#file-based-flows) for details.
 
 | Flag | Description |
 |------|-------------|

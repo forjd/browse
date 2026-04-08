@@ -143,8 +143,11 @@ Flags:
   --stream              Emit step results as NDJSON as they complete
   --webhook <url>       POST a JSON result payload to the URL on completion
 
-Flows are defined in browse.config.json. Flows support conditional logic
-(if/else) and loops (while) with condition expressions.`,
+Flows can be defined inline in browse.config.json or as individual JSON files
+in a flows/ directory next to the config file. Global flows in ~/.browse/flows/
+are also loaded. Inline flows take precedence over file-based flows.
+Flows support conditional logic (if/else) and loops (while) with condition
+expressions.`,
 	},
 	assert: {
 		summary: "Assert a condition (PASS/FAIL)",

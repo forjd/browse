@@ -68,7 +68,7 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **Security** | `security` (headers, cookies, mixed content), `security --json` |
 | **Responsive** | `responsive` (multi-viewport screenshots), `responsive --breakpoints 320x568,1920x1080`, `responsive --url <url>` |
 | **Extract** | `extract table <sel>` (`--csv`, `--json`), `extract links` (`--filter`), `extract meta`, `extract select <sel>` (`--attr`) |
-| **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit\|json\|markdown`, `--dry-run`, `--stream`, `--webhook <url>`), `healthcheck` (`--reporter junit\|json\|markdown`, `--parallel`, `--concurrency`, `--webhook <url>`), `test-matrix --roles r1,r2 --flow <name>`, `diff --baseline <url> --current <url>` |
+| **Flows** | `flow list`, `flow <name> --var key=value` (`--reporter junit\|json\|markdown`, `--dry-run`, `--stream`, `--webhook <url>`), `healthcheck` (`--reporter junit\|json\|markdown`, `--parallel`, `--concurrency`, `--webhook <url>`), `test-matrix --roles r1,r2 --flow <name>`, `diff --baseline <url> --current <url>`. Flows can be defined inline in config or as individual JSON files in a `flows/` directory. |
 | **Sessions** | `session list/create/close`, `--session <name>` on any command |
 | **Tracing** | `trace start` (`--screenshots`, `--snapshots`), `trace stop --out <path>`, `trace view [<path>] --latest --port <n>`, `trace list`, `trace status` |
 | **Video** | `video start [--size WxH]`, `video stop [--out <path>]`, `video status`, `video list` |
