@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/forjd/browse/compare/browse-v0.14.0...browse-v0.15.0) (2026-04-09)
+
+
+### Features
+
+* add wipe as a flow step type ([#150](https://github.com/forjd/browse/issues/150)) ([e931bb4](https://github.com/forjd/browse/commit/e931bb45947568cc952d80eae6a7987506aecff3))
+
 ## [0.14.0](https://github.com/forjd/browse/compare/browse-v0.13.0...browse-v0.14.0) (2026-04-08)
 
 
