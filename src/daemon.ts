@@ -330,6 +330,8 @@ export type ServerDeps = {
 	configPath?: string | null;
 	/** Provenance map for flows (inline vs file-based). */
 	flowSources?: Map<string, FlowSource>;
+	/** Validation errors encountered when loading flow files. */
+	flowLoadErrors?: string[];
 };
 
 function attachPageListeners(
@@ -416,6 +418,7 @@ export async function startServer(
 		proxyConfig,
 		configPath,
 		flowSources,
+		flowLoadErrors,
 	} = deps;
 	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
@@ -824,9 +827,16 @@ export async function startServer(
 							{
 								consoleBuffer: getActiveConsoleBuffer(session),
 								networkBuffer: getActiveNetworkBuffer(session),
+								performWipe: () =>
+									handleWipe({
+										context: sessionContext,
+										tabRegistry,
+										clearRefs,
+									}),
 							},
 							configCtx,
 							flowSources,
+							flowLoadErrors,
 						);
 					case "assert":
 						return handleAssert(config, page, request.args);
@@ -1315,6 +1325,7 @@ export async function startDaemon(
 
 	// Load flow files from flows/ directories and merge with inline flows
 	let flowSources: Map<string, FlowSource> | undefined;
+	let flowLoadErrors: string[] | undefined;
 	if (config) {
 		const flowDirs = discoverFlowDirectories(resolvedConfigPath);
 		if (flowDirs.length > 0) {
@@ -1330,6 +1341,7 @@ export async function startDaemon(
 			);
 			config = { ...config, flows: merged };
 			flowSources = sources;
+			flowLoadErrors = flowErrors.length > 0 ? flowErrors : undefined;
 			for (const err of flowErrors) {
 				console.error(`Flow warning: ${err}`);
 			}
@@ -1494,6 +1506,7 @@ export async function startDaemon(
 			proxyConfig,
 			configPath: resolvedConfigPath,
 			flowSources,
+			flowLoadErrors,
 		},
 		lifecycleConfig,
 		async () => {

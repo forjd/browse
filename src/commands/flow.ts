@@ -26,6 +26,7 @@ import type { NetworkEntry } from "./network.ts";
 export type FlowDeps = {
 	consoleBuffer: RingBuffer<ConsoleEntry>;
 	networkBuffer: RingBuffer<NetworkEntry>;
+	performWipe?: () => Promise<Response>;
 };
 
 export async function handleFlow(
@@ -35,6 +36,7 @@ export async function handleFlow(
 	deps?: FlowDeps,
 	configCtx?: ConfigContext,
 	flowSources?: Map<string, FlowSource>,
+	flowLoadErrors?: string[],
 ): Promise<Response> {
 	if (!config) {
 		return {
@@ -57,7 +59,9 @@ export async function handleFlow(
 
 	// flow list
 	if (subcommand === "list") {
-		if (!config.flows || Object.keys(config.flows).length === 0) {
+		const hasFlows = config.flows && Object.keys(config.flows).length > 0;
+
+		if (!hasFlows && (!flowLoadErrors || flowLoadErrors.length === 0)) {
 			return {
 				ok: true,
 				data: "No flows defined. Add flows to browse.config.json or create JSON files in a flows/ directory.",
@@ -65,22 +69,34 @@ export async function handleFlow(
 		}
 
 		const lines: string[] = [];
-		for (const [name, flow] of Object.entries(config.flows)) {
-			const desc = flow.description ? ` — ${flow.description}` : "";
-			let sourceTag = "";
-			if (flowSources) {
-				const source = flowSources.get(name);
-				if (source?.type === "file") {
-					sourceTag = `  [file: ${source.path}]`;
-				} else if (source?.type === "inline") {
-					sourceTag = "  [inline]";
+		if (hasFlows && config.flows) {
+			for (const [name, flow] of Object.entries(config.flows)) {
+				const desc = flow.description ? ` — ${flow.description}` : "";
+				let sourceTag = "";
+				if (flowSources) {
+					const source = flowSources.get(name);
+					if (source?.type === "file") {
+						sourceTag = `  [file: ${source.path}]`;
+					} else if (source?.type === "inline") {
+						sourceTag = "  [inline]";
+					}
 				}
+				lines.push(`${name}${desc}${sourceTag}`);
+				if (flow.variables && flow.variables.length > 0) {
+					lines.push(`  Variables: ${flow.variables.join(", ")}`);
+				}
+				lines.push("");
 			}
-			lines.push(`${name}${desc}${sourceTag}`);
-			if (flow.variables && flow.variables.length > 0) {
-				lines.push(`  Variables: ${flow.variables.join(", ")}`);
+		}
+
+		if (flowLoadErrors && flowLoadErrors.length > 0) {
+			if (lines.length > 0) lines.push("");
+			lines.push(
+				`Warnings: ${flowLoadErrors.length} flow file(s) failed to load:`,
+			);
+			for (const err of flowLoadErrors) {
+				lines.push(`  - ${err}`);
 			}
-			lines.push("");
 		}
 
 		return { ok: true, data: lines.join("\n").trim() };
@@ -179,6 +195,7 @@ export async function handleFlow(
 			config,
 			consoleBuffer: deps.consoleBuffer,
 			networkBuffer: deps.networkBuffer,
+			performWipe: deps.performWipe,
 		},
 		{ continueOnError, onStep },
 	);

@@ -185,12 +185,16 @@ function createMockBuffer() {
 	};
 }
 
-function createMockDeps(pageOverrides: Record<string, unknown> = {}): FlowDeps {
+function createMockDeps(
+	pageOverrides: Record<string, unknown> = {},
+	extras: Partial<FlowDeps> = {},
+): FlowDeps {
 	return {
 		page: createMockPage(pageOverrides),
 		config: null,
 		consoleBuffer: createMockBuffer() as unknown as FlowDeps["consoleBuffer"],
 		networkBuffer: createMockBuffer() as unknown as FlowDeps["networkBuffer"],
+		...extras,
 	};
 }
 
@@ -482,6 +486,21 @@ describe("stepDescription (via runFlow)", () => {
 			false,
 		);
 		expect(results[0].description).toBe("snapshot");
+	});
+
+	test("describes wipe step", async () => {
+		const flow: FlowConfig = { steps: [{ wipe: true }] };
+		const performWipe = mock(() =>
+			Promise.resolve({ ok: true as const, data: "Session wiped." }),
+		);
+		const { results } = await runFlow(
+			"test",
+			flow,
+			{},
+			createMockDeps({}, { performWipe }),
+			false,
+		);
+		expect(results[0].description).toBe("wipe");
 	});
 });
 
@@ -810,6 +829,49 @@ describe("runFlow", () => {
 		);
 		expect(results[0].passed).toBe(true);
 		expect(results[0].description).toBe("snapshot");
+	});
+
+	test("handles wipe step", async () => {
+		const flow: FlowConfig = {
+			steps: [{ wipe: true }, { goto: "https://example.com" }],
+		};
+		const performWipe = mock(() =>
+			Promise.resolve({ ok: true as const, data: "Session wiped." }),
+		);
+		const deps = createMockDeps({}, { performWipe });
+		const { results } = await runFlow("wipe-test", flow, {}, deps, false);
+		expect(performWipe).toHaveBeenCalledTimes(1);
+		expect(results).toHaveLength(2);
+		expect(results[0].passed).toBe(true);
+		expect(results[0].description).toBe("wipe");
+		expect(results[1].passed).toBe(true);
+	});
+
+	test("wipe step fails when performWipe returns an error", async () => {
+		const flow: FlowConfig = {
+			steps: [{ wipe: true }],
+		};
+		const performWipe = mock(() =>
+			Promise.resolve({
+				ok: false as const,
+				error: "failed to clear cookies",
+			}),
+		);
+		const deps = createMockDeps({}, { performWipe });
+		const { results } = await runFlow("wipe-fail", flow, {}, deps, false);
+		expect(results[0].passed).toBe(false);
+		expect(results[0].error).toBe("failed to clear cookies");
+	});
+
+	test("wipe step fails when performWipe is not available", async () => {
+		const flow: FlowConfig = {
+			steps: [{ wipe: true }],
+		};
+		// Omit performWipe entirely
+		const deps = createMockDeps();
+		const { results } = await runFlow("wipe-missing", flow, {}, deps, false);
+		expect(results[0].passed).toBe(false);
+		expect(results[0].error).toContain("not available");
 	});
 
 	test("handles wait timeout step", async () => {

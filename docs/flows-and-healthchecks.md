@@ -98,7 +98,7 @@ browse flow signup --stream               # real-time NDJSON output per step
 
 ### Step Types
 
-All 13 step types are listed below.
+All 14 step types are listed below.
 
 | Step | Description | Example |
 |------|-------------|---------|
@@ -113,6 +113,7 @@ All 13 step types are listed below.
 | `assert` | Assert condition | `{ "assert": { "visible": ".success-message" } }` |
 | `login` | Log in via environment | `{ "login": "staging" }` |
 | `snapshot` | Take accessibility snapshot | `{ "snapshot": true }` |
+| `wipe` | Clear cookies, storage, extra tabs — starts the flow from a clean session | `{ "wipe": true }` |
 | `if` | Conditional branch | `{ "if": { "condition": { "elementVisible": ".modal" }, "then": [...], "else": [...] } }` |
 | `while` | Loop while condition holds | `{ "while": { "condition": { "elementVisible": ".next" }, "steps": [...], "maxIterations": 100 } }` |
 

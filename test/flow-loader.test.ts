@@ -107,6 +107,26 @@ describe("loadFlowFile", () => {
 		expect(error).toContain("missing.json");
 	});
 
+	test("accepts wipe step", () => {
+		const flowPath = join(testDir, "wipe-flow.json");
+		writeFileSync(
+			flowPath,
+			JSON.stringify({
+				description: "Login page renders for unauthenticated users",
+				steps: [
+					{ wipe: true },
+					{ goto: "https://example.com/login" },
+					{ assert: { textContains: "Log in" } },
+				],
+			}),
+		);
+
+		const { flow, error } = loadFlowFile(flowPath);
+		expect(error).toBeNull();
+		expect(flow).not.toBeNull();
+		expect(flow?.steps).toHaveLength(3);
+	});
+
 	test("validates nested if/while steps", () => {
 		const flowPath = join(testDir, "conditional.json");
 		writeFileSync(

@@ -20,6 +20,7 @@ import type {
 	SelectTarget,
 	WaitCondition,
 } from "./config.ts";
+import type { Response } from "./protocol.ts";
 import { compileSafePattern } from "./safe-pattern.ts";
 
 export function parseVars(args: string[]): Record<string, string> {
@@ -156,6 +157,7 @@ function stepDescription(step: FlowStep): string {
 	}
 	if ("login" in step) return `login ${step.login}`;
 	if ("snapshot" in step) return "snapshot";
+	if ("wipe" in step) return "wipe";
 	if ("if" in step) {
 		const cond = step.if.condition;
 		const condDesc = conditionDescription(cond);
@@ -186,6 +188,13 @@ export type FlowDeps = {
 	config: BrowseConfig | null;
 	consoleBuffer: RingBuffer<ConsoleEntry>;
 	networkBuffer: RingBuffer<NetworkEntry>;
+	/**
+	 * Invoked by the `wipe` flow step. The daemon supplies this callback
+	 * wired to `handleWipe` with the active session's context / tab registry.
+	 * Omitted in contexts where wipe cannot be performed (e.g. unit tests),
+	 * in which case a wipe step raises a clear error.
+	 */
+	performWipe?: () => Promise<Response>;
 };
 
 export type StepResult = {
@@ -615,6 +624,14 @@ export async function runFlow(
 				}
 			} else if ("snapshot" in step) {
 				await handleSnapshot(deps.page, []);
+			} else if ("wipe" in step) {
+				if (!deps.performWipe) {
+					throw new Error("wipe step is not available in this context");
+				}
+				const res = await deps.performWipe();
+				if (!res.ok) {
+					throw new Error(res.error);
+				}
 			} else if ("if" in step) {
 				const conditionMet = await evaluateFlowCondition(
 					deps.page,

@@ -108,6 +108,7 @@ type FlowStep =
   | { assert: AssertCondition }
   | { login: string }                    // environment name
   | { snapshot: true }
+  | { wipe: true }                       // clear cookies, storage, extra tabs, buffers
   | { if: { condition: FlowCondition; then: FlowStep[]; else?: FlowStep[] } }
   | { while: { condition: FlowCondition; steps: FlowStep[]; maxIterations?: number } };
 

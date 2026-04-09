@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
+import type { BrowseConfig } from "../../src/config.ts";
 import { startServer } from "../../src/daemon.ts";
 import type { LifecycleConfig } from "../../src/lifecycle.ts";
 import type { Response } from "../../src/protocol.ts";
@@ -154,6 +155,40 @@ describe("integration: wipe", () => {
 				ok: true,
 				data: "No failed requests.",
 			});
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("flow with wipe step calls clearCookies end-to-end", async () => {
+		const paths = testPaths();
+		const page = mockPage();
+		const ctx = mockContext();
+		const browseConfig: BrowseConfig = {
+			environments: {},
+			flows: {
+				clean: {
+					description: "Wipe then navigate",
+					steps: [{ wipe: true }, { goto: "https://example.com" }],
+				},
+			},
+		};
+		const { shutdown } = await startServer(
+			{ page, context: ctx, config: browseConfig },
+			paths,
+			async () => {},
+		);
+
+		try {
+			const response = await sendCommand(paths.socketPath, "flow", ["clean"]);
+			expect(response.ok).toBe(true);
+			// The wipe step should have routed through handleWipe,
+			// which calls context.clearCookies().
+			expect(ctx.clearCookies).toHaveBeenCalled();
+			if (response.ok) {
+				expect(response.data).toContain("2/2 steps completed");
+				expect(response.data).toContain("wipe");
+			}
 		} finally {
 			await shutdown();
 		}

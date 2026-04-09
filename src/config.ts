@@ -72,6 +72,7 @@ export type FlowStep =
 	| { assert: AssertCondition }
 	| { login: string }
 	| { snapshot: true }
+	| { wipe: true }
 	| { if: { condition: FlowCondition; then: FlowStep[]; else?: FlowStep[] } }
 	| {
 			while: {
@@ -236,6 +237,7 @@ const VALID_FLOW_STEP_KEYS = new Set([
 	"assert",
 	"login",
 	"snapshot",
+	"wipe",
 	"if",
 	"while",
 ]);

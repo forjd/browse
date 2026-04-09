@@ -72,6 +72,48 @@ describe("handleFlow — flow list", () => {
 			expect(result.error).not.toContain("No browse.config.json found");
 		}
 	});
+
+	test("surfaces flow-load errors as a warnings block", async () => {
+		const result = await handleFlow(
+			BASE_CONFIG,
+			null as any,
+			["list"],
+			undefined,
+			undefined,
+			undefined,
+			[
+				"Invalid broken.json: step 1 has invalid type. Valid step types: goto, click, ...",
+			],
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("signup");
+			expect(result.data).toContain("Warnings:");
+			expect(result.data).toContain("broken.json");
+			expect(result.data).toContain("invalid type");
+		}
+	});
+
+	test("shows warnings block when all flow files failed", async () => {
+		const configNoFlows: BrowseConfig = {
+			environments: BASE_CONFIG.environments,
+		};
+		const result = await handleFlow(
+			configNoFlows,
+			null as any,
+			["list"],
+			undefined,
+			undefined,
+			undefined,
+			["Invalid broken.json: step 1 has invalid type."],
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Warnings:");
+			expect(result.data).toContain("broken.json");
+			expect(result.data).not.toContain("No flows defined");
+		}
+	});
 });
 
 describe("handleFlow — missing flow", () => {
