@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { chmodSync, rmSync, statSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { homedir } from "node:os";
@@ -117,6 +118,7 @@ import {
 	type LifecycleConfig,
 	writePidFile,
 } from "./lifecycle.ts";
+import { createLogger } from "./logger.ts";
 import type { CommandContext } from "./plugin.ts";
 import {
 	createEmptyRegistry,
@@ -135,6 +137,10 @@ import {
 	serialiseResponse,
 } from "./protocol.ts";
 import { clearRefs, markStale } from "./refs.ts";
+import {
+	loadPersistedDaemonState,
+	persistDaemonState,
+} from "./session-state.ts";
 import {
 	applyStealthScripts,
 	buildStealthUA,
@@ -192,7 +198,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	quit: [],
 	session: ["--isolated"],
 	ping: [],
-	status: ["--watch", "--interval", "--exit-code"],
+	status: ["--watch", "--interval", "--exit-code", "--metrics"],
 	dialog: [],
 	download: [
 		"--save-to",
@@ -423,6 +429,20 @@ export async function startServer(
 	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
 	const startTime = Date.now();
+	const logger = createLogger();
+	const slowCommandMs = Number.parseInt(
+		process.env.BROWSE_SLOW_COMMAND_MS ?? "750",
+		10,
+	);
+	const maxRssMb = Number.parseInt(process.env.BROWSE_MAX_RSS_MB ?? "0", 10);
+	const metrics = {
+		totalCommands: 0,
+		failedCommands: 0,
+		recoveries: 0,
+		commandsByName: new Map<string, number>(),
+		durationByNameMs: new Map<string, number>(),
+		lastTraceId: "",
+	};
 
 	// Per-context trace state so each BrowserContext has isolated tracing
 	const traceStates = new Map<
@@ -489,6 +509,38 @@ export async function startServer(
 	};
 	sessionRegistry.sessions.set("default", defaultSession);
 
+	async function restorePersistedSessionState() {
+		const state = loadPersistedDaemonState();
+		if (!state) return;
+		const defaultSnapshot = state.sessions.find((s) => s.name === "default");
+		if (!defaultSnapshot || defaultSnapshot.tabs.length === 0) return;
+		for (let i = 1; i < defaultSnapshot.tabs.length; i++) {
+			const tabState = await createTab(context);
+			defaultSession.tabRegistry.tabs.push(tabState);
+		}
+		defaultSession.tabRegistry.activeTabIndex = Math.min(
+			Math.max(defaultSnapshot.activeTabIndex, 0),
+			defaultSession.tabRegistry.tabs.length - 1,
+		);
+		for (let i = 0; i < defaultSnapshot.tabs.length; i++) {
+			const targetUrl = defaultSnapshot.tabs[i]?.url;
+			if (!targetUrl || targetUrl === "about:blank") continue;
+			try {
+				await defaultSession.tabRegistry.tabs[i].page.goto(targetUrl, {
+					waitUntil: "domcontentloaded",
+				});
+			} catch {
+				// best effort restore
+			}
+		}
+		logger.info("Restored session state after restart", {
+			tabs: defaultSnapshot.tabs.length,
+		});
+		metrics.recoveries++;
+	}
+
+	await restorePersistedSessionState();
+
 	// Load plugins
 	const pluginPaths = discoverPluginPaths(config?.plugins, configPath ?? null);
 	let pluginRegistry: PluginRegistry;
@@ -500,7 +552,7 @@ export async function startServer(
 		);
 		pluginRegistry = registry;
 		for (const err of errors) {
-			console.error(`Plugin warning: ${err}`);
+			logger.warn("Plugin warning", { error: err });
 		}
 	} else {
 		pluginRegistry = createEmptyRegistry();
@@ -546,6 +598,71 @@ export async function startServer(
 		};
 		attachPageListeners(newPage, tabState, browserName);
 		return tabState;
+	}
+
+	function persistCurrentSessionState() {
+		const sessions = Array.from(sessionRegistry.sessions.values()).map(
+			(session) => ({
+				name: session.name,
+				isolated: session.isolated,
+				activeTabIndex: session.tabRegistry.activeTabIndex,
+				tabs: session.tabRegistry.tabs.map((tab) => ({ url: tab.page.url() })),
+			}),
+		);
+		persistDaemonState({
+			version: 1,
+			updatedAt: new Date().toISOString(),
+			sessions,
+		});
+	}
+
+	function runMemoryPressureMitigation() {
+		if (!Number.isFinite(maxRssMb) || maxRssMb <= 0) return;
+		const currentRssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+		if (currentRssMb < maxRssMb) return;
+		logger.warn("Memory pressure detected, applying mitigation", {
+			currentRssMb,
+			limitRssMb: maxRssMb,
+		});
+		clearRefs();
+		for (const session of sessionRegistry.sessions.values()) {
+			for (const tab of session.tabRegistry.tabs) {
+				tab.consoleBuffer.clear();
+				tab.networkBuffer.clear();
+			}
+		}
+		if (typeof global.gc === "function") {
+			global.gc();
+		}
+	}
+
+	function renderPrometheusMetrics(): string {
+		const lines = [
+			"# HELP browse_daemon_commands_total Total commands handled by daemon",
+			"# TYPE browse_daemon_commands_total counter",
+			`browse_daemon_commands_total ${metrics.totalCommands}`,
+			"# HELP browse_daemon_commands_failed_total Total commands that returned an error",
+			"# TYPE browse_daemon_commands_failed_total counter",
+			`browse_daemon_commands_failed_total ${metrics.failedCommands}`,
+			"# HELP browse_daemon_uptime_seconds Daemon uptime in seconds",
+			"# TYPE browse_daemon_uptime_seconds gauge",
+			`browse_daemon_uptime_seconds ${Math.floor((Date.now() - startTime) / 1000)}`,
+			"# HELP browse_daemon_recoveries_total Session recovery events on startup",
+			"# TYPE browse_daemon_recoveries_total counter",
+			`browse_daemon_recoveries_total ${metrics.recoveries}`,
+			"# HELP browse_daemon_memory_rss_bytes Resident set size in bytes",
+			"# TYPE browse_daemon_memory_rss_bytes gauge",
+			`browse_daemon_memory_rss_bytes ${process.memoryUsage().rss}`,
+		];
+		for (const [cmd, count] of metrics.commandsByName) {
+			lines.push(`browse_daemon_command_total{cmd="${cmd}"} ${count}`);
+		}
+		for (const [cmd, duration] of metrics.durationByNameMs) {
+			lines.push(
+				`browse_daemon_command_duration_ms_sum{cmd="${cmd}"} ${duration}`,
+			);
+		}
+		return lines.join("\n");
 	}
 
 	async function shutdown() {
@@ -600,9 +717,53 @@ export async function startServer(
 
 	async function handleConnection(data: string): Promise<ConnectionResult> {
 		idleTimer.reset();
+		runMemoryPressureMitigation();
 
 		try {
 			const request = parseRequest(data, pluginCommandNames);
+			const traceId = randomUUID();
+			metrics.lastTraceId = traceId;
+			const startedAt = Date.now();
+			logger.debug("Command received", {
+				traceId,
+				cmd: request.cmd,
+				session: request.session ?? "default",
+			});
+
+			const finalizeMetrics = (response: Response) => {
+				const durationMs = Date.now() - startedAt;
+				metrics.totalCommands++;
+				metrics.commandsByName.set(
+					request.cmd,
+					(metrics.commandsByName.get(request.cmd) ?? 0) + 1,
+				);
+				metrics.durationByNameMs.set(
+					request.cmd,
+					(metrics.durationByNameMs.get(request.cmd) ?? 0) + durationMs,
+				);
+				if (!response.ok) {
+					metrics.failedCommands++;
+				}
+				if (durationMs >= slowCommandMs) {
+					const cpu = process.cpuUsage();
+					const mem = process.memoryUsage();
+					logger.warn("Slow command profiled", {
+						traceId,
+						cmd: request.cmd,
+						durationMs,
+						cpuUserMicros: cpu.user,
+						cpuSystemMicros: cpu.system,
+						rssMb: Math.round(mem.rss / 1024 / 1024),
+						heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
+					});
+				}
+				logger.info("Command completed", {
+					traceId,
+					cmd: request.cmd,
+					ok: response.ok,
+					durationMs,
+				});
+			};
 
 			// Validate auth token if the daemon has one
 			if (token && request.token !== token) {
@@ -651,6 +812,14 @@ export async function startServer(
 			}
 
 			if (request.cmd === "status") {
+				if (request.args.includes("--metrics")) {
+					return reply(
+						serialiseResponse({
+							ok: true,
+							data: renderPrometheusMetrics(),
+						}),
+					);
+				}
 				const uptimeMs = Date.now() - startTime;
 				const uptimeSec = Math.floor(uptimeMs / 1000);
 				const memUsage = process.memoryUsage();
@@ -701,6 +870,13 @@ export async function startServer(
 						browserName: browserName ?? "chrome",
 						daemonPid: process.pid,
 						sessionsDetail: sessionsInfo,
+						metrics: {
+							totalCommands: metrics.totalCommands,
+							failedCommands: metrics.failedCommands,
+							recoveries: metrics.recoveries,
+							commandsByName: Object.fromEntries(metrics.commandsByName),
+							lastTraceId: metrics.lastTraceId,
+						},
 					};
 					return reply(
 						serialiseResponse({
@@ -1142,6 +1318,7 @@ export async function startServer(
 					pluginCtx,
 				);
 				if (hookResponse) {
+					finalizeMetrics(hookResponse);
 					return reply(serialiseResponse(hookResponse));
 				}
 			}
@@ -1164,6 +1341,14 @@ export async function startServer(
 				await runAfterHooks(pluginRegistry, request.cmd, pluginCtx, response);
 			}
 
+			finalizeMetrics(response);
+			if (
+				request.cmd !== "status" &&
+				request.cmd !== "ping" &&
+				request.cmd !== "quit"
+			) {
+				persistCurrentSessionState();
+			}
 			return reply(serialiseResponse(response), request.cmd === "quit");
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -1479,10 +1664,11 @@ export async function startDaemon(
 	}
 
 	const page: Page = context.pages()[0] ?? (await context.newPage());
+	const daemonLogger = createLogger();
 
 	// Browser crash detection — clean exit so CLI cold-starts a fresh daemon
 	context.browser()?.on("disconnected", () => {
-		process.stderr.write("Browser disconnected — daemon exiting.\n");
+		daemonLogger.error("Browser disconnected — daemon exiting.");
 		cleanupFiles(lifecycleConfig);
 		cleanupToken();
 		process.exit(1);

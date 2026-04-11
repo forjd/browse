@@ -11,6 +11,9 @@
 		"lint": "biome lint .",
 		"build": "bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi",
 		"test": "bun test",
+		"test:coverage": "bun test --coverage",
+		"test:fuzz": "bun test test/fuzz",
+		"test:stress": "BROWSE_STRESS_ITERATIONS=500 bun test test/stress",
 		"test:integration": "bun run test/integration.ts",
 		"prepare": "git rev-parse --git-dir >/dev/null 2>&1 && lefthook install || true"
 	},

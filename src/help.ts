@@ -335,7 +335,7 @@ Use --session <name> on any command to route it to a named session:
 	},
 	status: {
 		summary: "Show daemon status and health info",
-		usage: `browse status [--json] [--watch [--interval N]] [--exit-code]
+		usage: `browse status [--json] [--watch [--interval N]] [--exit-code] [--metrics]
 
 Shows daemon PID, uptime, memory usage, browser version, session count,
 total tabs, and per-session details.
@@ -345,6 +345,7 @@ Flags:
   --watch              Continuously poll and display status
   --interval <seconds> Polling interval for --watch (default: 5)
   --exit-code          Exit 0 if daemon is healthy, 1 if unhealthy (for CI/container probes)
+  --metrics            Output Prometheus-style daemon metrics
 
 Examples:
   browse status                            One-shot status
@@ -352,7 +353,8 @@ Examples:
   browse status --watch                    Live-updating status (every 5s)
   browse status --watch --interval 10      Poll every 10 seconds
   browse status --watch --json             NDJSON stream for monitoring
-  browse status --exit-code                Health probe (exit code only)`,
+  browse status --exit-code                Health probe (exit code only)
+  browse status --metrics                  Prometheus metrics output`,
 	},
 	dialog: {
 		summary: "Handle browser dialogs (alert, confirm, prompt)",

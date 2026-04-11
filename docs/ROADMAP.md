@@ -27,24 +27,24 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 
 ### Error Recovery & Resilience
 
-- [ ] **Browser crash auto-recovery** — Detect Chromium crashes, restart with session restoration
-- [ ] **Network failure resilience** — Retry with exponential backoff on transient failures
-- [ ] **Memory pressure handling** — Graceful degradation when approaching memory limits
-- [ ] **Corrupted state detection** — Validate and repair corrupted session data
+- [x] **Browser crash auto-recovery** — Detect Chromium crashes, restart with session restoration
+- [x] **Network failure resilience** — Retry with exponential backoff on transient failures
+- [x] **Memory pressure handling** — Graceful degradation when approaching memory limits
+- [x] **Corrupted state detection** — Validate and repair corrupted session data
 
 ### Testing & Quality
 
-- [ ] **Expand integration test coverage** — Target 90%+ coverage for all commands
-- [ ] **Stress testing** — Long-running daemon tests (24h+), memory leak detection
-- [ ] **Fuzz testing** — Randomized input testing for command parsers
-- [ ] **Cross-platform CI** — macOS (Intel + ARM), Linux (x64 + ARM64)
+- [x] **Expand integration test coverage** — Target 90%+ coverage for all commands
+- [x] **Stress testing** — Long-running daemon tests (24h+), memory leak detection
+- [x] **Fuzz testing** — Randomized input testing for command parsers
+- [x] **Cross-platform CI** — macOS (Intel + ARM), Linux (x64 + ARM64)
 
 ### Observability
 
-- [ ] **Structured logging** — JSON logs with configurable levels and outputs
-- [ ] **Metrics export** — Prometheus/OpenTelemetry metrics for daemon health
-- [ ] **Distributed tracing** — Trace command execution across sessions
-- [ ] **Performance profiling** — Built-in CPU/memory profiling for slow commands
+- [x] **Structured logging** — JSON logs with configurable levels and outputs
+- [x] **Metrics export** — Prometheus/OpenTelemetry metrics for daemon health
+- [x] **Distributed tracing** — Trace command execution across sessions
+- [x] **Performance profiling** — Built-in CPU/memory profiling for slow commands
 
 ---
 
