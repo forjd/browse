@@ -10,7 +10,15 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            label: linux-x64
+          - os: ubuntu-24.04-arm
+            label: linux-arm64
+          - os: macos-13
+            label: macos-intel
+          - os: macos-14
+            label: macos-arm64
 
     runs-on: ${{ matrix.os }}
 
@@ -36,6 +44,9 @@ jobs:
 
       - name: Run tests
         run: bun test
+
+      - name: Run fuzz tests
+        run: bun run test:fuzz
 
       - name: Compile binary
         run: bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi
