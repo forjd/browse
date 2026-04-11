@@ -167,8 +167,8 @@ export type StealthOpts = {
  * This is a fallback for non-persistent contexts (isolated sessions).
  * The primary patching is done by the stealth-worker-fix extension.
  *
- * Uses per-function toString spoofing (not a global override) to avoid
- * CreepJS detecting modifications across all prototype properties.
+ * Avoids Function.prototype.toString monkey-patching, which creates a
+ * detectable cross-realm signal on CreepJS.
  */
 export async function applyStealthScripts(
 	context: BrowserContext,
@@ -184,27 +184,12 @@ export async function applyStealthScripts(
 			architecture,
 			bitness,
 		}) => {
-			// WeakMap-based toString spoofing — no own properties on functions,
-			// so hasOwnProperty('toString') returns false (matching native).
-			// biome-ignore lint/complexity/noBannedTypes: WeakMap key must be Function
-			const toStringMap = new WeakMap<Function, string>();
-			const originalToString = Function.prototype.toString;
-			// biome-ignore lint/suspicious/noShadowRestrictedNames: must match native Function.prototype.toString name
-			const patchedToString = function toString(
-				this: (...args: unknown[]) => unknown,
-			): string {
-				const spoofed = toStringMap.get(this);
-				if (spoofed !== undefined) return spoofed;
-				return originalToString.call(this);
-			};
-			toStringMap.set(patchedToString, "function toString() { [native code] }");
-			Function.prototype.toString = patchedToString;
-
 			function makeNativeGetter(
 				name: string,
 				proto: object,
 				valueFn: () => unknown,
 			): () => unknown {
+				void name;
 				const getter = function (this: unknown) {
 					// Reject non-objects (primitives, null, undefined)
 					if (
@@ -223,7 +208,6 @@ export async function applyStealthScripts(
 					}
 					throw new TypeError("Illegal invocation");
 				};
-				toStringMap.set(getter, `function get ${name}() { [native code] }`);
 				return getter;
 			}
 
@@ -231,7 +215,7 @@ export async function applyStealthScripts(
 				// biome-ignore lint/complexity/noBannedTypes: generic bound for callable values
 				T extends Function,
 			>(name: string, fn: T): T {
-				toStringMap.set(fn, `function ${name}() { [native code] }`);
+				void name;
 				return fn;
 			}
 
@@ -382,7 +366,7 @@ export async function applyStealthScripts(
 				if (!("setUninstallURL" in runtime))
 					runtime.setUninstallURL = makeNativeFunction(
 						"setUninstallURL",
-						function setUninstallURL(url: string, callback: () => void) {
+						function setUninstallURL(_url: string, callback: () => void) {
 							if (callback) callback();
 							return Promise.resolve();
 						},
@@ -589,11 +573,6 @@ export async function applyStealthScripts(
 					},
 				});
 			};
-			toStringMap.set(
-				window.getComputedStyle,
-				"function getComputedStyle() { [native code] }",
-			);
-
 			// 7. Screen dimensions — headless sets screen to match viewport,
 			// triggering noTaskbar and hasVvpScreenRes. Spoof to a common
 			// monitor resolution and subtract OS chrome.

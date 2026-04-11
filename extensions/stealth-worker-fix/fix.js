@@ -12,9 +12,8 @@
 // Note: navigator.webdriver is handled entirely by --disable-blink-features=AutomationControlled
 // ServiceWorker UA is handled by --user-agent= Chromium flag (stealth.ts).
 //
-// Property descriptors use native-style getters with individually
-// spoofed toString methods to avoid global Function.prototype.toString
-// override which CreepJS detects across all prototype properties.
+// Property descriptors use native-style getters without monkey-patching
+// Function.prototype.toString, which CreepJS can detect across realms.
 (() => {
 	try { window.__stealthExtensionStarted = true; } catch (_) {}
 	// Read the current UA. If CDP Emulation.setUserAgentOverride has already
@@ -35,18 +34,6 @@
 				? "Windows"
 				: "Linux";
 
-	// WeakMap-based toString spoofing — no own properties on functions,
-	// so hasOwnProperty('toString') returns false (matching native).
-	var toStringMap = new WeakMap();
-	var originalToString = Function.prototype.toString;
-	var patchedToString = function toString() {
-		var spoofed = toStringMap.get(this);
-		if (spoofed !== undefined) return spoofed;
-		return originalToString.call(this);
-	};
-	toStringMap.set(patchedToString, "function toString() { [native code] }");
-	Function.prototype.toString = patchedToString;
-
 	function makeNativeGetter(name, proto, valueFn) {
 		var getter = function () {
 			// Reject non-objects (primitives, null, undefined)
@@ -63,12 +50,11 @@
 			}
 			throw new TypeError("Illegal invocation");
 		};
-		toStringMap.set(getter, "function get " + name + "() { [native code] }");
 		return getter;
 	}
 
 	function makeNativeFunction(name, fn) {
-		toStringMap.set(fn, "function " + name + "() { [native code] }");
+		void name;
 		return fn;
 	}
 
@@ -379,7 +365,6 @@
 				}
 			});
 		};
-		toStringMap.set(window.getComputedStyle, "function getComputedStyle() { [native code] }");
 	} catch (e) {
 		window.__getComputedStylePatchError = e.message;
 	}
