@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
 	applyStealthScripts,
 	getHighEntropyDefaults,
@@ -104,6 +105,25 @@ describe("applyStealthScripts", () => {
 		// The old approach set own toString on each getter — detectable
 		expect(source).not.toContain("getter.toString =");
 		expect(source).not.toContain("f.toString =");
+	});
+
+	test("init script does not override Function.prototype.toString", async () => {
+		const addInitScript = mock(() => Promise.resolve());
+		const context = { addInitScript } as never;
+
+		await applyStealthScripts(context, {
+			userAgent: "Mozilla/5.0 Chrome/146.0.7680.165",
+			navigatorPlatform: "MacIntel",
+			chromeMajor: "146",
+			chromeFullVersion: "146.0.7680.165",
+			platformVersion: "16.3.0",
+			architecture: "arm",
+			bitness: "64",
+		});
+
+		const [fn] = addInitScript.mock.calls[0];
+		const source = fn.toString();
+		expect(source).not.toContain("Function.prototype.toString =");
 	});
 
 	test("init script includes chrome.runtime stub", async () => {
@@ -245,5 +265,12 @@ describe("applyStealthScripts", () => {
 
 		const [, args] = addInitScript.mock.calls[0];
 		expect(args.chromeFullVersion).toBe("146.0.7680.165");
+	});
+});
+
+describe("stealth worker extension", () => {
+	test("does not override Function.prototype.toString", () => {
+		const source = readFileSync("extensions/stealth-worker-fix/fix.js", "utf8");
+		expect(source).not.toContain("Function.prototype.toString =");
 	});
 });

@@ -136,20 +136,6 @@ export async function handleGoto(
 				if ((window as Record<string, unknown>).__stealthGotoInjected) return;
 				(window as Record<string, unknown>).__stealthGotoInjected = true;
 
-				// WeakMap-based toString spoofing
-				const toStringMap = new WeakMap<(...args: never) => unknown, string>();
-				const originalToString = Function.prototype.toString;
-				const patchedToString = function toStringPatch(this: unknown) {
-					const spoofed = toStringMap.get(this as () => unknown);
-					if (spoofed !== undefined) return spoofed;
-					return originalToString.call(this);
-				};
-				toStringMap.set(
-					patchedToString,
-					"function toString() { [native code] }",
-				);
-				Function.prototype.toString = patchedToString;
-
 				// Override getComputedStyle to fix ActiveText
 				const originalGetComputedStyle = window.getComputedStyle;
 				window.getComputedStyle = function getComputedStyle(
@@ -176,10 +162,6 @@ export async function handleGoto(
 					}
 					return style;
 				};
-				toStringMap.set(
-					window.getComputedStyle,
-					"function getComputedStyle() { [native code] }",
-				);
 			});
 		} catch {
 			// Injection may fail on some pages (e.g., about:blank)
