@@ -1,1 +1,1 @@
-../../../SKILL.md
+../../../.agents/skills/browse/SKILL.md

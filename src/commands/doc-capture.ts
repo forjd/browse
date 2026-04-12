@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 
@@ -124,8 +124,9 @@ Flow format:
 						timeout: 10_000,
 					});
 				}
-				if (step.wait.ms) {
-					await new Promise((r) => setTimeout(r, step.wait!.ms));
+				const waitMs = step.wait.ms;
+				if (waitMs) {
+					await new Promise((r) => setTimeout(r, waitMs));
 				}
 			}
 

@@ -31,5 +31,27 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["test/**/*.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["test/fixtures/**"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"useOptionalChain": "off"
+					}
+				}
+			}
+		}
+	]
 }

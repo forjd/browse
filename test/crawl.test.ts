@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-	CrawlEngine,
 	matchGlob,
 	normalizeUrl,
 	RateLimiter,

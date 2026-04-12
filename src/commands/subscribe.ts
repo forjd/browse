@@ -39,7 +39,7 @@ export async function handleSubscribe(
 
 	// Parse --status filter
 	const statusIdx = args.indexOf("--status");
-	const statusFilter =
+	const _statusFilter =
 		statusIdx !== -1 && statusIdx + 1 < args.length
 			? args[statusIdx + 1]
 			: undefined;

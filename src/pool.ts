@@ -181,7 +181,11 @@ export function createPool(options: PoolOptions): BrowsePool {
 
 		// Reuse an idle session if available
 		if (idleSessions.length > 0) {
-			id = idleSessions.pop()!;
+			const reusedId = idleSessions.pop();
+			if (!reusedId) {
+				throw new Error("Idle session queue unexpectedly empty.");
+			}
+			id = reusedId;
 			clearIdleTimer(id);
 		} else {
 			const total = activeSessions.size + idleSessions.length + pendingCreates;

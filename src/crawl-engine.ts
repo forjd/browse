@@ -5,7 +5,7 @@ import type { Page } from "playwright";
  */
 export function matchGlob(pattern: string, url: string): boolean {
 	const regex = new RegExp(
-		"^" + pattern.replace(/\*/g, ".*").replace(/\?/g, ".") + "$",
+		`^${pattern.replace(/\*/g, ".*").replace(/\?/g, ".")}$`,
 	);
 	return regex.test(url);
 }
@@ -442,7 +442,8 @@ export class CrawlEngine {
 		depth: number,
 	): Promise<CrawlResult[]> {
 		const results: CrawlResult[] = [];
-		const selector = this.options.paginate!;
+		const selector = this.options.paginate;
+		if (!selector) return results;
 		let pageNum = 1;
 		const maxPaginationPages = this.options.maxPages;
 

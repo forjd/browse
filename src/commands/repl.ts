@@ -3,7 +3,7 @@ import type { Response } from "../protocol.ts";
 
 export async function handleRepl(
 	_page: Page,
-	args: string[],
+	_args: string[],
 ): Promise<Response> {
 	// REPL requires an interactive terminal — the daemon serves single
 	// request/response pairs over its socket, so the REPL is implemented
