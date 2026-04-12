@@ -34,17 +34,17 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Install Playwright browsers (Linux ARM64)
+      - name: Install browser binaries (Linux ARM64)
         if: matrix.label == 'linux-arm64'
-        run: bun x playwright install firefox --with-deps
+        run: bun x patchright install firefox --with-deps
 
-      - name: Install Playwright browsers (Linux)
+      - name: Install browser binaries (Linux)
         if: runner.os == 'Linux' && matrix.label != 'linux-arm64'
-        run: bun x playwright install chrome --with-deps
+        run: bun x patchright install chrome --with-deps
 
-      - name: Install Playwright browsers (macOS)
+      - name: Install browser binaries (macOS)
         if: runner.os != 'Linux'
-        run: bun x playwright install chrome
+        run: bun x patchright install chrome
 
       - name: Run tests
         run: bun test

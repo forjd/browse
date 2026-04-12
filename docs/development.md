@@ -13,7 +13,7 @@ Contributing guide for the `browse` CLI tool.
 git clone https://github.com/forjd/browse.git
 cd browse
 bun install
-bunx playwright install chrome
+bun x patchright install chrome
 ```
 
 ## Project Structure
