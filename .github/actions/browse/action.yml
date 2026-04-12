@@ -1,0 +1,28 @@
+name: "Browse CLI"
+description: "Run Browse commands in GitHub Actions with Bun and Playwright dependencies"
+author: "forjd"
+inputs:
+  command:
+    description: "Browse command to execute"
+    required: true
+    default: "healthcheck"
+  config:
+    description: "Path to browse config file"
+    required: false
+    default: "browse.config.json"
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: latest
+    - name: Install dependencies
+      shell: bash
+      run: bun install --frozen-lockfile
+    - name: Install Playwright browser
+      shell: bash
+      run: bunx playwright install --with-deps chromium
+    - name: Run Browse
+      shell: bash
+      run: bun run src/cli.ts ${{ inputs.command }} --config ${{ inputs.config }}
