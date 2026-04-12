@@ -525,14 +525,33 @@ Flags:
 	},
 	completions: {
 		summary: "Generate shell completion scripts",
-		usage: `browse completions <shell>
-
-Supported shells: bash, zsh, fish
-
-Install completions:
-  browse completions bash > ~/.local/share/bash-completion/completions/browse
-  browse completions zsh > ~/.zfunc/_browse
-  browse completions fish > ~/.config/fish/completions/browse.fish`,
+		usage: [
+			"browse completions <shell>",
+			"",
+			"Supported shells: bash, zsh, fish",
+			"",
+			"Install completions:",
+			"  browse completions bash > ~/.local/share/bash-completion/completions/browse",
+			"  browse completions zsh > ~/.zfunc/_browse",
+			"  browse completions fish > ~/.config/fish/completions/browse.fish",
+		].join("\n"),
+	},
+	framework: {
+		summary: "Scaffold Browse tests for Vitest or Jest",
+		usage: [
+			"browse framework init <vitest|jest> [--dir <path>] [--force]",
+			"",
+			"Creates a small Browse test harness plus a starter spec for the chosen test",
+			"runner so you can execute Browse flows inside an existing test suite.",
+			"",
+			"Flags:",
+			"  --dir <path>   Output directory for generated files (default: tests)",
+			"  --force        Overwrite previously generated files",
+			"",
+			"Examples:",
+			"  browse framework init vitest",
+			"  browse framework init jest --dir qa",
+		].join("\n"),
 	},
 	form: {
 		summary: "Bulk fill form fields in one command",
