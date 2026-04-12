@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.16.0](https://github.com/forjd/browse/compare/browse-v0.15.0...browse-v0.16.0) (2026-04-12)
+
+
+### Features
+
+* complete phase 9 performance roadmap ([6989938](https://github.com/forjd/browse/commit/6989938b579b48e6c5ce81020cf66a3dcc98a679))
+* implement phase 8 production hardening foundations ([5a1b180](https://github.com/forjd/browse/commit/5a1b180e02f5b9055375f933d04943d9df9219b4))
+
+
+### Bug Fixes
+
+* address phase 8 review findings ([91b6ffe](https://github.com/forjd/browse/commit/91b6ffef51d311bc795d5ac22496f6d6296b14fb))
+* **ci:** run chromium smoke on linux arm64 ([8931166](https://github.com/forjd/browse/commit/89311668e16cf3b2d4af8c6b5156fd6e632d4b63))
+* **ci:** use bun x for Playwright install ([fc57c33](https://github.com/forjd/browse/commit/fc57c3385d06be037a5b80f4acefbead3eace5f3))
+* **ci:** use firefox on linux arm64 ([5b9be37](https://github.com/forjd/browse/commit/5b9be37df6a609290ac0a99203fab5749f00ffd7))
+* install browsers with patchright ([2b8c2f1](https://github.com/forjd/browse/commit/2b8c2f1574e1ac4aae5c3b12e5cdcc1a81031145))
+* isolate daemon session state in tests ([32ec5bc](https://github.com/forjd/browse/commit/32ec5bc7a1ae4c1338b8c97455c0ae58b3d7ff5f))
+
 ## [0.15.0](https://github.com/forjd/browse/compare/browse-v0.14.0...browse-v0.15.0) (2026-04-09)
 
 
