@@ -54,6 +54,22 @@ describe("parseHealthcheckArgs", () => {
 });
 
 describe("parseHealthcheckArgs — reporter validation", () => {
+	test("parses repeated --junit-property flags for junit output", () => {
+		const result = parseHealthcheckArgs([
+			"--reporter",
+			"junit",
+			"--junit-property",
+			"environment=staging",
+			"--junit-property",
+			"browser=chrome",
+		]);
+		expect(result.junitProperties).toEqual({
+			environment: "staging",
+			browser: "chrome",
+		});
+		expect(result.error).toBeUndefined();
+	});
+
 	test("accepts json reporter", () => {
 		const result = parseHealthcheckArgs(["--reporter", "json"]);
 		expect(result.reporter).toBe("json");
@@ -76,6 +92,18 @@ describe("parseHealthcheckArgs — reporter validation", () => {
 	test("rejects --reporter with no value", () => {
 		const result = parseHealthcheckArgs(["--reporter"]);
 		expect(result.error).toContain("Missing value for --reporter");
+	});
+
+	test("rejects --junit-property without the junit reporter", () => {
+		const result = parseHealthcheckArgs([
+			"--reporter",
+			"json",
+			"--junit-property",
+			"environment=staging",
+		]);
+		expect(result.error).toContain(
+			"--junit-property requires --reporter junit",
+		);
 	});
 });
 
@@ -656,6 +684,36 @@ describe("handleHealthcheck — variable interpolation", () => {
 });
 
 describe("handleHealthcheck — report formatting", () => {
+	test("returns JUnit output with suite properties from --junit-property", async () => {
+		const config = singlePageConfig();
+		const page = mockPage();
+		const deps = makeDeps();
+
+		const result = await handleHealthcheck(
+			config,
+			page,
+			[
+				"--reporter",
+				"junit",
+				"--junit-property",
+				"environment=staging",
+				"--junit-property",
+				"browser=chrome",
+			],
+			deps,
+		);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain(
+				'<property name="environment" value="staging"/>',
+			);
+			expect(result.data).toContain(
+				'<property name="browser" value="chrome"/>',
+			);
+		}
+	});
+
 	test("report includes tick mark for passing pages", async () => {
 		const config = singlePageConfig();
 		const page = mockPage();

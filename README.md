@@ -287,6 +287,7 @@ Define reusable flows in `browse.config.json` or as individual JSON files in a `
 browse flow list
 browse flow signup --var base_url=https://staging.example.com
 browse flow signup --reporter junit          # JUnit XML output for CI
+browse flow signup --reporter junit --junit-property environment=staging
 browse flow signup --reporter json           # structured JSON output
 browse flow signup --reporter teamcity      # plugin-provided custom reporter
 browse flow signup --dry-run                 # preview steps without running
