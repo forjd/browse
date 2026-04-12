@@ -731,7 +731,7 @@ List all defined flows. Shows source annotations (`[inline]` or `[file: ...]`) i
 ### flow
 
 ```
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter junit] [--dry-run] [--stream] [--webhook <url>]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [--dry-run] [--stream] [--webhook <url>]
 ```
 
 Execute a named flow. Flows can be defined inline in `browse.config.json` or as individual JSON files in a `flows/` directory next to the config file. Global flows in `~/.browse/flows/` are also loaded. See [configuration docs](configuration.md#file-based-flows) for details.
@@ -740,7 +740,7 @@ Execute a named flow. Flows can be defined inline in `browse.config.json` or as 
 |------|-------------|
 | `--var k=v` | Pass variables (repeatable) |
 | `--continue-on-error` | Continue executing steps after a failure |
-| `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
+| `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, or `html` |
 | `--dry-run` | Preview steps without executing them |
 | `--stream` | Output real-time NDJSON with one object per step |
 | `--webhook <url>` | POST a JSON result payload to the URL on completion |
@@ -751,6 +751,8 @@ Execute a named flow. Flows can be defined inline in `browse.config.json` or as 
 browse flow login --var user=admin --var pass=secret
 browse flow checkout --continue-on-error
 browse flow smoke-test --reporter junit > results.xml
+browse flow smoke-test --reporter tap
+browse flow smoke-test --reporter html > report.html
 browse flow signup --dry-run
 browse flow smoke-test --stream
 browse flow smoke-test --webhook https://hooks.slack.com/services/T.../B.../xxx
@@ -1563,7 +1565,7 @@ browse assert-ai "page looks correct" --base-url https://openrouter.ai/api/v1 --
 ### test-matrix
 
 ```sh
-browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter junit]
+browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>]
 ```
 
 Run the same flow in parallel across multiple roles/environments. Each role gets its own isolated browser context with separate authentication. Compares results across roles and highlights differences.
@@ -1575,7 +1577,7 @@ Roles must correspond to environment names in `browse.config.json`.
 | `--roles <r1,r2,...>` | Comma-separated list of roles (minimum 2) |
 | `--flow <name>` | Flow to execute (from `browse.config.json`) |
 | `--env <name>` | Environment prefix (tries `<env>-<role>` then `<role>`) |
-| `--reporter junit` | Output JUnit XML format |
+| `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, or `html` |
 
 **Examples:**
 
@@ -1583,6 +1585,7 @@ Roles must correspond to environment names in `browse.config.json`.
 browse test-matrix --roles admin,viewer,guest --flow checkout
 browse test-matrix --roles admin,viewer --flow dashboard --env staging
 browse test-matrix --roles admin,viewer --flow dashboard --reporter junit > results.xml
+browse test-matrix --roles admin,viewer --flow dashboard --reporter tap
 ```
 
 ---

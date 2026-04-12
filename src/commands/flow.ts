@@ -11,9 +11,10 @@ import {
 } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import {
-	formatFlowJson,
-	formatFlowJUnit,
-	formatFlowMarkdown,
+	FLOW_REPORTER_NAMES,
+	type FlowReporter,
+	formatFlowReporter,
+	isFlowReporter,
 } from "../reporters.ts";
 import {
 	formatFlowWebhookPayload,
@@ -122,23 +123,23 @@ export async function handleFlow(
 	const stream = args.includes("--stream");
 
 	// Parse reporter flag
-	const VALID_REPORTERS = ["junit", "json", "markdown"];
-	let reporter: string | undefined;
+	let reporter: FlowReporter | undefined;
 	for (let i = 1; i < args.length; i++) {
 		if (args[i] === "--reporter") {
 			if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
 				return {
 					ok: false,
-					error: `Missing value for --reporter. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
+					error: `Missing value for --reporter. Valid reporters: ${FLOW_REPORTER_NAMES}`,
 				};
 			}
-			reporter = args[i + 1];
-			if (!VALID_REPORTERS.includes(reporter)) {
+			const reporterValue = args[i + 1];
+			if (!isFlowReporter(reporterValue)) {
 				return {
 					ok: false,
-					error: `Invalid reporter '${reporter}'. Valid reporters: ${VALID_REPORTERS.join(", ")}`,
+					error: `Invalid reporter '${reporterValue}'. Valid reporters: ${FLOW_REPORTER_NAMES}`,
 				};
 			}
+			reporter = reporterValue;
 			break;
 		}
 	}
@@ -217,17 +218,11 @@ export async function handleFlow(
 			: { ok: false, error: output };
 	}
 
-	if (reporter === "junit") {
-		const junit = formatFlowJUnit(flowName, results, durationMs);
-		return allPassed ? { ok: true, data: junit } : { ok: false, error: junit };
-	}
-	if (reporter === "json") {
-		const json = formatFlowJson(flowName, results, durationMs);
-		return allPassed ? { ok: true, data: json } : { ok: false, error: json };
-	}
-	if (reporter === "markdown") {
-		const md = formatFlowMarkdown(flowName, results, durationMs);
-		return allPassed ? { ok: true, data: md } : { ok: false, error: md };
+	if (reporter) {
+		const output = formatFlowReporter(flowName, results, durationMs, reporter);
+		return allPassed
+			? { ok: true, data: output }
+			: { ok: false, error: output };
 	}
 
 	const report = formatFlowReport(

@@ -5,9 +5,10 @@ import type { StealthOpts } from "../daemon.ts";
 import { parseVars, runFlow, type StepResult } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import {
-	formatFlowJson,
-	formatFlowJUnit,
-	formatFlowMarkdown,
+	FLOW_REPORTER_NAMES,
+	type FlowReporter,
+	formatFlowReporter,
+	isFlowReporter,
 } from "../reporters.ts";
 import { applyStealthScripts } from "../stealth.ts";
 import type { ConsoleEntry } from "./console.ts";
@@ -59,7 +60,7 @@ export async function handleTestMatrix(
 	let rolesStr: string | undefined;
 	let flowName: string | undefined;
 	let envName: string | undefined;
-	let reporter: string | undefined;
+	let reporter: FlowReporter | undefined;
 	const vars = parseVars(args);
 
 	for (let i = 0; i < args.length; i++) {
@@ -74,7 +75,20 @@ export async function handleTestMatrix(
 			envName = args[i + 1];
 			i++;
 		} else if (arg === "--reporter") {
-			reporter = args[i + 1];
+			const next = args[i + 1];
+			if (!next || next.startsWith("--")) {
+				return {
+					ok: false,
+					error: `Missing value for --reporter. Valid reporters: ${FLOW_REPORTER_NAMES}`,
+				};
+			}
+			if (!isFlowReporter(next)) {
+				return {
+					ok: false,
+					error: `Invalid reporter '${next}'. Valid reporters: ${FLOW_REPORTER_NAMES}`,
+				};
+			}
+			reporter = next;
 			i++;
 		}
 	}
@@ -83,7 +97,7 @@ export async function handleTestMatrix(
 		return {
 			ok: false,
 			error:
-				"Usage: browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter junit]\n\nRoles must correspond to environment names in browse.config.json.",
+				"Usage: browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>]\n\nRoles must correspond to environment names in browse.config.json.",
 		};
 	}
 
@@ -240,7 +254,7 @@ export async function handleTestMatrix(
 	const durationMs = Date.now() - startTime;
 
 	// Reporter output
-	if (reporter === "junit" || reporter === "json" || reporter === "markdown") {
+	if (reporter) {
 		const allResults: StepResult[] = [];
 		for (const rr of roleResults) {
 			for (const r of rr.results) {
@@ -252,20 +266,15 @@ export async function handleTestMatrix(
 		}
 		const matrixName = `test-matrix-${flowName}`;
 		const matrixPassed = allResults.every((r) => r.passed);
-		if (reporter === "junit") {
-			const junit = formatFlowJUnit(matrixName, allResults, durationMs);
-			return matrixPassed
-				? { ok: true, data: junit }
-				: { ok: false, error: junit };
-		}
-		if (reporter === "json") {
-			const json = formatFlowJson(matrixName, allResults, durationMs);
-			return matrixPassed
-				? { ok: true, data: json }
-				: { ok: false, error: json };
-		}
-		const md = formatFlowMarkdown(matrixName, allResults, durationMs);
-		return matrixPassed ? { ok: true, data: md } : { ok: false, error: md };
+		const output = formatFlowReporter(
+			matrixName,
+			allResults,
+			durationMs,
+			reporter,
+		);
+		return matrixPassed
+			? { ok: true, data: output }
+			: { ok: false, error: output };
 	}
 
 	// Format comparison report

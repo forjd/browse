@@ -80,6 +80,22 @@ describe("formatCommandHelp", () => {
 		expect(help).toContain(COMMANDS.tab.usage);
 	});
 
+	test("documents additional reporters for flow commands", () => {
+		const help = formatCommandHelp("flow");
+		expect(help).not.toBeNull();
+		expect(help).toContain("tap");
+		expect(help).toContain("allure");
+		expect(help).toContain("html");
+	});
+
+	test("documents additional reporters for test-matrix", () => {
+		const help = formatCommandHelp("test-matrix");
+		expect(help).not.toBeNull();
+		expect(help).toContain("tap");
+		expect(help).toContain("allure");
+		expect(help).toContain("html");
+	});
+
 	test("returns help text for the help command itself", () => {
 		const help = formatCommandHelp("help");
 		expect(help).not.toBeNull();
