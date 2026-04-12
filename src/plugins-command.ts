@@ -137,6 +137,7 @@ function formatOfficialPlugins(plugins: OfficialPlugin[]): string {
 	for (const plugin of plugins) {
 		lines.push(`${plugin.slug}  ${plugin.packageName}`);
 		lines.push(`  ${plugin.description}`);
+		lines.push(`  Source: ${plugin.sourcePath}`);
 		lines.push(`  Docs: ${plugin.docsUrl}`);
 		lines.push("");
 	}

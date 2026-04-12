@@ -11,6 +11,7 @@ describe("plugins command", () => {
 		if (result.ok) {
 			expect(result.data).toContain("@browse/plugin-discord");
 			expect(result.data).toContain("@browse/plugin-jira");
+			expect(result.data).toContain("./examples/plugins/slack/index.ts");
 		}
 	});
 
@@ -23,6 +24,9 @@ describe("plugins command", () => {
 		const parsed = JSON.parse(result.data);
 		expect(parsed.plugins).toHaveLength(3);
 		expect(parsed.plugins[0].slug).toBe("slack");
+		expect(parsed.plugins[0].sourcePath).toBe(
+			"./examples/plugins/slack/index.ts",
+		);
 	});
 
 	test("searches the npm marketplace for community plugins", async () => {

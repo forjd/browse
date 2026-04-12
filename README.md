@@ -442,13 +442,19 @@ Register in `browse.config.json`:
 
 Plugins can also hook into the command lifecycle (`beforeCommand`, `afterCommand`, `cleanup`), maintain per-session state, and register custom flow reporters that become available via `browse flow --reporter <name>` and `browse test-matrix --reporter <name>`. Place personal plugins in `~/.browse/plugins/` for auto-discovery across all projects.
 
-Discover published plugins from the CLI:
+Discover official starters and community plugins from the CLI:
 
 ```bash
 browse plugins official
 browse plugins search slack
 browse plugins search notifications --limit 10
 ```
+
+Browse also ships official starter plugins for common integrations:
+
+- `./examples/plugins/slack/index.ts`
+- `./examples/plugins/discord/index.ts`
+- `./examples/plugins/jira/index.ts`
 
 See the **[plugin authoring guide](docs/plugins.md)** for full documentation.
 
