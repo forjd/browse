@@ -35,6 +35,7 @@ browse click @e2
 ## Table of Contents
 
 - [Install](#install)
+- [GitHub Actions](#github-actions)
 - [System Requirements](#system-requirements)
 - [Core Concepts](#core-concepts)
   - [How refs work](#how-refs-work)
@@ -97,6 +98,41 @@ If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), instal
 ```bash
 bunx skills add forjd/browse
 ```
+
+---
+
+## GitHub Actions
+
+Use the official composite action to run `browse` in CI with Bun dependencies and Patchright browser binaries cached between runs:
+
+```yaml
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: forjd/browse/.github/actions/browse@main
+        with:
+          command: healthcheck --reporter junit --out results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browse-results
+          path: results.xml
+```
+
+Inputs:
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `command` | `healthcheck` | Browse command to run |
+| `config` | `browse.config.json` | Path to the config file in your repository |
+| `bun-version` | `latest` | Bun version installed by the action |
+| `browser` | `chrome` | Patchright browser channel installed by the action |
+
+The action executes `browse` from the action checkout, but runs it against your repository workspace so relative config paths, flows, and output files still behave normally.
+
+Linux and macOS runners are supported today. Windows support is tracked separately in the platform roadmap.
 
 ---
 
