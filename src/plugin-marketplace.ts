@@ -39,3 +39,52 @@ export function filterMarketplacePlugins(
 		})
 		.sort((a, b) => a.name.localeCompare(b.name));
 }
+
+type MarketplaceSearchResponse = {
+	objects?: Array<{
+		package?: MarketplacePlugin;
+	}>;
+};
+
+export async function searchMarketplacePlugins(
+	query: string,
+	page = 1,
+	size = 20,
+	fetchImpl: typeof fetch = fetch,
+): Promise<MarketplacePlugin[]> {
+	const response = await fetchImpl(
+		buildMarketplaceSearchUrl(query, page, size),
+		{
+			headers: {
+				Accept: "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(
+			`Plugin marketplace request failed with status ${response.status}.`,
+		);
+	}
+
+	let body: MarketplaceSearchResponse;
+	try {
+		body = (await response.json()) as MarketplaceSearchResponse;
+	} catch {
+		throw new Error("Plugin marketplace returned invalid JSON.");
+	}
+
+	const packages = Array.isArray(body.objects)
+		? body.objects
+				.flatMap((entry) => (entry?.package ? [entry.package] : []))
+				.map((plugin) => ({
+					name: plugin.name,
+					description: plugin.description,
+					keywords: plugin.keywords,
+					version: plugin.version,
+					links: plugin.links,
+				}))
+		: [];
+
+	return filterMarketplacePlugins(packages);
+}

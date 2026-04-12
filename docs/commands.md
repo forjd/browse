@@ -1396,6 +1396,34 @@ browse init --force
 
 ---
 
+## Plugin Discovery
+
+### plugins
+
+```
+browse plugins official
+browse plugins search [query...] [--page <n>] [--limit <n>]
+```
+
+Discover official Browse plugins and search npm for community plugins tagged with the `browse-plugin` keyword.
+
+| Flag | Description |
+|------|-------------|
+| `--page <n>` | Result page number for marketplace search (default: `1`) |
+| `--limit <n>` | Results per page (default: `20`, max: `250`) |
+| `--json` | Output machine-readable JSON |
+
+**Examples:**
+
+```bash
+browse plugins official
+browse plugins search slack
+browse plugins search notifications --limit 10
+browse plugins search jira --page 2 --json
+```
+
+---
+
 ## Screenshot Management
 
 ### screenshots list

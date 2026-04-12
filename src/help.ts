@@ -330,6 +330,20 @@ With a command name, shows detailed usage for that command.`,
 		summary: "Print version and platform info",
 		usage: "browse version",
 	},
+	plugins: {
+		summary: "Discover official and community plugins",
+		usage: `browse plugins official
+browse plugins search [query...] [--page <n>] [--limit <n>]
+
+Subcommands:
+  official             List first-party Browse plugins
+  search [query...]    Search npm for packages tagged with the browse-plugin keyword
+
+Flags:
+  --page <n>           Result page number (default: 1)
+  --limit <n>          Results per page (default: 20, max: 250)
+  --json               Output JSON`,
+	},
 	session: {
 		summary: "Manage browser sessions",
 		usage: `browse session list              List all sessions

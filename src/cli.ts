@@ -15,6 +15,7 @@ import {
 } from "./help.ts";
 import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
 import { discoverPluginPaths, validatePlugin } from "./plugin-loader.ts";
+import { handlePluginsCommand } from "./plugins-command.ts";
 import type { BatchResponse, ProtocolResponse, Response } from "./protocol.ts";
 import { isBatchResponse } from "./protocol.ts";
 import { runWithRetry, sendWithRetry } from "./retry.ts";
@@ -501,6 +502,17 @@ async function runCli(): Promise<void> {
 			process.stderr.write(
 				`Unknown command: ${cmd}\n\n${formatOverview(pluginHelp)}\n`,
 			);
+			process.exit(1);
+		}
+		return;
+	}
+
+	if (cmd === "plugins") {
+		const response = await handlePluginsCommand(args, { json });
+		const formatted = formatOutput(response);
+		const target = formatted.isError ? process.stderr : process.stdout;
+		target.write(`${formatted.output}\n`);
+		if (formatted.isError) {
 			process.exit(1);
 		}
 		return;

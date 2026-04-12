@@ -435,6 +435,14 @@ Register in `browse.config.json`:
 
 Plugins can also hook into the command lifecycle (`beforeCommand`, `afterCommand`, `cleanup`) and maintain per-session state. Place personal plugins in `~/.browse/plugins/` for auto-discovery across all projects.
 
+Discover published plugins from the CLI:
+
+```bash
+browse plugins official
+browse plugins search slack
+browse plugins search notifications --limit 10
+```
+
 See the **[plugin authoring guide](docs/plugins.md)** for full documentation.
 
 ---
