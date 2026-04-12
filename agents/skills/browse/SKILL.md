@@ -101,9 +101,10 @@ Run `browse help <command>` for flags and detailed usage — don't guess at flag
 - Use `browse status --metrics` when CI or monitoring expects Prometheus-style output.
 - Use `browse status --json` for structured health + daemon metadata in automation.
 - Optional daemon env knobs:
-  - `BROWSE_LOG_FORMAT=json` and `BROWSE_LOG_LEVEL=debug|info|warn|error`
-  - `BROWSE_MAX_RSS_MB=<limit>`
-  - `BROWSE_SLOW_COMMAND_MS=<ms>`
+  - `BROWSE_LOG_FORMAT=plain|json` — controls daemon log output format (human-readable text vs structured JSON).
+  - `BROWSE_LOG_LEVEL=debug|info|warn|error` — sets minimum log severity; lower levels (like `debug`) increase verbosity.
+  - `BROWSE_MAX_RSS_MB=<limit>` — when RSS exceeds this limit, daemon triggers memory-pressure mitigation (buffer cleanup + deferred ref cleanup + optional GC).
+  - `BROWSE_SLOW_COMMAND_MS=<ms>` — logs slow-command profiling details for commands that exceed this duration threshold.
 
 ### Named sessions
 
