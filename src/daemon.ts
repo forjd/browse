@@ -398,6 +398,8 @@ function attachPageListeners(
 export type ServerOptions = {
 	/** Called after shutdown completes (quit or idle timeout). Defaults to process.exit(0). */
 	onExit?: () => void;
+	/** Enable persisted session-state restore/save for long-lived daemon runs. */
+	persistSessionState?: boolean;
 };
 
 export async function startServer(
@@ -428,6 +430,7 @@ export async function startServer(
 	} = deps;
 	const configCtx = configError ? { configError } : undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
+	const persistSessionState = options?.persistSessionState === true;
 	const startTime = Date.now();
 	const logger = createLogger();
 	const slowCommandMs = Number.parseInt(
@@ -542,7 +545,9 @@ export async function startServer(
 		metrics.recoveries++;
 	}
 
-	await restorePersistedSessionState();
+	if (persistSessionState) {
+		await restorePersistedSessionState();
+	}
 
 	// Load plugins
 	const pluginPaths = discoverPluginPaths(config?.plugins, configPath ?? null);
@@ -620,6 +625,7 @@ export async function startServer(
 	}
 
 	async function flushSessionStatePersist(): Promise<void> {
+		if (!persistSessionState) return;
 		if (persistInFlight) return;
 		persistInFlight = true;
 		try {
@@ -634,6 +640,7 @@ export async function startServer(
 	}
 
 	function scheduleSessionStatePersist(): void {
+		if (!persistSessionState) return;
 		if (persistTimer) return;
 		persistTimer = setTimeout(() => {
 			persistTimer = undefined;
@@ -1757,6 +1764,7 @@ export async function startDaemon(
 				// Best effort
 			}
 		},
+		{ persistSessionState: true },
 	);
 
 	// Graceful signal handling — clean up PID/socket and close browser on
