@@ -55,12 +55,48 @@ jobs:
       - name: Compile binary
         run: bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi
 
-      - name: Smoke test binary
+      - name: Smoke test source CLI (Linux ARM64)
+        if: matrix.label == 'linux-arm64'
+        id: smoke_source_arm64
+        continue-on-error: true
         run: |
-          if [ "${{ matrix.label }}" = "linux-arm64" ]; then
-            output=$(./dist/browse --browser firefox goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
-          else
-            output=$(./dist/browse goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
-          fi
+          rm -f /tmp/browse-daemon.pid /tmp/browse-daemon.sock "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
+          bun ./src/cli.ts --daemon --browser firefox >/tmp/browse-source-daemon.log 2>&1 &
+          daemon_pid=$!
+          cleanup() {
+            bun ./src/cli.ts quit >/dev/null 2>&1 || true
+            kill "$daemon_pid" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          for i in $(seq 1 100); do
+            [ -S /tmp/browse-daemon.sock ] && break
+            sleep 0.1
+          done
+          [ -S /tmp/browse-daemon.sock ] || { cat /tmp/browse-source-daemon.log; echo "Source daemon failed to start"; exit 1; }
+          output=$(bun ./src/cli.ts --browser firefox goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
+          echo "$output"
+          echo "$output" | grep -q "CI" || { cat /tmp/browse-source-daemon.log; echo "Source CLI smoke failed: expected 'CI' in output"; exit 1; }
+
+      - name: Smoke test binary (Linux ARM64)
+        if: matrix.label == 'linux-arm64'
+        id: smoke_binary_arm64
+        continue-on-error: true
+        run: |
+          rm -f /tmp/browse-daemon.pid /tmp/browse-daemon.sock "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
+          output=$(./dist/browse --browser firefox goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
+          echo "$output"
+          echo "$output" | grep -q "CI" || { echo "Binary smoke failed: expected 'CI' in output"; exit 1; }
+
+      - name: Evaluate ARM64 smoke diagnostics
+        if: matrix.label == 'linux-arm64'
+        run: |
+          echo "Source CLI smoke: ${{ steps.smoke_source_arm64.outcome }}"
+          echo "Binary smoke: ${{ steps.smoke_binary_arm64.outcome }}"
+          [ "${{ steps.smoke_source_arm64.outcome }}" = "success" ] && [ "${{ steps.smoke_binary_arm64.outcome }}" = "success" ]
+
+      - name: Smoke test binary
+        if: matrix.label != 'linux-arm64'
+        run: |
+          output=$(./dist/browse goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
           echo "$output"
           echo "$output" | grep -q "CI" || { echo "Smoke test failed: expected 'CI' in output"; exit 1; }
