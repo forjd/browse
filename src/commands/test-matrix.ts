@@ -9,6 +9,7 @@ import {
 	formatFlowReporter,
 	getFlowReporterNames,
 	isKnownFlowReporter,
+	parseJUnitProperties,
 } from "../reporters.ts";
 import { applyStealthScripts } from "../stealth.ts";
 import type { ConsoleEntry } from "./console.ts";
@@ -35,6 +36,7 @@ type RoleResult = {
  *   browse test-matrix --roles admin,viewer,guest --flow checkout
  *   browse test-matrix --roles admin,viewer --flow dashboard --env staging
  *   browse test-matrix --roles admin,viewer --flow dashboard --reporter junit
+ *   browse test-matrix --roles admin,viewer --flow dashboard --reporter junit --junit-property environment=ci
  */
 export async function handleTestMatrix(
 	config: BrowseConfig | null,
@@ -95,11 +97,22 @@ export async function handleTestMatrix(
 		}
 	}
 
+	const junitResult = parseJUnitProperties(args);
+	if (junitResult.error) {
+		return { ok: false, error: junitResult.error };
+	}
+	if (junitResult.suiteProperties && reporter !== "junit") {
+		return {
+			ok: false,
+			error: "--junit-property requires --reporter junit.",
+		};
+	}
+
 	if (!rolesStr || !flowName) {
 		return {
 			ok: false,
 			error:
-				"Usage: browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>]\n\nRoles must correspond to environment names in browse.config.json.",
+				"Usage: browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>] [--junit-property key=value ...]\n\nRoles must correspond to environment names in browse.config.json.",
 		};
 	}
 
@@ -274,6 +287,7 @@ export async function handleTestMatrix(
 			durationMs,
 			reporter,
 			customReporters,
+			junitResult,
 		);
 		return matrixPassed
 			? { ok: true, data: output }

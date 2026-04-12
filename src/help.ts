@@ -135,12 +135,13 @@ browse tab close [index]     Close tab (closes active tab if no index)`,
 	flow: {
 		summary: "Execute a named flow",
 		usage: `browse flow list                          List defined flows
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [--dry-run] [--stream] [--webhook <url>]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [--junit-property key=value ...] [--dry-run] [--stream] [--webhook <url>]
 
 Flags:
   --var key=value       Pass variables to flow (repeatable)
   --continue-on-error   Continue running steps even if one fails
   --reporter <format>   Output format: ${FLOW_REPORTER_HELP}, or a plugin-provided reporter name
+  --junit-property k=v  Add JUnit testsuite metadata (repeatable, requires --reporter junit)
   --dry-run             Preview step plan without executing
   --stream              Emit step results as NDJSON as they complete
   --webhook <url>       POST a JSON result payload to the URL on completion
@@ -171,12 +172,13 @@ Flags:
 	},
 	healthcheck: {
 		summary: "Run healthcheck across configured pages",
-		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter <format>] [--parallel] [--concurrency N] [--webhook <url>]
+		usage: `browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter <format>] [--junit-property key=value ...] [--parallel] [--concurrency N] [--webhook <url>]
 
 Flags:
   --var key=value       Pass variables for URL interpolation (repeatable)
   --no-screenshots      Skip screenshot capture
   --reporter <format>   Output format: junit (JUnit XML), json (structured JSON), markdown (human-readable Markdown)
+  --junit-property k=v  Add JUnit testsuite metadata (repeatable, requires --reporter junit)
   --parallel            Check pages concurrently using separate browser tabs
   --concurrency <N>     Max pages to check in parallel (default: 5, requires --parallel)
   --webhook <url>       POST a JSON result payload to the URL on completion
@@ -549,7 +551,7 @@ Examples:
 	},
 	"test-matrix": {
 		summary: "Run same flow across multiple roles in parallel",
-		usage: `browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>]
+		usage: `browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>] [--junit-property key=value ...]
 
 Runs the same flow simultaneously across isolated sessions with different
 authentication (roles/environments) and diffs the results. Each role maps
@@ -560,6 +562,7 @@ Flags:
   --flow <name>        Flow to run for each role (required)
   --env <env>          Environment prefix (e.g., staging → looks for staging-admin, staging-viewer)
   --reporter <format>  Output format: ${FLOW_REPORTER_HELP}, or a plugin-provided reporter name
+  --junit-property k=v Add JUnit testsuite metadata (repeatable, requires --reporter junit)
 
 Examples:
   browse test-matrix --roles admin,viewer,guest --flow checkout

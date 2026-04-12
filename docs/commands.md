@@ -731,7 +731,7 @@ List all defined flows. Shows source annotations (`[inline]` or `[file: ...]`) i
 ### flow
 
 ```
-browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [--dry-run] [--stream] [--webhook <url>]
+browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [--junit-property key=value ...] [--dry-run] [--stream] [--webhook <url>]
 ```
 
 Execute a named flow. Flows can be defined inline in `browse.config.json` or as individual JSON files in a `flows/` directory next to the config file. Global flows in `~/.browse/flows/` are also loaded. See [configuration docs](configuration.md#file-based-flows) for details.
@@ -741,6 +741,7 @@ Execute a named flow. Flows can be defined inline in `browse.config.json` or as 
 | `--var k=v` | Pass variables (repeatable) |
 | `--continue-on-error` | Continue executing steps after a failure |
 | `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, or `html` |
+| `--junit-property key=value` | Add JUnit testsuite metadata (repeatable, requires `--reporter junit`) |
 | `--dry-run` | Preview steps without executing them |
 | `--stream` | Output real-time NDJSON with one object per step |
 | `--webhook <url>` | POST a JSON result payload to the URL on completion |
@@ -751,6 +752,7 @@ Execute a named flow. Flows can be defined inline in `browse.config.json` or as 
 browse flow login --var user=admin --var pass=secret
 browse flow checkout --continue-on-error
 browse flow smoke-test --reporter junit > results.xml
+browse flow smoke-test --reporter junit --junit-property environment=staging --junit-property browser=chrome > results.xml
 browse flow smoke-test --reporter tap
 browse flow smoke-test --reporter html > report.html
 browse flow signup --dry-run
@@ -761,7 +763,7 @@ browse flow smoke-test --webhook https://hooks.slack.com/services/T.../B.../xxx
 ### healthcheck
 
 ```
-browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter junit] [--parallel] [--concurrency N] [--webhook <url>]
+browse healthcheck [--var k=v ...] [--no-screenshots] [--reporter <format>] [--junit-property key=value ...] [--parallel] [--concurrency N] [--webhook <url>]
 ```
 
 Run a healthcheck across configured pages defined in `browse.config.json`.
@@ -770,7 +772,8 @@ Run a healthcheck across configured pages defined in `browse.config.json`.
 |------|-------------|
 | `--var k=v` | Pass variables (repeatable) |
 | `--no-screenshots` | Skip screenshots during the healthcheck |
-| `--reporter <format>` | Output format: `junit` (JUnit XML for CI integration) |
+| `--reporter <format>` | Output format: `junit`, `json`, or `markdown` |
+| `--junit-property key=value` | Add JUnit testsuite metadata (repeatable, requires `--reporter junit`) |
 | `--parallel` | Check pages concurrently instead of sequentially |
 | `--concurrency N` | Max concurrent pages when `--parallel` is set (default: 5) |
 | `--webhook <url>` | POST a JSON result payload to the URL on completion |
@@ -782,6 +785,7 @@ browse healthcheck
 browse healthcheck --var env=staging
 browse healthcheck --no-screenshots
 browse healthcheck --reporter junit > results.xml
+browse healthcheck --reporter junit --junit-property environment=staging > results.xml
 browse healthcheck --parallel --concurrency 8
 browse healthcheck --webhook https://hooks.slack.com/services/T.../B.../xxx
 ```
@@ -1593,7 +1597,7 @@ browse assert-ai "page looks correct" --base-url https://openrouter.ai/api/v1 --
 ### test-matrix
 
 ```sh
-browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>]
+browse test-matrix --roles <role1,role2,...> --flow <flow-name> [--env <env>] [--reporter <format>] [--junit-property key=value ...]
 ```
 
 Run the same flow in parallel across multiple roles/environments. Each role gets its own isolated browser context with separate authentication. Compares results across roles and highlights differences.
@@ -1606,6 +1610,7 @@ Roles must correspond to environment names in `browse.config.json`.
 | `--flow <name>` | Flow to execute (from `browse.config.json`) |
 | `--env <name>` | Environment prefix (tries `<env>-<role>` then `<role>`) |
 | `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, or `html` |
+| `--junit-property key=value` | Add JUnit testsuite metadata (repeatable, requires `--reporter junit`) |
 
 **Examples:**
 
@@ -1613,6 +1618,7 @@ Roles must correspond to environment names in `browse.config.json`.
 browse test-matrix --roles admin,viewer,guest --flow checkout
 browse test-matrix --roles admin,viewer --flow dashboard --env staging
 browse test-matrix --roles admin,viewer --flow dashboard --reporter junit > results.xml
+browse test-matrix --roles admin,viewer --flow dashboard --reporter junit --junit-property environment=ci > results.xml
 browse test-matrix --roles admin,viewer --flow dashboard --reporter tap
 ```
 

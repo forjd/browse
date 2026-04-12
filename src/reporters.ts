@@ -33,6 +33,10 @@ export const FLOW_REPORTERS = [
 
 export type FlowReporter = (typeof FLOW_REPORTERS)[number];
 
+export type JUnitReporterOptions = {
+	suiteProperties?: Record<string, string>;
+};
+
 const FLOW_REPORTER_DESCRIPTIONS: Record<FlowReporter, string> = {
 	junit: "JUnit XML",
 	json: "structured JSON",
@@ -66,6 +70,40 @@ export function isKnownFlowReporter(
 	return isFlowReporter(value) || customReporters?.has(value) === true;
 }
 
+export function parseJUnitProperties(args: string[]): {
+	suiteProperties?: Record<string, string>;
+	error?: string;
+} {
+	const suiteProperties: Record<string, string> = {};
+
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] !== "--junit-property") {
+			continue;
+		}
+
+		const next = args[i + 1];
+		if (!next || next.startsWith("--")) {
+			return {
+				error: "Missing value for --junit-property. Expected key=value.",
+			};
+		}
+
+		const separatorIndex = next.indexOf("=");
+		if (separatorIndex <= 0) {
+			return {
+				error: "Invalid value for --junit-property. Expected key=value.",
+			};
+		}
+
+		suiteProperties[next.slice(0, separatorIndex)] = next.slice(
+			separatorIndex + 1,
+		);
+		i++;
+	}
+
+	return Object.keys(suiteProperties).length > 0 ? { suiteProperties } : {};
+}
+
 /**
  * Format flow results as JUnit XML.
  */
@@ -73,7 +111,7 @@ export function formatFlowJUnit(
 	flowName: string,
 	results: StepResult[],
 	durationMs: number,
-	options?: { suiteProperties?: Record<string, string> },
+	options?: JUnitReporterOptions,
 ): string {
 	const failures = results.filter((r) => !r.passed).length;
 	const tests = results.length;
@@ -295,6 +333,7 @@ export function formatHealthcheckMarkdown(
 export function formatHealthcheckJUnit(
 	results: HealthcheckPageResult[],
 	durationMs: number,
+	options?: JUnitReporterOptions,
 ): string {
 	const failures = results.filter((r) => !r.passed).length;
 	const tests = results.length;
@@ -305,6 +344,19 @@ export function formatHealthcheckJUnit(
 		`<testsuites>`,
 		`  <testsuite name="healthcheck" tests="${tests}" failures="${failures}" time="${durationSec}">`,
 	];
+
+	if (
+		options?.suiteProperties &&
+		Object.keys(options.suiteProperties).length > 0
+	) {
+		lines.push("    <properties>");
+		for (const [key, value] of Object.entries(options.suiteProperties)) {
+			lines.push(
+				`      <property name="${escapeXml(key)}" value="${escapeXml(value)}"/>`,
+			);
+		}
+		lines.push("    </properties>");
+	}
 
 	for (const result of results) {
 		const testName = escapeXml(result.name);
@@ -437,11 +489,12 @@ export function formatFlowReporter(
 	durationMs: number,
 	reporter: string,
 	customReporters?: CustomReporterRegistry,
+	options?: JUnitReporterOptions,
 ): string {
 	if (isFlowReporter(reporter)) {
 		switch (reporter) {
 			case "junit":
-				return formatFlowJUnit(flowName, results, durationMs);
+				return formatFlowJUnit(flowName, results, durationMs, options);
 			case "json":
 				return formatFlowJson(flowName, results, durationMs);
 			case "markdown":

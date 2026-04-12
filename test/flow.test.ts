@@ -204,6 +204,23 @@ describe("handleFlow — reporter validation", () => {
 			expect(result.error).toContain("Missing value for --reporter");
 		}
 	});
+
+	test("rejects --junit-property without the junit reporter", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			["simple", "--reporter", "json", "--junit-property", "environment=ci"],
+			deps as any,
+		);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain(
+				"--junit-property requires --reporter junit",
+			);
+		}
+	});
 });
 
 // --- handleFlow with deps / execution tests ---
@@ -287,6 +304,34 @@ describe("handleFlow — running flows", () => {
 			expect(parsed.name).toBe("simple");
 			expect(parsed.status).toBe("passed");
 			expect(parsed.steps).toHaveLength(1);
+		}
+	});
+
+	test("returns JUnit output with suite properties from --junit-property", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			[
+				"simple",
+				"--reporter",
+				"junit",
+				"--junit-property",
+				"environment=ci",
+				"--junit-property",
+				"browser=chrome",
+			],
+			deps as any,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain(
+				'<property name="environment" value="ci"/>',
+			);
+			expect(result.data).toContain(
+				'<property name="browser" value="chrome"/>',
+			);
 		}
 	});
 

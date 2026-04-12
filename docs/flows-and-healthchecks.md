@@ -209,9 +209,10 @@ Use `--reporter junit` to output flow results as JUnit XML, suitable for CI syst
 
 ```sh
 browse flow smoke-test --reporter junit > test-results.xml
+browse flow smoke-test --reporter junit --junit-property environment=staging --junit-property browser=chrome > test-results.xml
 ```
 
-The XML includes a `<testsuite>` with one `<testcase>` per step, including `<failure>` elements for failed steps with error messages.
+The XML includes a `<testsuite>` with one `<testcase>` per step, including `<failure>` elements for failed steps with error messages. Use `--junit-property key=value` to attach repeatable `<property>` metadata to the suite for CI context such as environment or browser.
 
 ### Conditional Steps
 
@@ -358,6 +359,7 @@ A quick pass/fail check across multiple pages. Defined in `browse.config.json`, 
 browse healthcheck --var base_url=https://staging.example.com
 browse healthcheck --var base_url=https://staging.example.com --no-screenshots
 browse healthcheck --reporter junit > healthcheck-results.xml   # JUnit XML for CI
+browse healthcheck --reporter junit --junit-property environment=staging > healthcheck-results.xml
 browse healthcheck --parallel --concurrency 4                    # check pages concurrently
 ```
 
@@ -376,6 +378,7 @@ browse healthcheck --parallel --concurrency 4                    # check pages c
 - `--var key=value` -- Pass variables for URL interpolation (repeatable)
 - `--no-screenshots` -- Skip screenshot capture
 - `--reporter junit` -- Output results as JUnit XML for CI integration
+- `--junit-property key=value` -- Add JUnit testsuite metadata (repeatable, requires `--reporter junit`)
 - `--parallel` -- Check pages concurrently instead of sequentially
 - `--concurrency N` -- Max concurrent pages when `--parallel` is set (default: 5)
 - `--webhook <url>` -- POST a JSON result payload to the URL on completion

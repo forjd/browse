@@ -15,6 +15,7 @@ import {
 	formatFlowReporter,
 	getFlowReporterNames,
 	isKnownFlowReporter,
+	parseJUnitProperties,
 } from "../reporters.ts";
 import {
 	formatFlowWebhookPayload,
@@ -53,7 +54,7 @@ export async function handleFlow(
 		return {
 			ok: false,
 			error:
-				"Usage: browse flow <name> [--var key=value ...] [--continue-on-error] [--dry-run] [--stream]\nbrowse flow list",
+				"Usage: browse flow <name> [--var key=value ...] [--continue-on-error] [--reporter <format>] [--junit-property key=value ...] [--dry-run] [--stream]\nbrowse flow list",
 		};
 	}
 
@@ -146,6 +147,17 @@ export async function handleFlow(
 		}
 	}
 
+	const junitResult = parseJUnitProperties(args.slice(1));
+	if (junitResult.error) {
+		return { ok: false, error: junitResult.error };
+	}
+	if (junitResult.suiteProperties && reporter !== "junit") {
+		return {
+			ok: false,
+			error: "--junit-property requires --reporter junit.",
+		};
+	}
+
 	// Parse webhook flag
 	const webhookResult = parseWebhookFlag(args.slice(1));
 	if (webhookResult.error) {
@@ -227,6 +239,7 @@ export async function handleFlow(
 			durationMs,
 			reporter,
 			customReporters,
+			junitResult,
 		);
 		return allPassed
 			? { ok: true, data: output }

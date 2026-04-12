@@ -132,6 +132,57 @@ describe("handleTestMatrix reporter support", () => {
 		}
 	});
 
+	test("returns JUnit output with suite properties from --junit-property", async () => {
+		const previousUser = process.env[TEST_USER_ENV];
+		const previousPass = process.env[TEST_PASS_ENV];
+		process.env[TEST_USER_ENV] = "user";
+		process.env[TEST_PASS_ENV] = "pass";
+
+		try {
+			const result = await handleTestMatrix(
+				BASE_CONFIG,
+				null as any,
+				[
+					"--roles",
+					"admin,viewer",
+					"--flow",
+					"smoke",
+					"--reporter",
+					"junit",
+					"--junit-property",
+					"environment=ci",
+					"--junit-property",
+					"browser=chrome",
+				],
+				null as any,
+				null as any,
+				createDefaultContext(),
+			);
+
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.data).toContain(
+					'<property name="environment" value="ci"/>',
+				);
+				expect(result.data).toContain(
+					'<property name="browser" value="chrome"/>',
+				);
+			}
+		} finally {
+			if (previousUser === undefined) {
+				delete process.env[TEST_USER_ENV];
+			} else {
+				process.env[TEST_USER_ENV] = previousUser;
+			}
+
+			if (previousPass === undefined) {
+				delete process.env[TEST_PASS_ENV];
+			} else {
+				process.env[TEST_PASS_ENV] = previousPass;
+			}
+		}
+	});
+
 	test("returns plugin reporter output with a registered custom reporter", async () => {
 		const previousUser = process.env[TEST_USER_ENV];
 		const previousPass = process.env[TEST_PASS_ENV];

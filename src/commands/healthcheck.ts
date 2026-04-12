@@ -14,6 +14,7 @@ import {
 	formatHealthcheckJson,
 	formatHealthcheckJUnit,
 	formatHealthcheckMarkdown,
+	parseJUnitProperties,
 } from "../reporters.ts";
 import {
 	formatHealthcheckWebhookPayload,
@@ -37,6 +38,7 @@ export function parseHealthcheckArgs(args: string[]): {
 	parallel: boolean;
 	concurrency: number;
 	reporter?: string;
+	junitProperties?: Record<string, string>;
 	webhookUrl?: string;
 	error?: string;
 } {
@@ -75,6 +77,26 @@ export function parseHealthcheckArgs(args: string[]): {
 		}
 	}
 
+	const junitResult = parseJUnitProperties(args);
+	if (junitResult.error) {
+		return {
+			vars,
+			noScreenshots,
+			parallel,
+			concurrency,
+			error: junitResult.error,
+		};
+	}
+	if (junitResult.suiteProperties && reporter !== "junit") {
+		return {
+			vars,
+			noScreenshots,
+			parallel,
+			concurrency,
+			error: "--junit-property requires --reporter junit.",
+		};
+	}
+
 	const webhookResult = parseWebhookFlag(args);
 	if (webhookResult.error) {
 		return {
@@ -92,6 +114,7 @@ export function parseHealthcheckArgs(args: string[]): {
 		parallel,
 		concurrency,
 		reporter,
+		junitProperties: junitResult.suiteProperties,
 		webhookUrl: webhookResult.url,
 	};
 }
@@ -168,8 +191,15 @@ export async function handleHealthcheck(
 	if (parsed.error) {
 		return { ok: false, error: parsed.error };
 	}
-	const { vars, noScreenshots, parallel, concurrency, reporter, webhookUrl } =
-		parsed;
+	const {
+		vars,
+		noScreenshots,
+		parallel,
+		concurrency,
+		reporter,
+		junitProperties,
+		webhookUrl,
+	} = parsed;
 	const pages = config.healthcheck.pages;
 	const startTime = Date.now();
 	const results: PageResult[] = [];
@@ -334,7 +364,9 @@ export async function handleHealthcheck(
 	}
 
 	if (reporter === "junit") {
-		const junit = formatHealthcheckJUnit(results, durationMs);
+		const junit = formatHealthcheckJUnit(results, durationMs, {
+			suiteProperties: junitProperties,
+		});
 		return allPassed ? { ok: true, data: junit } : { ok: false, error: junit };
 	}
 	if (reporter === "json") {
