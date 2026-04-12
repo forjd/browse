@@ -36,6 +36,7 @@ browse click @e2
 
 - [Install](#install)
 - [GitHub Actions](#github-actions)
+- [Docker](#docker)
 - [System Requirements](#system-requirements)
 - [Core Concepts](#core-concepts)
   - [How refs work](#how-refs-work)
@@ -133,6 +134,24 @@ Inputs:
 The action executes `browse` from the action checkout, but runs it against your repository workspace so relative config paths, flows, and output files still behave normally.
 
 Linux and macOS runners are supported today. Windows support is tracked separately in the platform roadmap.
+
+---
+
+## Docker
+
+The repository `Dockerfile` builds a runtime image with `browse`, Bun-built dependencies, and the Playwright system packages already installed.
+
+```bash
+docker build -t browse .
+
+# Run against the current project directory
+docker run --rm -it -v "$PWD":/work -w /work browse healthcheck
+
+# Or use it as a disposable CLI for ad-hoc browser automation
+docker run --rm -it -v "$PWD":/work -w /work browse goto https://example.com
+```
+
+The image uses a multi-stage build, copies only the files needed to compile the binary, and ships with a `.dockerignore` so local docs, tests, and Git metadata do not bloat the build context.
 
 ---
 

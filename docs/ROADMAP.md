@@ -90,7 +90,7 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 - [ ] **Jest/Vitest runner** ([#167](https://github.com/forjd/browse/issues/167)) — Native test runner integration
 - [ ] **Cucumber/Gherkin** ([#168](https://github.com/forjd/browse/issues/168)) — BDD-style test definitions
 - [x] **GitHub Actions** ([#169](https://github.com/forjd/browse/issues/169)) — Official composite action with built-in Bun and Playwright caching
-- [ ] **Docker optimisation** ([#170](https://github.com/forjd/browse/issues/170)) — Slimmer container images, multi-stage builds
+- [x] **Docker optimisation** ([#170](https://github.com/forjd/browse/issues/170)) — Multi-stage Docker builds now copy only compile inputs, cache Bun installs, and ship with a recommended `.dockerignore`
 
 ### Output Formats
 

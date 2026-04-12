@@ -1,0 +1,12 @@
+.agents
+.git
+.github
+.worktrees
+benchmarks
+coverage
+dist
+docs
+examples
+node_modules
+opensrc
+test
