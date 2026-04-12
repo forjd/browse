@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
+import { connect } from "node:net";
 import { join } from "node:path";
 import type { ServerDeps } from "../src/daemon.ts";
 import { startServer } from "../src/daemon.ts";
@@ -196,6 +197,50 @@ describe("BrowsePool", () => {
 			const session = await pool.acquire();
 			const r = await session.exec("url");
 			expect(r.ok).toBe(true);
+
+			await pool.destroy();
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("reuses one daemon socket across sequential session commands", async () => {
+		const config = testPaths();
+		const ctx = mockContext({
+			newPage: mock(() =>
+				Promise.resolve(
+					mockPage({
+						url: mock(() => "https://session-url.com"),
+						title: mock(() => Promise.resolve("Session Title")),
+					}),
+				),
+			),
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, { context: ctx }),
+			config,
+			async () => {},
+		);
+
+		try {
+			let connectCalls = 0;
+			const connectFn = ((...args: Parameters<typeof connect>) => {
+				connectCalls++;
+				return connect(...args);
+			}) as typeof connect;
+
+			const pool = createPool({
+				socketPath: config.socketPath,
+				maxSessions: 5,
+				connectFn,
+			} as never);
+
+			const session = await pool.acquire();
+			await session.exec("url");
+			await session.exec("title");
+
+			expect(connectCalls).toBe(1);
 
 			await pool.destroy();
 		} finally {

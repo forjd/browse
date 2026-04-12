@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
-import { connect } from "node:net";
 import { join } from "node:path";
 import type { ServerDeps } from "../src/daemon.ts";
 import { startServer } from "../src/daemon.ts";
 import type { LifecycleConfig } from "../src/lifecycle.ts";
 import type { Response } from "../src/protocol.ts";
+import { sendSocketRequest } from "./support/socket-command.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-session");
 let testIndex = 0;
@@ -64,51 +64,9 @@ function sendCommand(
 	session?: string,
 	timeoutMs = 5_000,
 ): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		let settled = false;
-		const settle = (fn: () => void) => {
-			if (!settled) {
-				settled = true;
-				fn();
-			}
-		};
-
-		const payload: Record<string, unknown> = { cmd, args };
-		if (session) payload.session = session;
-		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify(payload)}\n`);
-		});
-
-		const timer = setTimeout(() => {
-			settle(() => {
-				client.destroy();
-				reject(
-					new Error(
-						`sendCommand timed out after ${timeoutMs}ms: ${cmd} ${args.join(" ")}`,
-					),
-				);
-			});
-		}, timeoutMs);
-
-		let data = "";
-		client.on("data", (chunk) => {
-			data += chunk.toString();
-		});
-		client.on("end", () => {
-			clearTimeout(timer);
-			settle(() => {
-				try {
-					resolve(JSON.parse(data.trim()));
-				} catch {
-					reject(new Error(`Failed to parse response: ${data}`));
-				}
-			});
-		});
-		client.on("error", (err) => {
-			clearTimeout(timer);
-			settle(() => reject(err));
-		});
-	});
+	const payload: Record<string, unknown> = { cmd, args };
+	if (session) payload.session = session;
+	return sendSocketRequest<Response>(socketPath, payload, timeoutMs);
 }
 
 beforeEach(() => {
@@ -198,6 +156,90 @@ describe("session management", () => {
 				expect(list.data).toContain("default");
 				expect(list.data).toContain("worker-1");
 			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("isolated session creation stays lazy until first routed command", async () => {
+		const config = testPaths();
+		const lazyPage = mockPage({
+			url: mock(() => "https://lazy.example.com"),
+			title: mock(() => Promise.resolve("Lazy Page")),
+		});
+		const isolatedContext = mockContext({
+			newPage: mock(() => Promise.resolve(lazyPage)),
+		});
+		const browser = {
+			newContext: mock(() => Promise.resolve(isolatedContext)),
+		};
+		const ctx = mockContext({
+			browser: mock(() => browser),
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, { context: ctx }),
+			config,
+			async () => {},
+		);
+
+		try {
+			const created = await sendCommand(config.socketPath, "session", [
+				"create",
+				"lazy-worker",
+				"--isolated",
+			]);
+			expect(created.ok).toBe(true);
+			expect(browser.newContext).not.toHaveBeenCalled();
+
+			const list = await sendCommand(config.socketPath, "session", ["list"]);
+			expect(list.ok).toBe(true);
+			if (list.ok) {
+				expect(list.data).toContain("lazy-worker");
+			}
+			expect(browser.newContext).not.toHaveBeenCalled();
+
+			const url = await sendCommand(
+				config.socketPath,
+				"url",
+				[],
+				"lazy-worker",
+			);
+			expect(url).toEqual({ ok: true, data: "https://lazy.example.com" });
+			expect(browser.newContext).toHaveBeenCalledTimes(1);
+			expect(isolatedContext.newPage).toHaveBeenCalledTimes(1);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("closing a never-used isolated session does not allocate its context", async () => {
+		const config = testPaths();
+		const browser = {
+			newContext: mock(() => Promise.resolve(mockContext())),
+		};
+		const ctx = mockContext({
+			browser: mock(() => browser),
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, { context: ctx }),
+			config,
+			async () => {},
+		);
+
+		try {
+			await sendCommand(config.socketPath, "session", [
+				"create",
+				"lazy-close",
+				"--isolated",
+			]);
+			const closed = await sendCommand(config.socketPath, "session", [
+				"close",
+				"lazy-close",
+			]);
+			expect(closed.ok).toBe(true);
+			expect(browser.newContext).not.toHaveBeenCalled();
 		} finally {
 			await shutdown();
 		}
@@ -387,7 +429,7 @@ describe("session management", () => {
 		}
 	});
 
-	test("session create --isolated creates isolated session", async () => {
+	test("session create --isolated marks the session isolated without immediate context allocation", async () => {
 		const config = testPaths();
 		const isolatedPage = mockPage({
 			url: mock(() => "about:blank"),
@@ -430,8 +472,7 @@ describe("session management", () => {
 				expect(r.data).toContain("isolated");
 			}
 
-			// Verify browser.newContext was called
-			expect(browser.newContext).toHaveBeenCalled();
+			expect(browser.newContext).not.toHaveBeenCalled();
 
 			// List should show isolated marker
 			const list = await sendCommand(config.socketPath, "session", ["list"]);
@@ -482,6 +523,7 @@ describe("session management", () => {
 				"iso-close",
 				"--isolated",
 			]);
+			await sendCommand(config.socketPath, "url", [], "iso-close");
 			const r = await sendCommand(config.socketPath, "session", [
 				"close",
 				"iso-close",

@@ -15,6 +15,7 @@
  */
 
 import { connect } from "node:net";
+import { readToken } from "./auth.ts";
 import type { Response } from "./protocol.ts";
 
 export type PoolOptions = {
@@ -28,6 +29,10 @@ export type PoolOptions = {
 	warmCount?: number;
 	/** Create sessions with isolated browser contexts (default: false) */
 	isolated?: boolean;
+	/** Override socket creation for tests or custom transports. */
+	connectFn?: typeof connect;
+	/** Override auth token lookup for each request. */
+	tokenProvider?: () => string | null;
 };
 
 export type SessionHandle = {
@@ -59,55 +64,163 @@ export type BrowsePool = {
 	destroy: () => Promise<void>;
 };
 
-function sendRequest(
+type TransportConnection = {
+	request: (
+		cmd: string,
+		args: string[],
+		session?: string,
+		timeoutMs?: number,
+	) => Promise<Response>;
+	destroy: () => void;
+};
+
+function createTransportConnection(
 	socketPath: string,
-	cmd: string,
-	args: string[],
-	session?: string,
-	timeoutMs = 30_000,
-): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		let settled = false;
-		const settle = (fn: () => void) => {
-			if (!settled) {
-				settled = true;
-				fn();
+	connectFn: typeof connect,
+	tokenProvider: () => string | null,
+): TransportConnection {
+	let socket: ReturnType<typeof connect> | null = null;
+	let connecting: Promise<ReturnType<typeof connect>> | null = null;
+	let buffer = "";
+	let pending: {
+		resolve: (response: Response) => void;
+		reject: (error: Error) => void;
+		timer: ReturnType<typeof setTimeout>;
+	} | null = null;
+	let queue = Promise.resolve();
+
+	function clearPending(error: Error) {
+		if (!pending) return;
+		clearTimeout(pending.timer);
+		const current = pending;
+		pending = null;
+		current.reject(error);
+	}
+
+	function resetSocket() {
+		if (socket && !socket.destroyed) {
+			socket.destroy();
+		}
+		socket = null;
+		buffer = "";
+	}
+
+	function attachSocket(nextSocket: ReturnType<typeof connect>) {
+		nextSocket.on("data", (chunk) => {
+			buffer += chunk.toString();
+			if (!pending) return;
+
+			const newlineIndex = buffer.indexOf("\n");
+			if (newlineIndex === -1) return;
+
+			const line = buffer.slice(0, newlineIndex).trim();
+			buffer = buffer.slice(newlineIndex + 1);
+
+			const current = pending;
+			pending = null;
+			clearTimeout(current.timer);
+
+			try {
+				current.resolve(JSON.parse(line));
+			} catch {
+				current.reject(new Error("Failed to parse daemon response"));
 			}
-		};
-
-		const payload: Record<string, unknown> = { cmd, args };
-		if (session) payload.session = session;
-
-		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify(payload)}\n`);
 		});
 
-		const timer = setTimeout(() => {
-			settle(() => {
-				client.destroy();
-				reject(new Error(`Daemon request timed out after ${timeoutMs}ms`));
+		nextSocket.on("error", (err) => {
+			clearPending(err instanceof Error ? err : new Error(String(err)));
+			resetSocket();
+		});
+
+		nextSocket.on("close", () => {
+			clearPending(new Error("Daemon connection lost."));
+			resetSocket();
+		});
+	}
+
+	async function ensureSocket(): Promise<ReturnType<typeof connect>> {
+		if (socket && !socket.destroyed) {
+			return socket;
+		}
+		if (connecting) {
+			return await connecting;
+		}
+
+		connecting = new Promise((resolve, reject) => {
+			const nextSocket = connectFn(socketPath);
+			const onConnect = () => {
+				nextSocket.off("error", onConnectError);
+				socket = nextSocket;
+				attachSocket(nextSocket);
+				resolve(nextSocket);
+			};
+			const onConnectError = (err: Error) => {
+				nextSocket.off("connect", onConnect);
+				reject(err);
+			};
+			nextSocket.once("connect", onConnect);
+			nextSocket.once("error", onConnectError);
+		}).finally(() => {
+			connecting = null;
+		});
+
+		return await connecting;
+	}
+
+	return {
+		request(cmd, args, session, timeoutMs = 30_000) {
+			return new Promise((resolve, reject) => {
+				queue = queue
+					.then(async () => {
+						const currentSocket = await ensureSocket();
+						const payload: Record<string, unknown> = { cmd, args };
+						if (session) payload.session = session;
+						const token = tokenProvider();
+						if (token) payload.token = token;
+
+						await new Promise<void>((innerResolve, innerReject) => {
+							const timer = setTimeout(() => {
+								if (pending?.timer === timer) {
+									pending = null;
+								}
+								resetSocket();
+								innerReject(
+									new Error(`Daemon request timed out after ${timeoutMs}ms`),
+								);
+							}, timeoutMs);
+
+							pending = {
+								resolve: (response) => {
+									innerResolve();
+									resolve(response);
+								},
+								reject: (error) => {
+									innerReject(error);
+									reject(error);
+								},
+								timer,
+							};
+
+							currentSocket.write(`${JSON.stringify(payload)}\n`, (err) => {
+								if (err) {
+									clearTimeout(timer);
+									pending = null;
+									innerReject(err);
+									reject(err);
+								}
+							});
+						});
+					})
+					.catch((error) => {
+						reject(error instanceof Error ? error : new Error(String(error)));
+					});
 			});
-		}, timeoutMs);
-
-		let data = "";
-		client.on("data", (chunk) => {
-			data += chunk.toString();
-		});
-		client.on("end", () => {
-			clearTimeout(timer);
-			settle(() => {
-				try {
-					resolve(JSON.parse(data.trim()));
-				} catch {
-					reject(new Error("Failed to parse daemon response"));
-				}
-			});
-		});
-		client.on("error", (err) => {
-			clearTimeout(timer);
-			settle(() => reject(err));
-		});
-	});
+		},
+		destroy() {
+			clearPending(new Error("Pool transport closed."));
+			resetSocket();
+		},
+	};
 }
 
 export function createPool(options: PoolOptions): BrowsePool {
@@ -117,7 +230,14 @@ export function createPool(options: PoolOptions): BrowsePool {
 		idleTimeoutMs = 60_000,
 		warmCount = 0,
 		isolated = false,
+		connectFn = connect,
+		tokenProvider = readToken,
 	} = options;
+	const transport = createTransportConnection(
+		socketPath,
+		connectFn,
+		tokenProvider,
+	);
 
 	let sessionCounter = 0;
 	let pendingCreates = 0;
@@ -132,7 +252,7 @@ export function createPool(options: PoolOptions): BrowsePool {
 		if (isolated) {
 			createArgs.push("--isolated");
 		}
-		const response = await sendRequest(socketPath, "session", createArgs);
+		const response = await transport.request("session", createArgs);
 		if (!response.ok) {
 			throw new Error(`Failed to create session: ${response.error}`);
 		}
@@ -146,7 +266,7 @@ export function createPool(options: PoolOptions): BrowsePool {
 			idleTimers.delete(id);
 		}
 		try {
-			await sendRequest(socketPath, "session", ["close", id]);
+			await transport.request("session", ["close", id]);
 		} catch {
 			// Best effort cleanup
 		}
@@ -207,7 +327,7 @@ export function createPool(options: PoolOptions): BrowsePool {
 		const handle: SessionHandle = {
 			id,
 			exec: (cmd: string, ...args: string[]) =>
-				sendRequest(socketPath, cmd, args, id),
+				transport.request(cmd, args, id),
 			release: () => release(handle),
 		};
 
@@ -264,6 +384,7 @@ export function createPool(options: PoolOptions): BrowsePool {
 
 		activeSessions.clear();
 		idleSessions.length = 0;
+		transport.destroy();
 	}
 
 	// Warm up if requested (non-blocking — acquire() may be called before warming completes)

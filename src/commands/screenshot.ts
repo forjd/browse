@@ -2,13 +2,17 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Page } from "playwright";
+import {
+	applyArtifactRetention,
+	SCREENSHOT_ARTIFACT_KIND,
+} from "../artifacts.ts";
 import type { Response } from "../protocol.ts";
 import { compareScreenshots } from "../visual-diff.ts";
 
 const MAX_HEIGHT = 16_384;
 
-function generateDefaultPath(): string {
-	const dir = join(homedir(), ".bun-browse", "screenshots");
+function generateDefaultPath(defaultDir?: string): string {
+	const dir = defaultDir ?? join(homedir(), ".bun-browse", "screenshots");
 	mkdirSync(dir, { recursive: true });
 
 	const now = new Date();
@@ -100,6 +104,10 @@ function parseArgs(args: string[]): {
 export async function handleScreenshot(
 	page: Page,
 	args: string[],
+	options?: {
+		defaultDir?: string;
+		retention?: string;
+	},
 ): Promise<Response> {
 	const parsed = parseArgs(args);
 
@@ -107,7 +115,7 @@ export async function handleScreenshot(
 		return { ok: false, error: parsed.error };
 	}
 
-	const outPath = parsed.path ?? generateDefaultPath();
+	const outPath = parsed.path ?? generateDefaultPath(options?.defaultDir);
 
 	try {
 		// Ensure parent directory exists
@@ -140,6 +148,12 @@ export async function handleScreenshot(
 				await page.screenshot({ path: outPath, fullPage: true });
 			}
 		}
+
+		applyArtifactRetention(
+			dirname(outPath),
+			SCREENSHOT_ARTIFACT_KIND,
+			options?.retention,
+		);
 
 		// Visual diff comparison
 		if (parsed.diff) {

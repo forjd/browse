@@ -1,5 +1,11 @@
 import { describe, expect, mock, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	rmSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -70,6 +76,38 @@ describe("trace list", () => {
 			// Either "No traces found" or lists traces from user's machine
 			expect(typeof result.data).toBe("string");
 		}
+	});
+});
+
+describe("trace clean", () => {
+	test("supports dry-run cleanup for old traces", async () => {
+		const tracesDir = join(tmpdir(), `browse-traces-clean-${Date.now()}`);
+		mkdirSync(tracesDir, { recursive: true });
+		const oldPath = join(tracesDir, "old-trace.zip");
+		const newPath = join(tracesDir, "new-trace.zip");
+		writeFileSync(oldPath, "old-trace");
+		writeFileSync(newPath, "new-trace");
+		const oldTime = new Date(Date.now() - 2 * 60 * 60 * 1000);
+		utimesSync(oldPath, oldTime, oldTime);
+
+		const result = await handleTrace(
+			mockContext(),
+			createTraceState(),
+			["clean", "--older-than", "1h", "--dry-run"],
+			{
+				tracesDir,
+			},
+		);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Would delete 1 trace");
+			expect(result.data).toContain("old-trace.zip");
+		}
+		expect(existsSync(oldPath)).toBe(true);
+		expect(existsSync(newPath)).toBe(true);
+
+		rmSync(tracesDir, { recursive: true, force: true });
 	});
 });
 
@@ -192,6 +230,36 @@ describe("trace stop output", () => {
 		}
 
 		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	test("stop applies retention cleanup after saving", async () => {
+		const tracesDir = join(tmpdir(), `browse-trace-retention-${Date.now()}`);
+		mkdirSync(tracesDir, { recursive: true });
+		const oldPath = join(tracesDir, "old.zip");
+		writeFileSync(oldPath, "old-trace");
+		const oldTime = new Date(Date.now() - 2 * 60 * 60 * 1000);
+		utimesSync(oldPath, oldTime, oldTime);
+
+		const outPath = join(tracesDir, "new.zip");
+		const state = createTraceState();
+		state.recording = true;
+		state.startedAt = Date.now() - 5000;
+
+		const result = await handleTrace(
+			mockContext(),
+			state,
+			["stop", "--out", outPath],
+			{
+				tracesDir,
+				retention: "1h",
+			},
+		);
+
+		expect(result.ok).toBe(true);
+		expect(existsSync(outPath)).toBe(true);
+		expect(existsSync(oldPath)).toBe(false);
+
+		rmSync(tracesDir, { recursive: true, force: true });
 	});
 });
 

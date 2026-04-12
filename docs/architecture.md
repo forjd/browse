@@ -27,7 +27,7 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 ## Cold Start / Warm Start
 
 - **First call:** The CLI spawns the daemon process (`Bun.spawn([process.execPath, "--daemon"])`), then waits for the socket to become available (up to 10s, polling at 100ms). Cold start takes approximately 3s.
-- **Subsequent calls:** The CLI connects directly to the existing socket. Warm calls complete in under 30ms.
+- **Subsequent calls:** The CLI connects directly to the existing socket. Warm calls complete in under 30ms for simple commands, and long-lived library clients can keep the socket open for multiple requests.
 - **Client-side commands** (version, help) do not start the daemon.
 
 ## Socket Authentication
@@ -50,7 +50,7 @@ This prevents orphaned files and zombie browser processes in CI environments and
 
 ## Request/Response Protocol
 
-The CLI sends a JSON object followed by a newline over the Unix socket:
+The CLI sends newline-delimited JSON objects over the Unix or TCP socket:
 
 ```json
 {"cmd": "goto", "args": ["https://example.com"], "timeout": 30000, "session": "default", "json": false, "token": "<hex>"}
@@ -68,13 +68,26 @@ or on failure:
 {"ok": false, "error": "Error message"}
 ```
 
-Each connection handles exactly one request: connect, send, receive, close.
+The daemon accepts multiple sequential requests on the same socket. The normal CLI still opens one connection per invocation, but pooled clients can reuse a single authenticated connection.
+
+Batch requests use a top-level `batch` array:
+
+```json
+{"batch": [{"cmd": "goto", "args": ["https://example.com"]}, {"cmd": "snapshot", "args": []}], "continueOnError": false}
+```
+
+and return a per-entry result list:
+
+```json
+{"ok": true, "batch": [{"cmd": "goto", "ok": true, "data": "Example Domain"}, {"cmd": "snapshot", "ok": true, "data": "..." }]}
+```
 
 ## Command Dispatch
 
 - The request is parsed by `parseRequest()` in `protocol.ts`
 - Unknown flags are rejected before dispatch via `checkUnknownFlags()`
 - Commands are routed through a switch statement in `daemon.ts`
+- Batch requests are executed sequentially through the same dispatch path, stopping on the first failure unless `continueOnError` is set
 - Timeout-exempt commands: `quit`, `benchmark`, `session`, `ping`, `status`, `trace`, `init`, `screenshots`, `report`, `completions`
 - All other commands are wrapped in `withTimeout()` using the config timeout or `--timeout` override
 
@@ -82,15 +95,17 @@ Each connection handles exactly one request: connect, send, receive, close.
 
 - A default session always exists (named "default")
 - Sessions share a browser context by default (same cookies, storage)
-- The `--isolated` flag creates a new browser context with separate state
+- The `--isolated` flag creates a new browser context with separate state, but materialises that context lazily on the first routed command
 - Each session maintains its own: tab registry, dialog state, intercept state, console/network buffers
 - Session routing: `--session <name>` on any CLI command resolves to that session's context
 
 ## Tab Registry
 
 - Each session maintains a `TabRegistry` containing an array of `TabState` objects
-- Each `TabState` holds: page, consoleBuffer (RingBuffer, capacity 500), networkBuffer (RingBuffer, capacity 500), selectedFrameIndex
+- Each `TabState` holds: page, consoleBuffer (RingBuffer, capacity 500), networkBuffer (RingBuffer, capacity 500), selectedFrameIndex, snapshotCache
 - An active tab index tracks which tab is current
+- Console and network ring buffers allocate storage lazily so idle tabs do not pay the full backing-array cost up front
+- Internal commands such as `benchmark` and `diff` reuse hidden scratch pages per browser context instead of creating throwaway tabs for every run
 
 ## Ref System Integration
 
@@ -154,6 +169,12 @@ Measured with `browse benchmark`:
 | screenshot | 24ms | 25ms |
 | click      | 17ms | 18ms |
 | fill       | 1ms  | 26ms |
+
+Additional Phase 9 optimisations:
+
+- Snapshot results are cached per tab until a navigation or mutating command invalidates them
+- Artifact retention can be configured in `browse.config.json` via `artifacts.retention`
+- Advisory benchmark runners live in `benchmarks/` and publish JSON artifacts in CI
 
 ## Key Design Decisions
 

@@ -1,5 +1,11 @@
 import { describe, expect, mock, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	rmSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -331,6 +337,46 @@ describe("video stop", () => {
 		// (the function catches the error after page restore)
 		expect(tabState.page).toBe(currentPage);
 	});
+
+	test("stop applies retention cleanup after saving", async () => {
+		const { context, tabState, currentPage, recordingPage, recordingContext } =
+			mockSetup();
+		const videosDir = join(tmpdir(), `browse-videos-retention-${Date.now()}`);
+		mkdirSync(videosDir, { recursive: true });
+		const oldPath = join(videosDir, "old-video.webm");
+		writeFileSync(oldPath, "old-video");
+		const oldTime = new Date(Date.now() - 2 * 60 * 60 * 1000);
+		utimesSync(oldPath, oldTime, oldTime);
+
+		tabState.page = recordingPage as never;
+
+		const state: VideoState = {
+			recording: true,
+			startedAt: Date.now() - 5000,
+			recordingContext: recordingContext as never,
+			originalPage: currentPage as never,
+			videoDir: join(tmpdir(), `browse-video-test-${Date.now()}`),
+		};
+		if (state.videoDir) mkdirSync(state.videoDir, { recursive: true });
+
+		const outPath = join(videosDir, "new-video.webm");
+		const result = await handleVideo(
+			context,
+			state,
+			tabState,
+			["stop", "--out", outPath],
+			{
+				videosDir,
+				retention: "1h",
+			},
+		);
+
+		expect(result.ok).toBe(true);
+		expect(existsSync(outPath)).toBe(true);
+		expect(existsSync(oldPath)).toBe(false);
+
+		rmSync(videosDir, { recursive: true, force: true });
+	});
 });
 
 describe("video status", () => {
@@ -372,6 +418,40 @@ describe("video list", () => {
 			// Either "No videos found" or lists videos from user's machine
 			expect(typeof result.data).toBe("string");
 		}
+	});
+});
+
+describe("video clean", () => {
+	test("supports dry-run cleanup for old videos", async () => {
+		const videosDir = join(tmpdir(), `browse-videos-clean-${Date.now()}`);
+		mkdirSync(videosDir, { recursive: true });
+		const oldPath = join(videosDir, "old-video.webm");
+		const newPath = join(videosDir, "new-video.webm");
+		writeFileSync(oldPath, "old-video");
+		writeFileSync(newPath, "new-video");
+		const oldTime = new Date(Date.now() - 2 * 60 * 60 * 1000);
+		utimesSync(oldPath, oldTime, oldTime);
+
+		const { context, tabState } = mockSetup();
+		const result = await handleVideo(
+			context,
+			createVideoState(),
+			tabState,
+			["clean", "--older-than", "1h", "--dry-run"],
+			{
+				videosDir,
+			},
+		);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("Would delete 1 video");
+			expect(result.data).toContain("old-video.webm");
+		}
+		expect(existsSync(oldPath)).toBe(true);
+		expect(existsSync(newPath)).toBe(true);
+
+		rmSync(videosDir, { recursive: true, force: true });
 	});
 });
 

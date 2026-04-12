@@ -1,11 +1,12 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BrowserContext } from "playwright";
+import type { BrowserContext, Page } from "playwright";
 import type { Response } from "../protocol.ts";
 import { assignRefs, parseAriaSnapshot } from "../refs.ts";
 
 export type BenchmarkDeps = {
 	context: BrowserContext;
+	scratchPage?: Page;
 };
 
 const TEST_PAGE = `data:text/html,<html><body>
@@ -75,6 +76,7 @@ async function measureOp(
 export async function handleBenchmark(
 	deps: BenchmarkDeps,
 	args: string[],
+	options?: { json?: boolean },
 ): Promise<Response> {
 	const { context } = deps;
 	const iterations = parseIterations(args);
@@ -82,7 +84,7 @@ export async function handleBenchmark(
 
 	// Create a temporary page so benchmark navigation doesn't pollute
 	// the main page's history stack (see issue #52).
-	const page = await context.newPage();
+	const page = deps.scratchPage ?? (await context.newPage());
 
 	try {
 		// Navigate to test page
@@ -131,11 +133,30 @@ export async function handleBenchmark(
 		}, iterations);
 		results.push({ name: "fill", ...computePercentiles(fillDurations) });
 
+		if (options?.json) {
+			return {
+				ok: true,
+				data: JSON.stringify(
+					{
+						iterations,
+						results,
+						target: "p95 < 200ms for non-screenshot commands.",
+					},
+					null,
+					2,
+				),
+			};
+		}
+
 		return { ok: true, data: formatBenchmarkResults(results, iterations) };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: `Benchmark failed: ${message}` };
 	} finally {
-		await page.close().catch(() => {});
+		if (deps.scratchPage) {
+			await page.goto("about:blank").catch(() => {});
+		} else {
+			await page.close().catch(() => {});
+		}
 	}
 }

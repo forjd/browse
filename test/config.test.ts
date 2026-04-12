@@ -163,4 +163,45 @@ describe("validateConfig", () => {
 		});
 		expect(result).toBeNull();
 	});
+
+	test("accepts artifact retention configuration", () => {
+		const result = validateConfig({
+			environments: {
+				test: {
+					loginUrl: "https://example.com/login",
+					userEnvVar: "U",
+					passEnvVar: "P",
+					successCondition: { urlContains: "/" },
+				},
+			},
+			artifacts: {
+				retention: {
+					default: "7d",
+					screenshots: "2d",
+					traces: "14d",
+					videos: "30d",
+				},
+			},
+		});
+		expect(result).toBeNull();
+	});
+
+	test("rejects invalid artifact retention values", () => {
+		const result = validateConfig({
+			environments: {
+				test: {
+					loginUrl: "https://example.com/login",
+					userEnvVar: "U",
+					passEnvVar: "P",
+					successCondition: { urlContains: "/" },
+				},
+			},
+			artifacts: {
+				retention: {
+					traces: "later",
+				},
+			},
+		});
+		expect(result).toContain("artifacts.retention.traces");
+	});
 });

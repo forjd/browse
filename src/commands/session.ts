@@ -12,7 +12,7 @@ export type Session = {
 	name: string;
 	tabRegistry: TabRegistry;
 	/** The browser context for this session */
-	context: BrowserContext;
+	context?: BrowserContext;
 	/** Whether this session uses an isolated browser context */
 	isolated: boolean;
 	/** Per-session dialog handling state */
@@ -23,6 +23,10 @@ export type Session = {
 	attachListeners: (page: Page, tabState: TabState) => void;
 	/** Per-plugin state, keyed by plugin name. */
 	pluginState: Map<string, Record<string, unknown>>;
+	/** Expected tab count before lazy isolated sessions are materialised. */
+	tabCountHint?: number;
+	/** Lazily create the isolated context and initial tab on first real use. */
+	initialize?: () => Promise<{ context: BrowserContext; tabState: TabState }>;
 };
 
 export type SessionRegistry = {
@@ -76,7 +80,7 @@ function handleList(registry: SessionRegistry): Response {
 	}
 	const lines: string[] = [];
 	for (const [name, session] of registry.sessions) {
-		const tabCount = session.tabRegistry.tabs.length;
+		const tabCount = session.tabCountHint ?? session.tabRegistry.tabs.length;
 		const marker = session.isolated ? " [isolated]" : "";
 		lines.push(
 			`  ${name}${marker} (${tabCount} tab${tabCount !== 1 ? "s" : ""})`,
@@ -107,33 +111,47 @@ async function handleCreate(
 	}
 
 	const isolated = args.includes("--isolated");
-	const sessionContext = isolated
-		? await callbacks.createIsolatedContext()
-		: callbacks.defaultContext;
-
-	const tabState = await callbacks.createSessionTab(sessionContext);
-	callbacks.attachListeners(tabState.page, tabState);
-
 	const dialogState = createDialogState();
-	attachDialogListener(tabState.page, dialogState);
-
 	const interceptState = createInterceptState();
-
-	const tabRegistry: TabRegistry = {
-		tabs: [tabState],
-		activeTabIndex: 0,
-	};
-
-	registry.sessions.set(name, {
-		name,
-		context: sessionContext,
-		isolated,
-		dialogState,
-		interceptState,
-		tabRegistry,
-		attachListeners: callbacks.attachListeners,
-		pluginState: new Map(),
-	});
+	if (isolated) {
+		registry.sessions.set(name, {
+			name,
+			context: undefined,
+			isolated: true,
+			dialogState,
+			interceptState,
+			tabRegistry: {
+				tabs: [],
+				activeTabIndex: 0,
+			},
+			attachListeners: callbacks.attachListeners,
+			pluginState: new Map(),
+			tabCountHint: 1,
+			initialize: async () => {
+				const context = await callbacks.createIsolatedContext();
+				const tabState = await callbacks.createSessionTab(context);
+				attachDialogListener(tabState.page, dialogState);
+				return { context, tabState };
+			},
+		});
+	} else {
+		const sessionContext = callbacks.defaultContext;
+		const tabState = await callbacks.createSessionTab(sessionContext);
+		attachDialogListener(tabState.page, dialogState);
+		registry.sessions.set(name, {
+			name,
+			context: sessionContext,
+			isolated: false,
+			dialogState,
+			interceptState,
+			tabRegistry: {
+				tabs: [tabState],
+				activeTabIndex: 0,
+			},
+			attachListeners: callbacks.attachListeners,
+			pluginState: new Map(),
+		});
+	}
 
 	return {
 		ok: true,

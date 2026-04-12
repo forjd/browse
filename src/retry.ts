@@ -14,6 +14,8 @@ export type RetryDeps = {
 	sleep?: (ms: number) => Promise<void>;
 };
 
+export type RetryActionDeps = Omit<RetryDeps, "sendRequest">;
+
 /**
  * Check whether an error indicates a connection-level failure
  * that warrants a daemon restart and retry.
@@ -57,11 +59,10 @@ export function resetCircuitBreaker(): void {
  * Circuit breaker: after CIRCUIT_BREAKER_THRESHOLD consecutive failures,
  * immediately fail without retrying.
  */
-export async function sendWithRetry(
-	deps: RetryDeps,
-	cmd: string,
-	args: string[],
-): Promise<Response> {
+export async function runWithRetry<T>(
+	deps: RetryActionDeps,
+	operation: () => Promise<T>,
+): Promise<T> {
 	// Circuit breaker check
 	if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
 		throw new Error(
@@ -74,7 +75,7 @@ export async function sendWithRetry(
 		((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
 
 	try {
-		const response = await deps.sendRequest(cmd, args);
+		const response = await operation();
 		resetCircuitBreaker();
 		return response;
 	} catch (err) {
@@ -100,7 +101,7 @@ export async function sendWithRetry(
 			}
 
 			try {
-				const response = await deps.sendRequest(cmd, args);
+				const response = await operation();
 				resetCircuitBreaker();
 				return response;
 			} catch (retryErr) {
@@ -126,4 +127,12 @@ export async function sendWithRetry(
 		// Should not reach here, but just in case
 		throw new Error("Daemon recovery failed unexpectedly.");
 	}
+}
+
+export async function sendWithRetry(
+	deps: RetryDeps,
+	cmd: string,
+	args: string[],
+): Promise<Response> {
+	return runWithRetry(deps, () => deps.sendRequest(cmd, args));
 }

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { parseRetentionDuration } from "./artifacts.ts";
 
 export type SuccessCondition =
 	| { urlContains: string }
@@ -126,6 +127,17 @@ export type PlaywrightPassthrough = {
 	contextOptions?: Record<string, unknown>;
 };
 
+export type ArtifactRetentionConfig = {
+	default?: string;
+	screenshots?: string;
+	traces?: string;
+	videos?: string;
+};
+
+export type ArtifactsConfig = {
+	retention?: ArtifactRetentionConfig;
+};
+
 export type BrowseConfig = {
 	environments: Record<string, EnvironmentConfig>;
 	flows?: Record<string, FlowConfig>;
@@ -135,6 +147,7 @@ export type BrowseConfig = {
 	browser?: BrowserName;
 	proxy?: ProxyConfig;
 	playwright?: PlaywrightPassthrough;
+	artifacts?: ArtifactsConfig;
 	/** Plugin paths — relative to config file, absolute, or npm package names. */
 	plugins?: string[];
 };
@@ -556,6 +569,37 @@ export function validateConfig(data: unknown): string | null {
 					`flow '${name}' step ${i + 1}`,
 				);
 				if (err) return err;
+			}
+		}
+	}
+
+	if (obj.artifacts !== undefined) {
+		if (typeof obj.artifacts !== "object" || obj.artifacts === null) {
+			return "Invalid browse.config.json: 'artifacts' must be an object.";
+		}
+		const artifacts = obj.artifacts as Record<string, unknown>;
+		if (artifacts.retention !== undefined) {
+			if (
+				typeof artifacts.retention !== "object" ||
+				artifacts.retention === null ||
+				Array.isArray(artifacts.retention)
+			) {
+				return "Invalid browse.config.json: 'artifacts.retention' must be an object.";
+			}
+			const retention = artifacts.retention as Record<string, unknown>;
+			for (const key of [
+				"default",
+				"screenshots",
+				"traces",
+				"videos",
+			] as const) {
+				if (retention[key] === undefined) continue;
+				if (
+					typeof retention[key] !== "string" ||
+					parseRetentionDuration(retention[key] as string) === null
+				) {
+					return `Invalid browse.config.json: 'artifacts.retention.${key}' must use a duration like 7d, 24h, or 30m.`;
+				}
 			}
 		}
 	}

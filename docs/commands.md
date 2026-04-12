@@ -1124,7 +1124,7 @@ livenessProbe:
 ### benchmark
 
 ```
-browse benchmark [--iterations N]
+browse benchmark [--iterations N] [--json]
 ```
 
 Measure command latency. Defaults to 10 iterations.
@@ -1132,12 +1132,35 @@ Measure command latency. Defaults to 10 iterations.
 | Flag | Description |
 |------|-------------|
 | `--iterations N` | Number of iterations to run |
+| `--json` | Emit structured benchmark output for automation |
 
 **Examples:**
 
 ```bash
 browse benchmark
 browse benchmark --iterations 50
+browse benchmark --iterations 25 --json
+```
+
+### batch
+
+```
+browse batch <commands.json> [--continue-on-error] [--json]
+```
+
+Run multiple commands in a single daemon round-trip. The input file may be either a JSON array of command objects or an object with a top-level `batch` array.
+
+| Flag | Description |
+|------|-------------|
+| `--continue-on-error` | Continue running later entries after a failure |
+| `--json` | Print the raw batch response as JSON |
+
+**Examples:**
+
+```bash
+browse batch ./commands.json
+browse batch ./commands.json --continue-on-error
+browse batch ./commands.json --json
 ```
 
 ### version
@@ -1188,6 +1211,8 @@ browse trace stop [--out <path>]
 
 Stop recording and save the trace to a file.
 
+If `artifacts.retention.traces` is configured, Browse also removes older trace files after saving.
+
 | Flag | Description |
 |------|-------------|
 | `--out <path>` | Output path for the trace file (default: `~/.bun-browse/traces/`) |
@@ -1234,6 +1259,26 @@ List all saved trace files in `~/.bun-browse/traces/`, sorted newest-first. Show
 browse trace list
 ```
 
+### trace clean
+
+```
+browse trace clean [--older-than <duration>] [--dry-run]
+```
+
+Delete saved trace files manually.
+
+| Flag | Description |
+|------|-------------|
+| `--older-than <duration>` | Duration threshold (for example `7d`, `24h`, `30m`) |
+| `--dry-run` | Preview what would be deleted without removing files |
+
+**Examples:**
+
+```bash
+browse trace clean --older-than 7d
+browse trace clean --older-than 24h --dry-run
+```
+
 ### trace status
 
 ```
@@ -1274,6 +1319,8 @@ browse video stop [--out <path>]
 
 Stop recording and save the video file. Restores the original page as the active tab.
 
+If `artifacts.retention.videos` is configured, Browse also removes older video files after saving.
+
 | Flag | Description |
 |------|-------------|
 | `--out <path>` | Output path for the video file (default: `~/.bun-browse/videos/`) |
@@ -1300,6 +1347,26 @@ browse video list
 ```
 
 List all saved video files in `~/.bun-browse/videos/`, sorted newest-first. Shows filename, size, and date.
+
+### video clean
+
+```sh
+browse video clean [--older-than <duration>] [--dry-run]
+```
+
+Delete saved video files manually.
+
+| Flag | Description |
+|------|-------------|
+| `--older-than <duration>` | Duration threshold (for example `7d`, `24h`, `30m`) |
+| `--dry-run` | Preview what would be deleted without removing files |
+
+**Examples:**
+
+```bash
+browse video clean --older-than 14d
+browse video clean --older-than 24h --dry-run
+```
 
 ---
 
@@ -1356,6 +1423,21 @@ Delete screenshots older than the specified duration.
 browse screenshots clean --older-than 7d
 browse screenshots clean --older-than 24h
 browse screenshots clean --older-than 7d --dry-run
+```
+
+Automatic cleanup can be enabled in `browse.config.json`:
+
+```json
+{
+  "artifacts": {
+    "retention": {
+      "default": "7d",
+      "screenshots": "7d",
+      "traces": "14d",
+      "videos": "30d"
+    }
+  }
+}
 ```
 
 ### screenshots count

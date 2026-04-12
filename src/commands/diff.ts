@@ -13,6 +13,7 @@ import type { NetworkEntry } from "./network.ts";
 export type DiffDeps = {
 	consoleBuffer: RingBuffer<ConsoleEntry>;
 	networkBuffer: RingBuffer<NetworkEntry>;
+	scratchPage?: Page;
 };
 
 type PageDiffResult = {
@@ -117,7 +118,7 @@ export async function handleDiff(
 	const results: PageDiffResult[] = [];
 
 	// Use a temporary page to avoid mutating the caller's active tab
-	const diffPage = await context.newPage();
+	const diffPage = deps.scratchPage ?? (await context.newPage());
 
 	try {
 		for (let i = 0; i < flowPages.length; i++) {
@@ -228,7 +229,11 @@ export async function handleDiff(
 			}
 		}
 	} finally {
-		await diffPage.close().catch(() => {});
+		if (deps.scratchPage) {
+			await diffPage.goto("about:blank").catch(() => {});
+		} else {
+			await diffPage.close().catch(() => {});
+		}
 	}
 
 	// Format report

@@ -8,6 +8,7 @@ export type TabState = {
 	page: Page;
 	consoleBuffer: RingBuffer<ConsoleEntry>;
 	networkBuffer: RingBuffer<NetworkEntry>;
+	snapshotCache?: Map<string, Response>;
 	/** Index of the selected frame, or undefined for main frame */
 	selectedFrameIndex?: number;
 };

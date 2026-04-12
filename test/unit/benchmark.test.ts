@@ -139,6 +139,27 @@ describe("handleBenchmark", () => {
 		}
 	});
 
+	test("returns structured JSON when requested", async () => {
+		const deps = makeDeps();
+		const result = await handleBenchmark(deps, ["--iterations", "2"], {
+			json: true,
+		});
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const parsed = JSON.parse(result.data) as {
+				iterations: number;
+				target: string;
+				results: Array<{ name: string; p50: number; p95: number; p99: number }>;
+			};
+			expect(parsed.iterations).toBe(2);
+			expect(parsed.target).toContain("p95 < 200ms");
+			expect(parsed.results.some((entry) => entry.name === "snapshot")).toBe(
+				true,
+			);
+		}
+	});
+
 	test("uses a temporary page from context, not the main page", async () => {
 		const tempPage = {
 			goto: mock(() => Promise.resolve()),

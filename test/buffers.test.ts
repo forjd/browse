@@ -97,6 +97,22 @@ describe("RingBuffer", () => {
 		expect(buf.peek()).toEqual([]);
 	});
 
+	test("allocates backing storage lazily and releases it on clear", () => {
+		const buf = new RingBuffer<number>(10) as RingBuffer<number> & {
+			items?: (number | undefined)[];
+		};
+
+		expect(buf.items).toBeUndefined();
+
+		buf.push(1);
+		expect(Array.isArray(buf.items)).toBe(true);
+		expect(buf.peek()).toEqual([1]);
+
+		buf.clear();
+		expect(buf.items).toBeUndefined();
+		expect(buf.peek()).toEqual([]);
+	});
+
 	test("push after drain resumes correctly", () => {
 		const buf = new RingBuffer<number>(3);
 		buf.push(1);

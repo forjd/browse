@@ -1,17 +1,31 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import {
+	existsSync,
+	mkdirSync,
+	rmSync,
+	utimesSync,
+	writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 import { handleScreenshot } from "../src/commands/screenshot.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-screenshot");
 
 function mockPage(overrides: Record<string, unknown> = {}) {
+	const screenshot = mock(({ path }: { path?: string }) => {
+		if (path) {
+			mkdirSync(dirname(path), { recursive: true });
+			writeFileSync(path, "fake-image");
+		}
+		return Promise.resolve();
+	});
+
 	return {
-		screenshot: mock(() => Promise.resolve()),
+		screenshot,
 		evaluate: mock(() => Promise.resolve(1000)),
 		locator: mock(() => ({
 			first: () => ({
-				screenshot: mock(() => Promise.resolve()),
+				screenshot,
 				count: mock(() => Promise.resolve(1)),
 			}),
 			count: mock(() => Promise.resolve(1)),
@@ -156,5 +170,26 @@ describe("screenshot command", () => {
 		expect(page.screenshot).toHaveBeenCalledWith(
 			expect.objectContaining({ fullPage: false }),
 		);
+	});
+
+	test("applies retention cleanup after saving a screenshot", async () => {
+		const page = mockPage();
+		const screenshotsDir = join(TEST_DIR, "retention");
+		mkdirSync(screenshotsDir, { recursive: true });
+
+		const oldPath = join(screenshotsDir, "old.png");
+		writeFileSync(oldPath, "old-image");
+		const oldTime = new Date(Date.now() - 2 * 60 * 60 * 1000);
+		utimesSync(oldPath, oldTime, oldTime);
+
+		const outPath = join(screenshotsDir, "new.png");
+		const res = await handleScreenshot(page, [outPath], {
+			retention: "1h",
+			defaultDir: screenshotsDir,
+		});
+
+		expect(res.ok).toBe(true);
+		expect(existsSync(outPath)).toBe(true);
+		expect(existsSync(oldPath)).toBe(false);
 	});
 });

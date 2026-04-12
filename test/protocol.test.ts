@@ -98,6 +98,35 @@ describe("parseRequest", () => {
 		expect(result).toEqual(req("status", []));
 	});
 
+	test("parses a batch request with top-level defaults", () => {
+		const result = parseRequest(
+			'{"batch":[{"cmd":"ping","args":[]},{"cmd":"url","args":[]}],"session":"worker-1","continueOnError":true}',
+		);
+		expect(result).toEqual({
+			batch: [
+				{
+					cmd: "ping",
+					args: [],
+					timeout: undefined,
+					session: undefined,
+					json: false,
+				},
+				{
+					cmd: "url",
+					args: [],
+					timeout: undefined,
+					session: undefined,
+					json: false,
+				},
+			],
+			continueOnError: true,
+			timeout: undefined,
+			session: "worker-1",
+			json: false,
+			token: undefined,
+		});
+	});
+
 	test("throws on malformed JSON", () => {
 		expect(() => parseRequest("not json")).toThrow("Invalid JSON");
 	});

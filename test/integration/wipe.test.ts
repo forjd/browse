@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
-import { connect } from "node:net";
 import { join } from "node:path";
 import type { BrowseConfig } from "../../src/config.ts";
 import { startServer } from "../../src/daemon.ts";
 import type { LifecycleConfig } from "../../src/lifecycle.ts";
 import type { Response } from "../../src/protocol.ts";
+import { sendSocketRequest } from "../support/socket-command.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-wipe");
 let testIndex = 0;
@@ -51,24 +51,7 @@ function sendCommand(
 	cmd: string,
 	args: string[] = [],
 ): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify({ cmd, args })}\n`);
-		});
-
-		let data = "";
-		client.on("data", (chunk) => {
-			data += chunk.toString();
-		});
-		client.on("end", () => {
-			try {
-				resolve(JSON.parse(data.trim()));
-			} catch {
-				reject(new Error(`Failed to parse response: ${data}`));
-			}
-		});
-		client.on("error", reject);
-	});
+	return sendSocketRequest<Response>(socketPath, { cmd, args });
 }
 
 beforeEach(() => {
