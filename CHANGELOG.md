@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/forjd/browse/compare/browse-v0.16.0...browse-v0.16.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* pin Bun to 1.3.11 in CI ([43e0924](https://github.com/forjd/browse/commit/43e0924eb6ba5b1ee049d9a7fd6f675fbd6361c2))
+
 ## [0.16.0](https://github.com/forjd/browse/compare/browse-v0.15.0...browse-v0.16.0) (2026-04-12)
 
 
