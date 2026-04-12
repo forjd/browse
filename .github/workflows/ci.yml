@@ -36,7 +36,16 @@ jobs:
 
       - name: Install browser binaries (Linux ARM64)
         if: matrix.label == 'linux-arm64'
-        run: bun x patchright install firefox --with-deps
+        run: |
+          bun x patchright install chromium --with-deps
+          chromium_dir=$(ls -1dt "$HOME"/.cache/ms-playwright/chromium-* | head -n 1)
+          chromium_path="$chromium_dir/chrome-linux/chrome"
+          [ -x "$chromium_path" ]
+          sudo mkdir -p /opt/google/chrome /usr/local/bin
+          sudo ln -sf "$chromium_path" /opt/google/chrome/chrome
+          sudo ln -sf /opt/google/chrome/chrome /usr/local/bin/google-chrome
+          sudo ln -sf /opt/google/chrome/chrome /usr/local/bin/google-chrome-stable
+          google-chrome --version
 
       - name: Install browser binaries (Linux)
         if: runner.os == 'Linux' && matrix.label != 'linux-arm64'
@@ -61,7 +70,7 @@ jobs:
         continue-on-error: true
         run: |
           rm -f /tmp/browse-daemon.pid /tmp/browse-daemon.sock "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
-          bun ./src/cli.ts --daemon --browser firefox >/tmp/browse-source-daemon.log 2>&1 &
+          bun ./src/cli.ts --daemon --browser chrome >/tmp/browse-source-daemon.log 2>&1 &
           daemon_pid=$!
           cleanup() {
             bun ./src/cli.ts quit >/dev/null 2>&1 || true
@@ -73,7 +82,7 @@ jobs:
             sleep 0.1
           done
           [ -S /tmp/browse-daemon.sock ] || { cat /tmp/browse-source-daemon.log; echo "Source daemon failed to start"; exit 1; }
-          output=$(bun ./src/cli.ts --browser firefox goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
+          output=$(bun ./src/cli.ts --browser chrome goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
           echo "$output"
           echo "$output" | grep -q "CI" || { cat /tmp/browse-source-daemon.log; echo "Source CLI smoke failed: expected 'CI' in output"; exit 1; }
 
@@ -83,7 +92,7 @@ jobs:
         continue-on-error: true
         run: |
           rm -f /tmp/browse-daemon.pid /tmp/browse-daemon.sock "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
-          output=$(./dist/browse --browser firefox goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
+          output=$(./dist/browse --browser chrome goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
           echo "$output"
           echo "$output" | grep -q "CI" || { echo "Binary smoke failed: expected 'CI' in output"; exit 1; }
 
