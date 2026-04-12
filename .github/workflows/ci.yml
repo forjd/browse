@@ -36,11 +36,11 @@ jobs:
 
       - name: Install Playwright browsers (Linux)
         if: runner.os == 'Linux'
-        run: bunx playwright install chrome --with-deps
+        run: bun x playwright install chrome --with-deps
 
       - name: Install Playwright browsers (macOS)
         if: runner.os != 'Linux'
-        run: bunx playwright install chrome
+        run: bun x playwright install chrome
 
       - name: Run tests
         run: bun test
