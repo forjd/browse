@@ -91,10 +91,19 @@ For configured applications, `browse healthcheck` gives a quick pass/fail across
 | **CI/CD** | `ci-init` (`--ci github\|gitlab\|circleci`) |
 | **Events** | `subscribe` (`--events navigation,console,network`, `--level`, `--idle-timeout`) |
 | **Watch/REPL** | `watch <flow-file>`, `repl` |
-| **Tooling** | `init`, `report --out <path>`, `replay --out <path>`, `flow-share export/import/list/install/publish`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status [--json] [--watch] [--exit-code]` |
+| **Tooling** | `init`, `report --out <path>`, `replay --out <path>`, `flow-share export/import/list/install/publish`, `screenshots list/clean/count`, `completions bash/zsh/fish`, `status [--json] [--watch] [--exit-code] [--metrics]` |
 | **Plugins** | Custom commands via plugins — see the `browse-plugins` skill. Plugin commands appear in `browse help` output |
 
 Run `browse help <command>` for flags and detailed usage — don't guess at flags.
+
+### Observability quick notes
+
+- Use `browse status --metrics` when CI or monitoring expects Prometheus-style output.
+- Use `browse status --json` for structured health + daemon metadata in automation.
+- Optional daemon env knobs:
+  - `BROWSE_LOG_FORMAT=json` and `BROWSE_LOG_LEVEL=debug|info|warn|error`
+  - `BROWSE_MAX_RSS_MB=<limit>`
+  - `BROWSE_SLOW_COMMAND_MS=<ms>`
 
 ### Named sessions
 

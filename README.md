@@ -540,7 +540,7 @@ Browse has 90+ commands. Here are the most commonly used:
 | `security` | Security audit |
 | `flow <name>` | Run configured flow |
 | `session create <name>` | Create named session |
-| `status` | Daemon status |
+| `status` | Daemon status (`--json`, `--watch`, `--exit-code`, `--metrics`) |
 | `quit` | Stop the daemon |
 
 **See the [full commands list](docs/commands.md)** for complete documentation including:
@@ -567,6 +567,9 @@ Browse has 90+ commands. Here are the most commonly used:
 | **Refs stale** | Run `browse snapshot` again after navigation — refs are page-specific |
 | **Session/auth issues** | Run `browse wipe` to clear all cookies and storage |
 | **Port already in use** | Check for zombie daemon: `lsof -i :<port>` or `browse quit` |
+| **Need machine-readable health metrics** | Use `browse status --metrics` for Prometheus format or `browse status --json` for structured health output |
+| **Need richer daemon logs** | Set `BROWSE_LOG_FORMAT=json` and optional `BROWSE_LOG_LEVEL=debug\|info\|warn\|error` |
+| **Long-running daemon using too much memory** | Set `BROWSE_MAX_RSS_MB=<limit>` to trigger memory-pressure mitigation; tune slow command profiling with `BROWSE_SLOW_COMMAND_MS=<ms>` |
 
 ---
 
