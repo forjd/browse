@@ -1,5 +1,6 @@
 import type { BrowserContext, Page } from "playwright";
 import type { BrowseConfig } from "./config.ts";
+import type { CustomReporter } from "./custom-reporter.ts";
 import type { Response } from "./protocol.ts";
 
 /** Context bag passed to every plugin command handler. */
@@ -62,6 +63,8 @@ export type BrowsePlugin = {
 	version: string;
 	/** Commands contributed by this plugin. */
 	commands?: PluginCommand[];
+	/** Custom flow reporters contributed by this plugin. */
+	reporters?: CustomReporter[];
 	/** Lifecycle hooks. */
 	hooks?: PluginHooks;
 };

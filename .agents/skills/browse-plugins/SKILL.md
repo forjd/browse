@@ -7,7 +7,7 @@ description: "Create plugins for the browse CLI. Use when the user wants to exte
 
 ## What a plugin is
 
-A plugin is a TypeScript or JavaScript file that default-exports a `BrowsePlugin` object. It can add custom commands and hook into the lifecycle of any browse command.
+A plugin is a TypeScript or JavaScript file that default-exports a `BrowsePlugin` object. It can add custom commands, custom flow reporters, and hook into the lifecycle of any browse command.
 
 ## Plugin structure
 
@@ -19,6 +19,7 @@ const plugin: BrowsePlugin = {
   name: "my-plugin",
   version: "1.0.0",
   commands: [/* PluginCommand[] */],
+  reporters: [/* CustomReporter[] */],
   hooks: {/* PluginHooks */},
 };
 
@@ -67,6 +68,21 @@ type PluginHooks = {
   cleanup?: () => Promise<void>;
 };
 ```
+
+### CustomReporter
+
+```typescript
+type CustomReporter = {
+  name: string;
+  render: (ctx: {
+    flowName: string;
+    results: StepResult[];
+    durationMs: number;
+  }) => string;
+};
+```
+
+Custom reporters become available through `browse flow --reporter <name>` and `browse test-matrix --reporter <name>`.
 
 ### Response
 
@@ -136,6 +152,7 @@ Plugins are discovered from two sources:
 ## Key behaviours
 
 - **Command names must be unique** — collisions with built-in commands or other plugins are rejected at load time with a warning.
+- **Reporter names must be unique** — collisions with built-in reporters or other plugin reporters are rejected at load time with a warning.
 - **Errors are isolated** — a throwing handler returns `{ ok: false, error }`, never crashes the daemon. Hook errors are caught similarly.
 - **`sessionState` persists per session** — use it to track state across commands. It resets when the session is closed.
 - **`beforeCommand` can short-circuit** — return a `Response` to prevent the command from running.

@@ -33,6 +33,10 @@ export class CustomReporterRegistry {
 		return this.#reporters.get(name);
 	}
 
+	has(name: string): boolean {
+		return this.#reporters.has(name);
+	}
+
 	list(): string[] {
 		return [...this.#reporters.keys()].sort();
 	}

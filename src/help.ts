@@ -140,7 +140,7 @@ browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [
 Flags:
   --var key=value       Pass variables to flow (repeatable)
   --continue-on-error   Continue running steps even if one fails
-  --reporter <format>   Output format: ${FLOW_REPORTER_HELP}
+  --reporter <format>   Output format: ${FLOW_REPORTER_HELP}, or a plugin-provided reporter name
   --dry-run             Preview step plan without executing
   --stream              Emit step results as NDJSON as they complete
   --webhook <url>       POST a JSON result payload to the URL on completion
@@ -559,7 +559,7 @@ Flags:
   --roles <roles>      Comma-separated list of role names (required)
   --flow <name>        Flow to run for each role (required)
   --env <env>          Environment prefix (e.g., staging → looks for staging-admin, staging-viewer)
-  --reporter <format>  Output format: ${FLOW_REPORTER_HELP}
+  --reporter <format>  Output format: ${FLOW_REPORTER_HELP}, or a plugin-provided reporter name
 
 Examples:
   browse test-matrix --roles admin,viewer,guest --flow checkout

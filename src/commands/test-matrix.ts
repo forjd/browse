@@ -1,14 +1,14 @@
 import type { BrowserContext, Page } from "playwright";
 import { RingBuffer } from "../buffers.ts";
 import type { BrowseConfig, ConfigContext, ProxyConfig } from "../config.ts";
+import type { CustomReporterRegistry } from "../custom-reporter.ts";
 import type { StealthOpts } from "../daemon.ts";
 import { parseVars, runFlow, type StepResult } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import {
-	FLOW_REPORTER_NAMES,
-	type FlowReporter,
 	formatFlowReporter,
-	isFlowReporter,
+	getFlowReporterNames,
+	isKnownFlowReporter,
 } from "../reporters.ts";
 import { applyStealthScripts } from "../stealth.ts";
 import type { ConsoleEntry } from "./console.ts";
@@ -46,6 +46,7 @@ export async function handleTestMatrix(
 	stealthOpts?: StealthOpts,
 	configCtx?: ConfigContext,
 	proxyConfig?: ProxyConfig,
+	customReporters?: CustomReporterRegistry,
 ): Promise<Response> {
 	if (!config) {
 		return {
@@ -60,7 +61,7 @@ export async function handleTestMatrix(
 	let rolesStr: string | undefined;
 	let flowName: string | undefined;
 	let envName: string | undefined;
-	let reporter: FlowReporter | undefined;
+	let reporter: string | undefined;
 	const vars = parseVars(args);
 
 	for (let i = 0; i < args.length; i++) {
@@ -76,16 +77,17 @@ export async function handleTestMatrix(
 			i++;
 		} else if (arg === "--reporter") {
 			const next = args[i + 1];
+			const reporterNames = getFlowReporterNames(customReporters);
 			if (!next || next.startsWith("--")) {
 				return {
 					ok: false,
-					error: `Missing value for --reporter. Valid reporters: ${FLOW_REPORTER_NAMES}`,
+					error: `Missing value for --reporter. Valid reporters: ${reporterNames}`,
 				};
 			}
-			if (!isFlowReporter(next)) {
+			if (!isKnownFlowReporter(next, customReporters)) {
 				return {
 					ok: false,
-					error: `Invalid reporter '${next}'. Valid reporters: ${FLOW_REPORTER_NAMES}`,
+					error: `Invalid reporter '${next}'. Valid reporters: ${reporterNames}`,
 				};
 			}
 			reporter = next;
@@ -271,6 +273,7 @@ export async function handleTestMatrix(
 			allResults,
 			durationMs,
 			reporter,
+			customReporters,
 		);
 		return matrixPassed
 			? { ok: true, data: output }

@@ -24,6 +24,13 @@ const plugin: BrowsePlugin = {
       },
     },
   ],
+  reporters: [
+    {
+      name: "teamcity",
+      render: ({ flowName, results }) =>
+        `##teamcity[testSuiteFinished name='${flowName}' count='${results.length}']`,
+    },
+  ],
 };
 
 export default plugin;
@@ -54,6 +61,7 @@ type BrowsePlugin = {
   name: string;        // Unique plugin name
   version: string;     // Semver version
   commands?: PluginCommand[];
+  reporters?: CustomReporter[];
   hooks?: PluginHooks;
 };
 ```
@@ -103,6 +111,25 @@ type Response =
   | { ok: true; data: string }
   | { ok: false; error: string };
 ```
+
+### Custom reporters
+
+Plugins can contribute custom flow reporters that are available through `browse flow --reporter <name>` and `browse test-matrix --reporter <name>`.
+
+```typescript
+type CustomReporter = {
+  name: string;  // Must not collide with built-in reporters like junit or json
+  render: (ctx: ReporterRenderContext) => string;
+};
+
+type ReporterRenderContext = {
+  flowName: string;
+  results: StepResult[];
+  durationMs: number;
+};
+```
+
+Reporter names must be unique across all loaded plugins. Collisions with built-in reporters or another plugin reporter are skipped with a warning.
 
 ### Hooks
 

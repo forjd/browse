@@ -288,6 +288,7 @@ browse flow list
 browse flow signup --var base_url=https://staging.example.com
 browse flow signup --reporter junit          # JUnit XML output for CI
 browse flow signup --reporter json           # structured JSON output
+browse flow signup --reporter teamcity      # plugin-provided custom reporter
 browse flow signup --dry-run                 # preview steps without running
 browse assert text-contains "Welcome"
 browse assert visible ".dashboard"
@@ -420,6 +421,11 @@ const plugin: BrowsePlugin = {
       data: `Hello, ${ctx.args[0] ?? "world"}!`,
     }),
   }],
+  reporters: [{
+    name: "teamcity",
+    render: ({ flowName, results }) =>
+      `##teamcity[testSuiteFinished name='${flowName}' duration='${results.length}']`,
+  }],
 };
 
 export default plugin;
@@ -433,7 +439,7 @@ Register in `browse.config.json`:
 }
 ```
 
-Plugins can also hook into the command lifecycle (`beforeCommand`, `afterCommand`, `cleanup`) and maintain per-session state. Place personal plugins in `~/.browse/plugins/` for auto-discovery across all projects.
+Plugins can also hook into the command lifecycle (`beforeCommand`, `afterCommand`, `cleanup`), maintain per-session state, and register custom flow reporters that become available via `browse flow --reporter <name>` and `browse test-matrix --reporter <name>`. Place personal plugins in `~/.browse/plugins/` for auto-discovery across all projects.
 
 Discover published plugins from the CLI:
 

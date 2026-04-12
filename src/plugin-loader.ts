@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { BrowseConfig } from "./config.ts";
+import type { CustomReporter } from "./custom-reporter.ts";
 import type {
 	BrowsePlugin,
 	CommandContext,
@@ -9,10 +10,12 @@ import type {
 	PluginHooks,
 } from "./plugin.ts";
 import type { Response } from "./protocol.ts";
+import { FLOW_REPORTERS } from "./reporters.ts";
 
 export type PluginRegistry = {
 	plugins: Map<string, BrowsePlugin>;
 	commands: Map<string, { plugin: string; command: PluginCommand }>;
+	reporters: Map<string, { plugin: string; reporter: CustomReporter }>;
 	hooks: {
 		beforeCommand: Array<{
 			plugin: string;
@@ -33,6 +36,7 @@ export function createEmptyRegistry(): PluginRegistry {
 	return {
 		plugins: new Map(),
 		commands: new Map(),
+		reporters: new Map(),
 		hooks: {
 			beforeCommand: [],
 			afterCommand: [],
@@ -112,6 +116,20 @@ export function validatePlugin(
 		}
 	}
 
+	if (obj.reporters !== undefined) {
+		if (!Array.isArray(obj.reporters)) {
+			return `Plugin '${obj.name}': 'reporters' must be an array.`;
+		}
+		for (let i = 0; i < obj.reporters.length; i++) {
+			const err = validateCustomReporter(
+				obj.reporters[i],
+				obj.name as string,
+				i,
+			);
+			if (err) return err;
+		}
+	}
+
 	if (obj.hooks !== undefined) {
 		if (typeof obj.hooks !== "object" || obj.hooks === null) {
 			return `Plugin '${obj.name}': 'hooks' must be an object.`;
@@ -161,6 +179,28 @@ function validatePluginCommand(
 		) {
 			return `Plugin '${pluginName}': command '${obj.name}' 'flags' must be a string array.`;
 		}
+	}
+
+	return null;
+}
+
+function validateCustomReporter(
+	reporter: unknown,
+	pluginName: string,
+	index: number,
+): string | null {
+	if (typeof reporter !== "object" || reporter === null) {
+		return `Plugin '${pluginName}': reporter at index ${index} must be an object.`;
+	}
+
+	const obj = reporter as Record<string, unknown>;
+
+	if (typeof obj.name !== "string" || obj.name.length === 0) {
+		return `Plugin '${pluginName}': reporter at index ${index} is missing a 'name' string.`;
+	}
+
+	if (typeof obj.render !== "function") {
+		return `Plugin '${pluginName}': reporter '${obj.name}' is missing a 'render' function.`;
 	}
 
 	return null;
@@ -220,6 +260,35 @@ export async function loadPlugins(
 					registry.commands.set(command.name, {
 						plugin: plugin.name,
 						command,
+					});
+				}
+			}
+
+			// Register custom reporters
+			if (plugin.reporters) {
+				for (const reporter of plugin.reporters) {
+					if (
+						FLOW_REPORTERS.includes(
+							reporter.name as (typeof FLOW_REPORTERS)[number],
+						)
+					) {
+						errors.push(
+							`Plugin '${plugin.name}': reporter '${reporter.name}' conflicts with a built-in reporter — skipped.`,
+						);
+						continue;
+					}
+
+					const existing = registry.reporters.get(reporter.name);
+					if (existing) {
+						errors.push(
+							`Plugin '${plugin.name}': reporter '${reporter.name}' conflicts with plugin '${existing.plugin}' — skipped.`,
+						);
+						continue;
+					}
+
+					registry.reporters.set(reporter.name, {
+						plugin: plugin.name,
+						reporter,
 					});
 				}
 			}
