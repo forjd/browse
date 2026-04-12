@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { handleTestMatrix } from "../src/commands/test-matrix.ts";
 import type { BrowseConfig } from "../src/config.ts";
+import { CustomReporterRegistry } from "../src/custom-reporter.ts";
 
 const TEST_USER_ENV = "BROWSE_TEST_MATRIX_USER";
 const TEST_PASS_ENV = "BROWSE_TEST_MATRIX_PASS";
@@ -116,6 +117,58 @@ describe("handleTestMatrix reporter support", () => {
 				expect(result.data).toContain("[admin] goto https://example.com/app");
 				expect(result.data).toContain("[viewer] goto https://example.com/app");
 			}
+		} finally {
+			if (previousUser === undefined) {
+				delete process.env[TEST_USER_ENV];
+			} else {
+				process.env[TEST_USER_ENV] = previousUser;
+			}
+
+			if (previousPass === undefined) {
+				delete process.env[TEST_PASS_ENV];
+			} else {
+				process.env[TEST_PASS_ENV] = previousPass;
+			}
+		}
+	});
+
+	test("returns plugin reporter output with a registered custom reporter", async () => {
+		const previousUser = process.env[TEST_USER_ENV];
+		const previousPass = process.env[TEST_PASS_ENV];
+		process.env[TEST_USER_ENV] = "user";
+		process.env[TEST_PASS_ENV] = "pass";
+		const reporters = new CustomReporterRegistry();
+		reporters.register({
+			name: "teamcity",
+			render: ({ flowName, results }) =>
+				`teamcity:${flowName}:${results.length}`,
+		});
+
+		try {
+			const result = await handleTestMatrix(
+				BASE_CONFIG,
+				null as any,
+				[
+					"--roles",
+					"admin,viewer",
+					"--flow",
+					"smoke",
+					"--reporter",
+					"teamcity",
+				],
+				null as any,
+				null as any,
+				createDefaultContext(),
+				undefined,
+				undefined,
+				undefined,
+				reporters,
+			);
+
+			expect(result).toEqual({
+				ok: true,
+				data: "teamcity:test-matrix-smoke:2",
+			});
 		} finally {
 			if (previousUser === undefined) {
 				delete process.env[TEST_USER_ENV];

@@ -96,7 +96,7 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 
 - [x] **Additional reporters** ([#171](https://github.com/forjd/browse/issues/171)) — TAP, Allure, HTML with filtering/search
 - [ ] **JUnit enhancements** ([#172](https://github.com/forjd/browse/issues/172)) — Test suite metadata, flaky test detection
-- [ ] **Custom reporter API** ([#173](https://github.com/forjd/browse/issues/173)) — JavaScript/TypeScript reporter plugins
+- [x] **Custom reporter API** ([#173](https://github.com/forjd/browse/issues/173)) — JavaScript/TypeScript reporter plugins
 
 ---
 

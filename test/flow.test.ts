@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import { handleFlow } from "../src/commands/flow.ts";
 import type { BrowseConfig } from "../src/config.ts";
+import { CustomReporterRegistry } from "../src/custom-reporter.ts";
 
 const BASE_CONFIG: BrowseConfig = {
 	environments: {
@@ -287,6 +288,33 @@ describe("handleFlow — running flows", () => {
 			expect(parsed.status).toBe("passed");
 			expect(parsed.steps).toHaveLength(1);
 		}
+	});
+
+	test("returns plugin reporter output with a registered custom reporter", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const reporters = new CustomReporterRegistry();
+		reporters.register({
+			name: "teamcity",
+			render: ({ flowName, results }) =>
+				`teamcity:${flowName}:${results.length}`,
+		});
+
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			["simple", "--reporter", "teamcity"],
+			deps as any,
+			undefined,
+			undefined,
+			undefined,
+			reporters,
+		);
+
+		expect(result).toEqual({
+			ok: true,
+			data: "teamcity:simple:1",
+		});
 	});
 
 	test("returns Markdown output with --reporter markdown", async () => {

@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { RingBuffer } from "../buffers.ts";
 import type { BrowseConfig, ConfigContext } from "../config.ts";
+import type { CustomReporterRegistry } from "../custom-reporter.ts";
 import type { FlowSource } from "../flow-loader.ts";
 import {
 	dryRunFlow,
@@ -11,10 +12,9 @@ import {
 } from "../flow-runner.ts";
 import type { Response } from "../protocol.ts";
 import {
-	FLOW_REPORTER_NAMES,
-	type FlowReporter,
 	formatFlowReporter,
-	isFlowReporter,
+	getFlowReporterNames,
+	isKnownFlowReporter,
 } from "../reporters.ts";
 import {
 	formatFlowWebhookPayload,
@@ -38,6 +38,7 @@ export async function handleFlow(
 	configCtx?: ConfigContext,
 	flowSources?: Map<string, FlowSource>,
 	flowLoadErrors?: string[],
+	customReporters?: CustomReporterRegistry,
 ): Promise<Response> {
 	if (!config) {
 		return {
@@ -123,20 +124,21 @@ export async function handleFlow(
 	const stream = args.includes("--stream");
 
 	// Parse reporter flag
-	let reporter: FlowReporter | undefined;
+	let reporter: string | undefined;
 	for (let i = 1; i < args.length; i++) {
 		if (args[i] === "--reporter") {
+			const reporterNames = getFlowReporterNames(customReporters);
 			if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
 				return {
 					ok: false,
-					error: `Missing value for --reporter. Valid reporters: ${FLOW_REPORTER_NAMES}`,
+					error: `Missing value for --reporter. Valid reporters: ${reporterNames}`,
 				};
 			}
 			const reporterValue = args[i + 1];
-			if (!isFlowReporter(reporterValue)) {
+			if (!isKnownFlowReporter(reporterValue, customReporters)) {
 				return {
 					ok: false,
-					error: `Invalid reporter '${reporterValue}'. Valid reporters: ${FLOW_REPORTER_NAMES}`,
+					error: `Invalid reporter '${reporterValue}'. Valid reporters: ${reporterNames}`,
 				};
 			}
 			reporter = reporterValue;
@@ -219,7 +221,13 @@ export async function handleFlow(
 	}
 
 	if (reporter) {
-		const output = formatFlowReporter(flowName, results, durationMs, reporter);
+		const output = formatFlowReporter(
+			flowName,
+			results,
+			durationMs,
+			reporter,
+			customReporters,
+		);
 		return allPassed
 			? { ok: true, data: output }
 			: { ok: false, error: output };

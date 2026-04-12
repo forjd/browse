@@ -201,6 +201,32 @@ describe("loadPlugins", () => {
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
+	test("registers plugin-provided custom reporters", async () => {
+		mkdirSync(tmpDir, { recursive: true });
+		const path = writePlugin(
+			"reporter-plugin.ts",
+			`export default {
+				name: "reporters",
+				version: "1.0.0",
+				reporters: [{
+					name: "teamcity",
+					render: ({ flowName }) => ".tc " + flowName,
+				}],
+			};`,
+		);
+
+		const { registry, errors } = await loadPlugins(
+			[path],
+			null,
+			BUILTIN_COMMANDS,
+		);
+
+		expect(errors).toHaveLength(0);
+		expect(registry.reporters.get("teamcity")?.plugin).toBe("reporters");
+
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
 	test("reports error for non-existent file", async () => {
 		const { registry, errors } = await loadPlugins(
 			["/nonexistent/plugin.ts"],
@@ -240,6 +266,34 @@ describe("loadPlugins", () => {
 		expect(registry.commands.has("goto")).toBe(false);
 		// Plugin itself is still registered (only the colliding command is skipped)
 		expect(registry.plugins.has("collider")).toBe(true);
+
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	test("rejects plugin reporters that collide with built-in reporters", async () => {
+		mkdirSync(tmpDir, { recursive: true });
+		const path = writePlugin(
+			"reporter-collision.ts",
+			`export default {
+				name: "collision",
+				version: "1.0.0",
+				reporters: [{
+					name: "json",
+					render: () => "ignored",
+				}],
+			};`,
+		);
+
+		const { registry, errors } = await loadPlugins(
+			[path],
+			null,
+			BUILTIN_COMMANDS,
+		);
+
+		expect(errors.length).toBeGreaterThan(0);
+		expect(errors[0]).toContain("conflicts with a built-in reporter");
+		expect(registry.reporters.has("json")).toBe(false);
+		expect(registry.plugins.has("collision")).toBe(true);
 
 		rmSync(tmpDir, { recursive: true, force: true });
 	});

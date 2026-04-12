@@ -1,3 +1,4 @@
+import type { CustomReporterRegistry } from "./custom-reporter.ts";
 import type { StepResult } from "./flow-runner.ts";
 
 /**
@@ -49,6 +50,20 @@ export const FLOW_REPORTER_HELP = FLOW_REPORTERS.map(
 
 export function isFlowReporter(value: string): value is FlowReporter {
 	return FLOW_REPORTERS.includes(value as FlowReporter);
+}
+
+export function getFlowReporterNames(
+	customReporters?: CustomReporterRegistry,
+): string {
+	const customNames = customReporters?.list() ?? [];
+	return [...FLOW_REPORTERS, ...customNames].join(", ");
+}
+
+export function isKnownFlowReporter(
+	value: string,
+	customReporters?: CustomReporterRegistry,
+): boolean {
+	return isFlowReporter(value) || customReporters?.has(value) === true;
 }
 
 /**
@@ -420,25 +435,39 @@ export function formatFlowReporter(
 	flowName: string,
 	results: StepResult[],
 	durationMs: number,
-	reporter: FlowReporter,
+	reporter: string,
+	customReporters?: CustomReporterRegistry,
 ): string {
-	switch (reporter) {
-		case "junit":
-			return formatFlowJUnit(flowName, results, durationMs);
-		case "json":
-			return formatFlowJson(flowName, results, durationMs);
-		case "markdown":
-			return formatFlowMarkdown(flowName, results, durationMs);
-		case "tap":
-			return formatFlowTap(flowName, results);
-		case "allure":
-			return formatFlowAllureJson(flowName, results, durationMs);
-		case "html":
-			return formatFlowHtml(flowName, results, durationMs);
+	if (isFlowReporter(reporter)) {
+		switch (reporter) {
+			case "junit":
+				return formatFlowJUnit(flowName, results, durationMs);
+			case "json":
+				return formatFlowJson(flowName, results, durationMs);
+			case "markdown":
+				return formatFlowMarkdown(flowName, results, durationMs);
+			case "tap":
+				return formatFlowTap(flowName, results);
+			case "allure":
+				return formatFlowAllureJson(flowName, results, durationMs);
+			case "html":
+				return formatFlowHtml(flowName, results, durationMs);
+		}
+
+		const exhaustive: never = reporter;
+		return exhaustive;
 	}
 
-	const exhaustive: never = reporter;
-	return exhaustive;
+	const customReporter = customReporters?.get(reporter);
+	if (customReporter) {
+		return customReporter.render({
+			flowName,
+			results,
+			durationMs,
+		});
+	}
+
+	throw new Error(`Unknown reporter '${reporter}'.`);
 }
 
 export function computeFlakySteps(

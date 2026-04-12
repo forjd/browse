@@ -104,6 +104,7 @@ import { handleWipe } from "./commands/wipe.ts";
 import { generateCompletions } from "./completions.ts";
 import type { BrowseConfig, BrowserName, ProxyConfig } from "./config.ts";
 import { loadConfig, resolveConfigPath } from "./config.ts";
+import { CustomReporterRegistry } from "./custom-reporter.ts";
 import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
 import type { FlowSource } from "./flow-loader.ts";
 import {
@@ -595,6 +596,10 @@ export async function startServer(
 	const pluginCommandNames: ReadonlySet<string> = new Set(
 		pluginRegistry.commands.keys(),
 	);
+	const customReporters = new CustomReporterRegistry();
+	for (const { reporter } of pluginRegistry.reporters.values()) {
+		customReporters.register(reporter);
+	}
 
 	/** Resolve which session to use for a request */
 	function resolveSession(sessionName?: string): Session | { error: string } {
@@ -1145,6 +1150,7 @@ export async function startServer(
 								configCtx,
 								flowSources,
 								flowLoadErrors,
+								customReporters,
 							);
 						case "assert":
 							return handleAssert(config, page, request.args);
@@ -1292,6 +1298,7 @@ export async function startServer(
 								stealthOpts,
 								configCtx,
 								proxyConfig,
+								customReporters,
 							);
 						case "assert-ai":
 							return handleAssertAi(page, request.args);
