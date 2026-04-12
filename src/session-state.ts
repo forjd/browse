@@ -3,10 +3,12 @@ import {
 	existsSync,
 	mkdirSync,
 	readFileSync,
-	writeFileSync,
+	renameSync,
+	writeFile,
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 type TabSnapshot = {
 	url: string;
@@ -27,23 +29,37 @@ export type PersistedDaemonState = {
 
 const STATE_DIR = join(homedir(), ".bun-browse");
 const STATE_FILE = join(STATE_DIR, "session-state.json");
+const writeFileAsync = promisify(writeFile);
+let overrideStateFilePath: string | null = null;
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
 export function getStateFilePath(): string {
-	return STATE_FILE;
+	return overrideStateFilePath ?? STATE_FILE;
+}
+
+/**
+ * Test hook: override the default persisted state path.
+ */
+export function setStateFilePathForTesting(path: string | null): void {
+	overrideStateFilePath = path;
+}
+
+function getStateDirPath(): string {
+	return join(getStateFilePath(), "..");
 }
 
 export function loadPersistedDaemonState(): PersistedDaemonState | null {
-	if (!existsSync(STATE_FILE)) {
+	const stateFilePath = getStateFilePath();
+	if (!existsSync(stateFilePath)) {
 		return null;
 	}
 
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(readFileSync(STATE_FILE, "utf-8"));
+		parsed = JSON.parse(readFileSync(stateFilePath, "utf-8"));
 	} catch {
 		backupCorruptState();
 		return null;
@@ -68,7 +84,9 @@ export function loadPersistedDaemonState(): PersistedDaemonState | null {
 			typeof raw.name !== "string" ||
 			typeof raw.isolated !== "boolean" ||
 			typeof raw.activeTabIndex !== "number" ||
-			!Array.isArray(raw.tabs)
+			!Array.isArray(raw.tabs) ||
+			raw.activeTabIndex < 0 ||
+			raw.activeTabIndex >= raw.tabs.length
 		) {
 			backupCorruptState();
 			return null;
@@ -99,15 +117,22 @@ export function loadPersistedDaemonState(): PersistedDaemonState | null {
 	};
 }
 
-export function persistDaemonState(state: PersistedDaemonState): void {
-	mkdirSync(STATE_DIR, { recursive: true });
-	writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+export async function persistDaemonState(
+	state: PersistedDaemonState,
+): Promise<void> {
+	const stateDir = getStateDirPath();
+	const stateFilePath = getStateFilePath();
+	const tempPath = `${stateFilePath}.tmp`;
+	mkdirSync(stateDir, { recursive: true });
+	await writeFileAsync(tempPath, JSON.stringify(state, null, 2));
+	renameSync(tempPath, stateFilePath);
 }
 
 function backupCorruptState(): void {
+	const stateFilePath = getStateFilePath();
 	try {
-		const backupPath = `${STATE_FILE}.corrupt-${Date.now()}`;
-		copyFileSync(STATE_FILE, backupPath);
+		const backupPath = `${stateFilePath}.corrupt-${Date.now()}`;
+		copyFileSync(stateFilePath, backupPath);
 	} catch {
 		// best effort
 	}
