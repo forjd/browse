@@ -443,6 +443,9 @@ export async function startServer(
 		durationByNameMs: new Map<string, number>(),
 		lastTraceId: "",
 	};
+	let activeCommands = 0;
+	let persistTimer: ReturnType<typeof setTimeout> | undefined;
+	let persistInFlight = false;
 
 	// Per-context trace state so each BrowserContext has isolated tracing
 	const traceStates = new Map<
@@ -600,7 +603,7 @@ export async function startServer(
 		return tabState;
 	}
 
-	function persistCurrentSessionState() {
+	function buildSessionStateSnapshot() {
 		const sessions = Array.from(sessionRegistry.sessions.values()).map(
 			(session) => ({
 				name: session.name,
@@ -609,14 +612,36 @@ export async function startServer(
 				tabs: session.tabRegistry.tabs.map((tab) => ({ url: tab.page.url() })),
 			}),
 		);
-		persistDaemonState({
+		return {
 			version: 1,
 			updatedAt: new Date().toISOString(),
 			sessions,
-		});
+		} as const;
 	}
 
-	function runMemoryPressureMitigation() {
+	async function flushSessionStatePersist(): Promise<void> {
+		if (persistInFlight) return;
+		persistInFlight = true;
+		try {
+			await persistDaemonState(buildSessionStateSnapshot());
+		} catch (error) {
+			logger.warn("Failed to persist session state", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+		} finally {
+			persistInFlight = false;
+		}
+	}
+
+	function scheduleSessionStatePersist(): void {
+		if (persistTimer) return;
+		persistTimer = setTimeout(() => {
+			persistTimer = undefined;
+			void flushSessionStatePersist();
+		}, 125);
+	}
+
+	function runMemoryPressureMitigation(allowRefClear: boolean) {
 		if (!Number.isFinite(maxRssMb) || maxRssMb <= 0) return;
 		const currentRssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
 		if (currentRssMb < maxRssMb) return;
@@ -624,12 +649,18 @@ export async function startServer(
 			currentRssMb,
 			limitRssMb: maxRssMb,
 		});
-		clearRefs();
 		for (const session of sessionRegistry.sessions.values()) {
 			for (const tab of session.tabRegistry.tabs) {
 				tab.consoleBuffer.clear();
 				tab.networkBuffer.clear();
 			}
+		}
+		if (allowRefClear) {
+			clearRefs();
+		} else {
+			logger.debug("Skipping ref clear during active command processing", {
+				activeCommands,
+			});
 		}
 		if (typeof global.gc === "function") {
 			global.gc();
@@ -653,6 +684,10 @@ export async function startServer(
 			"# HELP browse_daemon_memory_rss_bytes Resident set size in bytes",
 			"# TYPE browse_daemon_memory_rss_bytes gauge",
 			`browse_daemon_memory_rss_bytes ${process.memoryUsage().rss}`,
+			"# HELP browse_daemon_command_total Total commands processed by command name",
+			"# TYPE browse_daemon_command_total counter",
+			"# HELP browse_daemon_command_duration_ms_sum Total command duration by command name in milliseconds",
+			"# TYPE browse_daemon_command_duration_ms_sum summary",
 		];
 		for (const [cmd, count] of metrics.commandsByName) {
 			lines.push(`browse_daemon_command_total{cmd="${cmd}"} ${count}`);
@@ -667,6 +702,11 @@ export async function startServer(
 
 	async function shutdown() {
 		idleTimer.clear();
+		if (persistTimer) {
+			clearTimeout(persistTimer);
+			persistTimer = undefined;
+			await flushSessionStatePersist();
+		}
 		server.close();
 		tcpServer?.close();
 		await runCleanupHooks(pluginRegistry);
@@ -717,13 +757,15 @@ export async function startServer(
 
 	async function handleConnection(data: string): Promise<ConnectionResult> {
 		idleTimer.reset();
-		runMemoryPressureMitigation();
+		activeCommands++;
+		runMemoryPressureMitigation(false);
 
 		try {
 			const request = parseRequest(data, pluginCommandNames);
 			const traceId = randomUUID();
 			metrics.lastTraceId = traceId;
 			const startedAt = Date.now();
+			const startCpu = process.cpuUsage();
 			logger.debug("Command received", {
 				traceId,
 				cmd: request.cmd,
@@ -745,14 +787,14 @@ export async function startServer(
 					metrics.failedCommands++;
 				}
 				if (durationMs >= slowCommandMs) {
-					const cpu = process.cpuUsage();
+					const cpuDelta = process.cpuUsage(startCpu);
 					const mem = process.memoryUsage();
 					logger.warn("Slow command profiled", {
 						traceId,
 						cmd: request.cmd,
 						durationMs,
-						cpuUserMicros: cpu.user,
-						cpuSystemMicros: cpu.system,
+						cpuUserMicros: cpuDelta.user,
+						cpuSystemMicros: cpuDelta.system,
 						rssMb: Math.round(mem.rss / 1024 / 1024),
 						heapUsedMb: Math.round(mem.heapUsed / 1024 / 1024),
 					});
@@ -1347,12 +1389,17 @@ export async function startServer(
 				request.cmd !== "ping" &&
 				request.cmd !== "quit"
 			) {
-				persistCurrentSessionState();
+				scheduleSessionStatePersist();
 			}
 			return reply(serialiseResponse(response), request.cmd === "quit");
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			return reply(serialiseResponse({ ok: false, error: message }));
+		} finally {
+			activeCommands = Math.max(0, activeCommands - 1);
+			if (activeCommands === 0) {
+				runMemoryPressureMitigation(true);
+			}
 		}
 	}
 
