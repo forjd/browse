@@ -1,5 +1,9 @@
-import { describe, expect, test } from "bun:test";
-import { sendWithRetry } from "../../src/retry.ts";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { resetCircuitBreaker, sendWithRetry } from "../../src/retry.ts";
+
+beforeEach(() => {
+	resetCircuitBreaker();
+});
 
 describe("stress: daemon command loop", () => {
 	test("repeated ping/status does not fail", async () => {

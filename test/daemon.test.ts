@@ -6,6 +6,10 @@ import type { ServerDeps } from "../src/daemon.ts";
 import { startServer } from "../src/daemon.ts";
 import type { LifecycleConfig } from "../src/lifecycle.ts";
 import type { Response } from "../src/protocol.ts";
+import {
+	persistDaemonState,
+	setStateFilePathForTesting,
+} from "../src/session-state.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-daemon");
 let testIndex = 0;
@@ -62,6 +66,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	setStateFilePathForTesting(null);
 	rmSync(TEST_DIR, { recursive: true, force: true });
 });
 
@@ -410,6 +415,69 @@ describe("daemon server", () => {
 			if (response.ok) {
 				expect(response.data).toContain(savePath);
 			}
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("does not restore persisted session state unless enabled", async () => {
+		const config = testPaths();
+		const stateFile = join(config.dir, "session-state.json");
+		setStateFilePathForTesting(stateFile);
+		await persistDaemonState({
+			version: 1,
+			updatedAt: new Date().toISOString(),
+			sessions: [
+				{
+					name: "default",
+					isolated: false,
+					activeTabIndex: 0,
+					tabs: [{ url: "https://restored.example.com" }],
+				},
+			],
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			expect(page.goto).not.toHaveBeenCalled();
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("restores persisted session state when enabled", async () => {
+		const config = testPaths();
+		const stateFile = join(config.dir, "session-state.json");
+		setStateFilePathForTesting(stateFile);
+		await persistDaemonState({
+			version: 1,
+			updatedAt: new Date().toISOString(),
+			sessions: [
+				{
+					name: "default",
+					isolated: false,
+					activeTabIndex: 0,
+					tabs: [{ url: "https://restored.example.com" }],
+				},
+			],
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+			{ persistSessionState: true },
+		);
+
+		try {
+			expect(page.goto).toHaveBeenCalledWith("https://restored.example.com", {
+				waitUntil: "domcontentloaded",
+			});
 		} finally {
 			await shutdown();
 		}
