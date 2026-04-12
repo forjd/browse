@@ -34,8 +34,12 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Install Playwright browsers (Linux ARM64)
+        if: matrix.label == 'linux-arm64'
+        run: bun x playwright install firefox --with-deps
+
       - name: Install Playwright browsers (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.label != 'linux-arm64'
         run: bun x playwright install chrome --with-deps
 
       - name: Install Playwright browsers (macOS)
@@ -53,6 +57,10 @@ jobs:
 
       - name: Smoke test binary
         run: |
-          output=$(./dist/browse goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
+          if [ "${{ matrix.label }}" = "linux-arm64" ]; then
+            output=$(./dist/browse --browser firefox goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
+          else
+            output=$(./dist/browse goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
+          fi
           echo "$output"
           echo "$output" | grep -q "CI" || { echo "Smoke test failed: expected 'CI' in output"; exit 1; }
