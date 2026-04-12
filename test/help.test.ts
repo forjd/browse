@@ -89,6 +89,14 @@ describe("formatCommandHelp", () => {
 		expect(help).toContain("html");
 	});
 
+	test("documents flow template scaffolding", () => {
+		const help = formatCommandHelp("flow");
+		expect(help).not.toBeNull();
+		expect(help).toContain("browse flow init <template> [name] [--force]");
+		expect(help).toContain("smoke");
+		expect(help).toContain("login-smoke");
+	});
+
 	test("documents additional reporters for test-matrix", () => {
 		const help = formatCommandHelp("test-matrix");
 		expect(help).not.toBeNull();

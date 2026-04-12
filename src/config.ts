@@ -155,6 +155,7 @@ export type BrowseConfig = {
 /** Passed alongside config so commands can distinguish "not found" from "invalid". */
 export type ConfigContext = {
 	configError?: string | null;
+	configPath?: string | null;
 };
 
 /**

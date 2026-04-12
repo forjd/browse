@@ -180,6 +180,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--junit-property",
 		"--dry-run",
 		"--stream",
+		"--force",
 		"--webhook",
 	],
 	assert: ["--var", "--json"],
@@ -445,7 +446,10 @@ export async function startServer(
 		flowSources,
 		flowLoadErrors,
 	} = deps;
-	const configCtx = configError ? { configError } : undefined;
+	const configCtx =
+		configError || configPath
+			? { configError, configPath: configPath ?? null }
+			: undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
 	const persistSessionState = options?.persistSessionState === true;
 	const startTime = Date.now();

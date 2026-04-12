@@ -133,11 +133,13 @@ browse tab switch <index>    Switch to tab (1-indexed)
 browse tab close [index]     Close tab (closes active tab if no index)`,
 	},
 	flow: {
-		summary: "Execute a named flow",
+		summary: "Execute or scaffold flows",
 		usage: `browse flow list                          List defined flows
+browse flow init <template> [name] [--force]
 browse flow <name> [--var k=v ...] [--continue-on-error] [--reporter <format>] [--junit-property key=value ...] [--dry-run] [--stream] [--webhook <url>]
 
 Flags:
+  --force              Overwrite an existing generated flow when using init
   --var key=value       Pass variables to flow (repeatable)
   --continue-on-error   Continue running steps even if one fails
   --reporter <format>   Output format: ${FLOW_REPORTER_HELP}, or a plugin-provided reporter name
@@ -150,7 +152,11 @@ Flows can be defined inline in browse.config.json or as individual JSON files
 in a flows/ directory next to the config file. Global flows in ~/.browse/flows/
 are also loaded. Inline flows take precedence over file-based flows.
 Flows support conditional logic (if/else) and loops (while) with condition
-expressions.`,
+expressions.
+
+Built-in templates:
+  smoke        Open a URL and verify expected text
+  login-smoke  Sign in to an environment and verify a post-login cue`,
 	},
 	assert: {
 		summary: "Assert a condition (PASS/FAIL)",

@@ -108,7 +108,7 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 
 - [ ] **Shared configuration** ([#174](https://github.com/forjd/browse/issues/174)) — Team-wide config with user-specific overrides
 - [ ] **Flow versioning** ([#175](https://github.com/forjd/browse/issues/175)) — Version control integration for flow definitions
-- [ ] **Flow templates** ([#176](https://github.com/forjd/browse/issues/176)) — Pre-built templates for common patterns
+- [x] **Flow templates** ([#176](https://github.com/forjd/browse/issues/176)) — `browse flow init` now scaffolds built-in `smoke` and `login-smoke` starters into `flows/`
 - [ ] **Shared screenshot storage** ([#177](https://github.com/forjd/browse/issues/177)) — S3/GCS/Azure integration for team access
 
 ### Governance

@@ -64,6 +64,23 @@ Each file contains a bare flow definition — the same shape as what goes inside
 }
 ```
 
+#### Scaffolding from built-in templates
+
+If you want a starting point instead of writing the JSON from scratch, use `browse flow init` to scaffold a built-in template into your local `flows/` directory:
+
+```sh
+browse flow init smoke
+browse flow init smoke checkout-smoke
+browse flow init login-smoke admin-login --force
+```
+
+Built-in templates:
+
+- `smoke` — opens `{{url}}`, asserts `{{expected_text}}`, and captures a screenshot
+- `login-smoke` — wipes session state, logs in with `{{environment}}`, asserts `{{expected_text}}`, and captures a screenshot
+
+The generated files are ordinary flow JSON files, so you can edit descriptions, variables, and steps immediately.
+
 #### Global flows
 
 Flows placed in `~/.browse/flows/` are available across all projects.
@@ -81,6 +98,7 @@ When the same flow name exists in multiple locations, the following precedence a
 ### Running Flows
 
 ```sh
+browse flow init smoke                    # scaffold a starter flow file
 browse flow list                          # list all defined flows
 browse flow signup --var base_url=https://staging.example.com --var test_email=test@example.com
 browse flow signup --var base_url=https://staging.example.com --continue-on-error
