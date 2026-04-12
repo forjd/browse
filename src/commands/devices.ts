@@ -1,14 +1,6 @@
 import { devices as playwrightDevices } from "playwright";
 import type { Response } from "../protocol.ts";
 
-type DeviceProfile = {
-	viewport: { width: number; height: number };
-	deviceScaleFactor: number;
-	userAgent: string;
-	isMobile: boolean;
-	hasTouch: boolean;
-};
-
 // Supplement Playwright's built-in devices with commonly searched aliases
 const DEVICE_ALIASES: Record<string, string> = {
 	"iphone 15": "iPhone 15",

@@ -7,7 +7,7 @@ import {
 	statSync,
 	writeFileSync,
 } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 import { compareScreenshots } from "../visual-diff.ts";
@@ -102,7 +102,7 @@ function vrtInit(): Response {
 
 	const configPath = join(DEFAULT_VRT_DIR, "config.json");
 	if (!existsSync(configPath)) {
-		writeFileSync(configPath, JSON.stringify(DEFAULT_CONFIG, null, 2) + "\n");
+		writeFileSync(configPath, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`);
 	}
 
 	return {

@@ -10,7 +10,6 @@ import {
 	isRecording,
 	pauseSession,
 	pushEvent,
-	type RecordedEvent,
 	replaceBaseUrl,
 	resumeSession,
 	startSession,
@@ -339,13 +338,14 @@ describe("recording session state", () => {
 
 describe("handleRecord", () => {
 	function createMockPage() {
-		const exposedFunctions: Record<string, Function> = {};
+		type AnyFn = (...args: unknown[]) => unknown;
+		const exposedFunctions: Record<string, AnyFn> = {};
 		const initScripts: string[] = [];
 		const evaluatedScripts: string[] = [];
-		const listeners: Record<string, Function[]> = {};
+		const listeners: Record<string, AnyFn[]> = {};
 
 		return {
-			exposeFunction: mock(async (name: string, fn: Function) => {
+			exposeFunction: mock(async (name: string, fn: AnyFn) => {
 				exposedFunctions[name] = fn;
 			}),
 			addInitScript: mock(async (script: string) => {
@@ -357,7 +357,7 @@ describe("handleRecord", () => {
 			mainFrame: mock(() => ({
 				url: () => "https://example.com",
 			})),
-			on: mock((event: string, fn: Function) => {
+			on: mock((event: string, fn: AnyFn) => {
 				if (!listeners[event]) listeners[event] = [];
 				listeners[event].push(fn);
 			}),

@@ -116,7 +116,7 @@ export function formatPlan(commands: string[]): string {
 }
 
 export async function handleDo(page: Page, args: string[]): Promise<Response> {
-	const { positional, dryRun, provider, model, baseUrl, verbose, env } =
+	const { positional, dryRun, provider, model, baseUrl, env } =
 		parseDoFlags(args);
 
 	const instruction = positional.join(" ");

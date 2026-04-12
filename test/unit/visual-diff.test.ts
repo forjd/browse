@@ -142,7 +142,12 @@ describe("visual-diff: PNG decoder with zlib-wrapped IDAT", () => {
 		expect(result.similarity).toBeLessThan(100);
 		expect(result.diffPixels).toBe(16); // all pixels differ
 		expect(result.diffImagePath).toBeDefined();
-		expect(existsSync(result.diffImagePath!)).toBe(true);
+		const diffImagePath = result.diffImagePath;
+		expect(diffImagePath).toBeDefined();
+		if (!diffImagePath) {
+			throw new Error("Expected diff image path");
+		}
+		expect(existsSync(diffImagePath)).toBe(true);
 	});
 
 	test("produces a valid diff image that can itself be decoded", () => {
@@ -153,12 +158,14 @@ describe("visual-diff: PNG decoder with zlib-wrapped IDAT", () => {
 		writeFileSync(currentPath, solidPng(0, 255, 0));
 
 		const result = compareScreenshots(currentPath, baselinePath);
+		const diffImagePath = result.diffImagePath;
+		expect(diffImagePath).toBeDefined();
+		if (!diffImagePath) {
+			throw new Error("Expected diff image path");
+		}
 
 		// The diff image (produced by encodePng) should also be decodable
-		const reResult = compareScreenshots(
-			result.diffImagePath!,
-			result.diffImagePath!,
-		);
+		const reResult = compareScreenshots(diffImagePath, diffImagePath);
 		expect(reResult.similarity).toBe(100);
 	});
 });
