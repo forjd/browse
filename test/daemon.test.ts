@@ -88,22 +88,156 @@ function sendCommand(
 	args: string[] = [],
 ): Promise<Response> {
 	return new Promise((resolve, reject) => {
+		let settled = false;
+		const settle = (fn: () => void) => {
+			if (!settled) {
+				settled = true;
+				fn();
+			}
+		};
+
 		const client = connect(socketPath, () => {
 			client.write(`${JSON.stringify({ cmd, args })}\n`);
 		});
 
-		let data = "";
+		let buffer = "";
 		client.on("data", (chunk) => {
-			data += chunk.toString();
+			buffer += chunk.toString();
+			const newlineIndex = buffer.indexOf("\n");
+			if (newlineIndex === -1) return;
+			const line = buffer.slice(0, newlineIndex).trim();
+			client.end();
+			settle(() => {
+				try {
+					resolve(JSON.parse(line));
+				} catch {
+					reject(new Error(`Failed to parse response: ${buffer}`));
+				}
+			});
 		});
 		client.on("end", () => {
-			try {
-				resolve(JSON.parse(data.trim()));
-			} catch {
-				reject(new Error(`Failed to parse response: ${data}`));
+			if (!settled) {
+				settle(() => reject(new Error(`Failed to parse response: ${buffer}`)));
 			}
 		});
-		client.on("error", reject);
+		client.on("error", (err) => {
+			settle(() => reject(err));
+		});
+	});
+}
+
+function sendCommandsOnSingleConnection(
+	socketPath: string,
+	requests: Array<{ cmd: string; args?: string[] }>,
+	timeoutMs = 5_000,
+): Promise<Response[]> {
+	return new Promise((resolve, reject) => {
+		const responses: Response[] = [];
+		let buffer = "";
+		let settled = false;
+
+		const settle = (fn: () => void) => {
+			if (!settled) {
+				settled = true;
+				fn();
+			}
+		};
+
+		const client = connect(socketPath, () => {
+			for (const request of requests) {
+				client.write(
+					`${JSON.stringify({ cmd: request.cmd, args: request.args ?? [] })}\n`,
+				);
+			}
+		});
+
+		const timer = setTimeout(() => {
+			settle(() => {
+				client.destroy();
+				reject(
+					new Error(
+						`Timed out waiting for ${requests.length} responses on one connection`,
+					),
+				);
+			});
+		}, timeoutMs);
+
+		client.on("data", (chunk) => {
+			buffer += chunk.toString();
+			while (buffer.includes("\n")) {
+				const newlineIndex = buffer.indexOf("\n");
+				const line = buffer.slice(0, newlineIndex).trim();
+				buffer = buffer.slice(newlineIndex + 1);
+				if (!line) continue;
+				responses.push(JSON.parse(line) as Response);
+				if (responses.length === requests.length) {
+					clearTimeout(timer);
+					client.end();
+					settle(() => resolve(responses));
+				}
+			}
+		});
+
+		client.on("error", (err) => {
+			clearTimeout(timer);
+			settle(() => reject(err));
+		});
+
+		client.on("end", () => {
+			if (responses.length !== requests.length) {
+				clearTimeout(timer);
+				settle(() =>
+					reject(
+						new Error(
+							`Connection closed after ${responses.length}/${requests.length} responses`,
+						),
+					),
+				);
+			}
+		});
+	});
+}
+
+function sendRawRequest(
+	socketPath: string,
+	payload: Record<string, unknown>,
+): Promise<unknown> {
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const settle = (fn: () => void) => {
+			if (!settled) {
+				settled = true;
+				fn();
+			}
+		};
+
+		const client = connect(socketPath, () => {
+			client.write(`${JSON.stringify(payload)}\n`);
+		});
+
+		let buffer = "";
+		client.on("data", (chunk) => {
+			buffer += chunk.toString();
+			const newlineIndex = buffer.indexOf("\n");
+			if (newlineIndex === -1) return;
+			const line = buffer.slice(0, newlineIndex).trim();
+			client.end();
+			settle(() => {
+				try {
+					resolve(JSON.parse(line));
+				} catch {
+					reject(new Error(`Failed to parse response: ${buffer}`));
+				}
+			});
+		});
+		client.on("end", () => {
+			if (!settled) {
+				settle(() => reject(new Error(`Failed to parse response: ${buffer}`)));
+			}
+		});
+		client.on("error", (err) => {
+			settle(() => reject(err));
+		});
 	});
 }
 
@@ -120,6 +254,132 @@ describe("daemon server", () => {
 				ok: false,
 				error: "Unknown command: dance",
 			});
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("handles multiple sequential requests on the same socket connection", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const responses = await sendCommandsOnSingleConnection(
+				config.socketPath,
+				[{ cmd: "ping" }, { cmd: "ping" }],
+			);
+			expect(responses).toEqual([
+				{ ok: true, data: "pong" },
+				{ ok: true, data: "pong" },
+			]);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("executes batch requests in order and stops on the first error by default", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const response = await sendRawRequest(config.socketPath, {
+				batch: [
+					{ cmd: "ping", args: [] },
+					{ cmd: "goto", args: [] },
+					{ cmd: "ping", args: [] },
+				],
+			});
+			expect(response).toEqual({
+				ok: true,
+				batch: [
+					{ cmd: "ping", ok: true, data: "pong" },
+					{ cmd: "goto", ok: false, error: "Usage: browse goto <url>" },
+				],
+				stoppedEarly: true,
+			});
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("reuses cached snapshots until a mutating command invalidates the active tab", async () => {
+		const config = testPaths();
+		const ariaSnapshot = mock(() => Promise.resolve('- button "Save"'));
+		const page = mockPage({
+			locator: mock(() => ({
+				ariaSnapshot,
+			})),
+		});
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			const first = await sendCommand(config.socketPath, "snapshot");
+			expect(first.ok).toBe(true);
+			const second = await sendCommand(config.socketPath, "snapshot");
+			expect(second.ok).toBe(true);
+			await sendCommand(config.socketPath, "text");
+			const third = await sendCommand(config.socketPath, "snapshot");
+			expect(third.ok).toBe(true);
+			expect(ariaSnapshot).toHaveBeenCalledTimes(1);
+
+			await sendCommand(config.socketPath, "goto", ["https://example.com"]);
+			const afterGoto = await sendCommand(config.socketPath, "snapshot");
+			expect(afterGoto.ok).toBe(true);
+			expect(ariaSnapshot).toHaveBeenCalledTimes(2);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("reuses a scratch page across repeated benchmark commands", async () => {
+		const config = testPaths();
+		const scratchPage = mockPage({
+			screenshot: mock(() => Promise.resolve()),
+			locator: mock(() => ({
+				click: mock(() => Promise.resolve()),
+				fill: mock(() => Promise.resolve()),
+				ariaSnapshot: mock(() => Promise.resolve('- button "Bench"')),
+			})),
+			evaluate: mock(() => Promise.resolve(600)),
+			close: mock(() => Promise.resolve()),
+		});
+		const ctx = mockContext({
+			newPage: mock(() => Promise.resolve(scratchPage)),
+		});
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, { context: ctx }),
+			config,
+			async () => {},
+		);
+
+		try {
+			const first = await sendCommand(config.socketPath, "benchmark", [
+				"--iterations",
+				"1",
+			]);
+			expect(first.ok).toBe(true);
+			const second = await sendCommand(config.socketPath, "benchmark", [
+				"--iterations",
+				"1",
+			]);
+			expect(second.ok).toBe(true);
+			expect(ctx.newPage).toHaveBeenCalledTimes(1);
+			expect(scratchPage.close).not.toHaveBeenCalled();
 		} finally {
 			await shutdown();
 		}
@@ -1029,23 +1289,42 @@ describe("daemon server", () => {
 		try {
 			// Send a command with a timeout field in the payload
 			const response: Response = await new Promise((resolve, reject) => {
+				let settled = false;
+				const settle = (fn: () => void) => {
+					if (!settled) {
+						settled = true;
+						fn();
+					}
+				};
+
 				const client = connect(config.socketPath, () => {
 					client.write(
 						`${JSON.stringify({ cmd: "text", args: [], timeout: 30000 })}\n`,
 					);
 				});
-				let data = "";
+				let buffer = "";
 				client.on("data", (chunk) => {
-					data += chunk.toString();
+					buffer += chunk.toString();
+					const newlineIndex = buffer.indexOf("\n");
+					if (newlineIndex === -1) return;
+					const line = buffer.slice(0, newlineIndex).trim();
+					client.end();
+					settle(() => {
+						try {
+							resolve(JSON.parse(line));
+						} catch {
+							reject(new Error(`Failed to parse: ${buffer}`));
+						}
+					});
 				});
 				client.on("end", () => {
-					try {
-						resolve(JSON.parse(data.trim()));
-					} catch {
-						reject(new Error(`Failed to parse: ${data}`));
+					if (!settled) {
+						settle(() => reject(new Error(`Failed to parse: ${buffer}`)));
 					}
 				});
-				client.on("error", reject);
+				client.on("error", (err) => {
+					settle(() => reject(err));
+				});
 			});
 			expect(response.ok).toBe(true);
 		} finally {

@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
-import { connect } from "node:net";
 import { join } from "node:path";
 import type { ServerDeps } from "../../src/daemon.ts";
 import { startServer } from "../../src/daemon.ts";
 import type { LifecycleConfig } from "../../src/lifecycle.ts";
 import type { Response } from "../../src/protocol.ts";
+import { sendSocketRequest } from "../support/socket-command.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-timeout");
 let testIndex = 0;
@@ -62,27 +62,9 @@ function sendCommand(
 	args: string[] = [],
 	timeout?: number,
 ): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		const payload: Record<string, unknown> = { cmd, args };
-		if (timeout) payload.timeout = timeout;
-
-		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify(payload)}\n`);
-		});
-
-		let data = "";
-		client.on("data", (chunk) => {
-			data += chunk.toString();
-		});
-		client.on("end", () => {
-			try {
-				resolve(JSON.parse(data.trim()));
-			} catch {
-				reject(new Error(`Failed to parse response: ${data}`));
-			}
-		});
-		client.on("error", reject);
-	});
+	const payload: Record<string, unknown> = { cmd, args };
+	if (timeout) payload.timeout = timeout;
+	return sendSocketRequest<Response>(socketPath, payload);
 }
 
 beforeEach(() => {

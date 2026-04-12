@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { chmodSync, rmSync, statSync } from "node:fs";
-import { createServer, type Server } from "node:net";
+import { createServer, type Server, type Socket } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -130,9 +130,16 @@ import {
 	runBeforeHooks,
 	runCleanupHooks,
 } from "./plugin-loader.ts";
-import type { Response } from "./protocol.ts";
+import type {
+	BatchItemResponse,
+	ProtocolResponse,
+	Request,
+	Response,
+} from "./protocol.ts";
 import {
 	BUILTIN_COMMANDS,
+	isBatchRequest,
+	isBatchResponse,
 	parseRequest,
 	serialiseResponse,
 } from "./protocol.ts";
@@ -348,6 +355,7 @@ function attachPageListeners(
 	page.on("framenavigated", (frame) => {
 		if (frame === page.mainFrame()) {
 			markStale();
+			tabState.snapshotCache = undefined;
 		}
 	});
 
@@ -475,6 +483,25 @@ export async function startServer(
 		return state;
 	}
 
+	const scratchPages = new Map<BrowserContext, Page>();
+	async function getScratchPage(targetContext: BrowserContext): Promise<Page> {
+		const existing = scratchPages.get(targetContext);
+		if (
+			existing &&
+			(typeof existing.isClosed !== "function" || !existing.isClosed())
+		) {
+			return existing;
+		}
+		const scratchPage = await targetContext.newPage();
+		scratchPage.on("close", () => {
+			if (scratchPages.get(targetContext) === scratchPage) {
+				scratchPages.delete(targetContext);
+			}
+		});
+		scratchPages.set(targetContext, scratchPage);
+		return scratchPage;
+	}
+
 	// Tab registry for default session
 	const initialTabState: TabState = {
 		page: deps.page,
@@ -579,6 +606,21 @@ export async function startServer(
 		return session;
 	}
 
+	async function ensureSessionReady(session: Session): Promise<void> {
+		if (session.context && session.tabRegistry.tabs.length > 0) {
+			return;
+		}
+		if (!session.initialize) {
+			return;
+		}
+		const initialized = await session.initialize();
+		session.context = initialized.context;
+		session.tabRegistry.tabs = [initialized.tabState];
+		session.tabRegistry.activeTabIndex = 0;
+		session.tabCountHint = undefined;
+		session.initialize = undefined;
+	}
+
 	function getActivePage(session: Session): Page {
 		return session.tabRegistry.tabs[session.tabRegistry.activeTabIndex].page;
 	}
@@ -614,7 +656,12 @@ export async function startServer(
 				name: session.name,
 				isolated: session.isolated,
 				activeTabIndex: session.tabRegistry.activeTabIndex,
-				tabs: session.tabRegistry.tabs.map((tab) => ({ url: tab.page.url() })),
+				tabs:
+					session.tabRegistry.tabs.length > 0
+						? session.tabRegistry.tabs.map((tab) => ({ url: tab.page.url() }))
+						: Array.from({ length: session.tabCountHint ?? 0 }, () => ({
+								url: "about:blank",
+							})),
 			}),
 		);
 		return {
@@ -757,6 +804,23 @@ export async function startServer(
 		"monitor",
 	]);
 
+	const SNAPSHOT_CACHE_SAFE_COMMANDS = new Set([
+		"snapshot",
+		"text",
+		"url",
+		"title",
+		"html",
+		"attr",
+		"element-count",
+		"console",
+		"network",
+		"cookies",
+		"storage",
+		"a11y",
+		"perf",
+		"security",
+	]);
+
 	type ConnectionResult = { responseStr: string; quit: boolean };
 	function reply(responseStr: string, quit = false): ConnectionResult {
 		return { responseStr, quit };
@@ -768,29 +832,36 @@ export async function startServer(
 		runMemoryPressureMitigation(false);
 
 		try {
-			const request = parseRequest(data, pluginCommandNames);
+			const parsedRequest = parseRequest(data, pluginCommandNames);
 			const traceId = randomUUID();
 			metrics.lastTraceId = traceId;
 			const startedAt = Date.now();
 			const startCpu = process.cpuUsage();
+			const requestLabel = isBatchRequest(parsedRequest)
+				? "batch"
+				: parsedRequest.cmd;
 			logger.debug("Command received", {
 				traceId,
-				cmd: request.cmd,
-				session: request.session ?? "default",
+				cmd: requestLabel,
+				session: parsedRequest.session ?? "default",
 			});
 
-			const finalizeMetrics = (response: Response) => {
+			const finalizeMetrics = (response: ProtocolResponse) => {
 				const durationMs = Date.now() - startedAt;
 				metrics.totalCommands++;
 				metrics.commandsByName.set(
-					request.cmd,
-					(metrics.commandsByName.get(request.cmd) ?? 0) + 1,
+					requestLabel,
+					(metrics.commandsByName.get(requestLabel) ?? 0) + 1,
 				);
 				metrics.durationByNameMs.set(
-					request.cmd,
-					(metrics.durationByNameMs.get(request.cmd) ?? 0) + durationMs,
+					requestLabel,
+					(metrics.durationByNameMs.get(requestLabel) ?? 0) + durationMs,
 				);
-				if (!response.ok) {
+				if (
+					!response.ok ||
+					(isBatchResponse(response) &&
+						response.batch.some((entry) => entry.ok === false))
+				) {
 					metrics.failedCommands++;
 				}
 				if (durationMs >= slowCommandMs) {
@@ -798,7 +869,7 @@ export async function startServer(
 					const mem = process.memoryUsage();
 					logger.warn("Slow command profiled", {
 						traceId,
-						cmd: request.cmd,
+						cmd: requestLabel,
 						durationMs,
 						cpuUserMicros: cpuDelta.user,
 						cpuSystemMicros: cpuDelta.system,
@@ -808,14 +879,14 @@ export async function startServer(
 				}
 				logger.info("Command completed", {
 					traceId,
-					cmd: request.cmd,
+					cmd: requestLabel,
 					ok: response.ok,
 					durationMs,
 				});
 			};
 
 			// Validate auth token if the daemon has one
-			if (token && request.token !== token) {
+			if (token && parsedRequest.token !== token) {
 				return reply(
 					serialiseResponse({
 						ok: false,
@@ -824,581 +895,684 @@ export async function startServer(
 				);
 			}
 
-			// Session management commands are handled globally
-			if (request.cmd === "session") {
-				const response = await handleSession(sessionRegistry, request.args, {
-					createSessionTab: (targetContext) => createTab(targetContext),
-					createIsolatedContext: async () => {
-						const browser = context.browser();
-						if (!browser) {
-							throw new Error("Browser not available for isolated context");
-						}
-						const contextOpts: Record<string, unknown> = {
-							...config?.playwright?.contextOptions,
-							viewport: { width: 1440, height: 900 },
-						};
-						if (stealthOpts) {
-							contextOpts.userAgent = stealthOpts.userAgent;
-						}
-						if (proxyConfig) {
-							contextOpts.proxy = proxyConfig;
-						}
-						const isolatedContext = await browser.newContext(contextOpts);
-						if (stealthOpts) {
-							await applyStealthScripts(isolatedContext, stealthOpts);
-						}
-						return isolatedContext;
-					},
-					defaultContext: context,
-					attachListeners: attachPageListeners,
-				});
-				return reply(serialiseResponse(response));
-			}
+			async function executeRequest(request: Request): Promise<Response> {
+				// Session management commands are handled globally
+				if (request.cmd === "session") {
+					return handleSession(sessionRegistry, request.args, {
+						createSessionTab: (targetContext) => createTab(targetContext),
+						createIsolatedContext: async () => {
+							const browser = context.browser();
+							if (!browser) {
+								throw new Error("Browser not available for isolated context");
+							}
+							const contextOpts: Record<string, unknown> = {
+								...config?.playwright?.contextOptions,
+								viewport: { width: 1440, height: 900 },
+							};
+							if (stealthOpts) {
+								contextOpts.userAgent = stealthOpts.userAgent;
+							}
+							if (proxyConfig) {
+								contextOpts.proxy = proxyConfig;
+							}
+							const isolatedContext = await browser.newContext(contextOpts);
+							if (stealthOpts) {
+								await applyStealthScripts(isolatedContext, stealthOpts);
+							}
+							return isolatedContext;
+						},
+						defaultContext: context,
+						attachListeners: attachPageListeners,
+					});
+				}
 
-			// Ping/status don't need session routing
-			if (request.cmd === "ping") {
-				return reply(serialiseResponse({ ok: true, data: "pong" }));
-			}
+				if (request.cmd === "ping") {
+					return { ok: true, data: "pong" };
+				}
 
-			if (request.cmd === "status") {
-				if (request.args.includes("--metrics")) {
-					return reply(
-						serialiseResponse({
+				if (request.cmd === "status") {
+					if (request.args.includes("--metrics")) {
+						return {
 							ok: true,
 							data: renderPrometheusMetrics(),
-						}),
-					);
-				}
-				const uptimeMs = Date.now() - startTime;
-				const uptimeSec = Math.floor(uptimeMs / 1000);
-				const memUsage = process.memoryUsage();
-				const memMb = Math.round(memUsage.rss / 1024 / 1024);
-
-				// Collect session details
-				const sessionsInfo: Record<
-					string,
-					{ url: string; tabs: number; isolated: boolean }
-				> = {};
-				let totalTabs = 0;
-				for (const [name, session] of sessionRegistry.sessions) {
-					const tabCount = session.tabRegistry.tabs.length;
-					totalTabs += tabCount;
-					const page = getActivePage(session);
-					const url = page?.url() ?? "<no page>";
-					sessionsInfo[name] = {
-						url,
-						tabs: tabCount,
-						isolated: session.isolated,
-					};
-				}
-
-				// Get browser version
-				let browserVersion = "unknown";
-				try {
-					const browser = context.browser();
-					if (browser) {
-						browserVersion = browser.version();
+						};
 					}
-				} catch {
-					// Browser info unavailable
-				}
+					const uptimeMs = Date.now() - startTime;
+					const uptimeSec = Math.floor(uptimeMs / 1000);
+					const memUsage = process.memoryUsage();
+					const memMb = Math.round(memUsage.rss / 1024 / 1024);
 
-				if (request.json) {
-					const jsonData = {
-						uptime: uptimeSec,
-						uptimeMs,
-						memory: {
-							rss: memUsage.rss,
-							heapUsed: memUsage.heapUsed,
-							heapTotal: memUsage.heapTotal,
-							rssMb: memMb,
-						},
-						sessions: sessionRegistry.sessions.size,
-						totalTabs,
-						browserVersion,
-						browserName: browserName ?? "chrome",
-						daemonPid: process.pid,
-						sessionsDetail: sessionsInfo,
-						metrics: {
-							totalCommands: metrics.totalCommands,
-							failedCommands: metrics.failedCommands,
-							recoveries: metrics.recoveries,
-							commandsByName: Object.fromEntries(metrics.commandsByName),
-							lastTraceId: metrics.lastTraceId,
-						},
-					};
-					return reply(
-						serialiseResponse({
+					const sessionsInfo: Record<
+						string,
+						{ url: string; tabs: number; isolated: boolean }
+					> = {};
+					let totalTabs = 0;
+					for (const [name, session] of sessionRegistry.sessions) {
+						const tabCount =
+							session.tabCountHint ?? session.tabRegistry.tabs.length;
+						totalTabs += tabCount;
+						const page =
+							session.tabRegistry.tabs[session.tabRegistry.activeTabIndex]
+								?.page;
+						const url = page?.url() ?? "about:blank";
+						sessionsInfo[name] = {
+							url,
+							tabs: tabCount,
+							isolated: session.isolated,
+						};
+					}
+
+					let browserVersion = "unknown";
+					try {
+						const browser = context.browser();
+						if (browser) {
+							browserVersion = browser.version();
+						}
+					} catch {
+						// Browser info unavailable
+					}
+
+					if (request.json) {
+						const jsonData = {
+							uptime: uptimeSec,
+							uptimeMs,
+							memory: {
+								rss: memUsage.rss,
+								heapUsed: memUsage.heapUsed,
+								heapTotal: memUsage.heapTotal,
+								rssMb: memMb,
+							},
+							sessions: sessionRegistry.sessions.size,
+							totalTabs,
+							browserVersion,
+							browserName: browserName ?? "chrome",
+							daemonPid: process.pid,
+							sessionsDetail: sessionsInfo,
+							metrics: {
+								totalCommands: metrics.totalCommands,
+								failedCommands: metrics.failedCommands,
+								recoveries: metrics.recoveries,
+								commandsByName: Object.fromEntries(metrics.commandsByName),
+								lastTraceId: metrics.lastTraceId,
+							},
+						};
+						return {
 							ok: true,
 							data: JSON.stringify(jsonData, null, 2),
-						}),
-					);
-				}
+						};
+					}
 
-				const statusData = [
-					`Daemon PID: ${process.pid}`,
-					`Uptime: ${uptimeSec}s`,
-					`Memory: ${memMb} MB`,
-					`Browser: ${browserDisplayName(browserName ?? "chrome")} ${browserVersion}`,
-					`Sessions: ${sessionRegistry.sessions.size}`,
-					`Total tabs: ${totalTabs}`,
-					"",
-				];
-				for (const [name, info] of Object.entries(sessionsInfo)) {
-					statusData.push(
-						`  ${name}: ${info.url} (${info.tabs} tab${info.tabs !== 1 ? "s" : ""}${info.isolated ? ", isolated" : ""})`,
-					);
-				}
-				return reply(
-					serialiseResponse({
+					const statusData = [
+						`Daemon PID: ${process.pid}`,
+						`Uptime: ${uptimeSec}s`,
+						`Memory: ${memMb} MB`,
+						`Browser: ${browserDisplayName(browserName ?? "chrome")} ${browserVersion}`,
+						`Sessions: ${sessionRegistry.sessions.size}`,
+						`Total tabs: ${totalTabs}`,
+						"",
+					];
+					for (const [name, info] of Object.entries(sessionsInfo)) {
+						statusData.push(
+							`  ${name}: ${info.url} (${info.tabs} tab${info.tabs !== 1 ? "s" : ""}${info.isolated ? ", isolated" : ""})`,
+						);
+					}
+					return {
 						ok: true,
 						data: statusData.join("\n"),
-					}),
-				);
-			}
+					};
+				}
 
-			// Resolve session for this request
-			const session = resolveSession(request.session);
-			if ("error" in session) {
-				return reply(
-					serialiseResponse({
+				const session = resolveSession(request.session);
+				if ("error" in session) {
+					return {
 						ok: false,
 						error: session.error,
-					}),
-				);
-			}
+					};
+				}
+				await ensureSessionReady(session);
+				if (!session.context || session.tabRegistry.tabs.length === 0) {
+					return {
+						ok: false,
+						error: `Session '${session.name}' is not ready.`,
+					};
+				}
 
-			const page = getActivePage(session);
-			const activeTabState = getActiveTabState(session);
-			const tabRegistry = session.tabRegistry;
-			const sessionContext = session.context;
+				const page = getActivePage(session);
+				const activeTabState = getActiveTabState(session);
+				const tabRegistry = session.tabRegistry;
+				const sessionContext = session.context;
 
-			// Reject unknown flags before dispatching
-			const knownFlags =
-				KNOWN_FLAGS[request.cmd] ??
-				pluginRegistry.commands.get(request.cmd)?.command.flags;
-			if (knownFlags) {
-				const unknown = checkUnknownFlags(request.args, knownFlags);
-				if (unknown.length > 0) {
-					return reply(
-						serialiseResponse({
+				const knownFlags =
+					KNOWN_FLAGS[request.cmd] ??
+					pluginRegistry.commands.get(request.cmd)?.command.flags;
+				if (knownFlags) {
+					const unknown = checkUnknownFlags(request.args, knownFlags);
+					if (unknown.length > 0) {
+						return {
 							ok: false,
 							error: unknownFlagsError(request.cmd, unknown),
-						}),
-					);
-				}
-			}
-
-			async function executeCommand(): Promise<Response> {
-				switch (request.cmd) {
-					case "goto":
-						return handleGoto(page, request.args, {
-							autoSnapshot: request.args.includes("--auto-snapshot"),
-						});
-					case "text":
-						return handleText(page);
-					case "snapshot":
-						return handleSnapshot(page, request.args, {
-							json: request.json,
-						});
-					case "click":
-						return handleClick(page, request.args, {
-							autoSnapshot: request.args.includes("--auto-snapshot"),
-						});
-					case "hover":
-						return handleHover(page, request.args);
-					case "fill":
-						return handleFill(page, request.args);
-					case "select":
-						return handleSelect(page, request.args);
-					case "scroll":
-						return handleScroll(page, request.args);
-					case "press":
-						return handlePress(page, request.args, {
-							autoSnapshot: request.args.includes("--auto-snapshot"),
-						});
-					case "screenshot":
-						return handleScreenshot(page, request.args);
-					case "console":
-						return handleConsole(
-							getActiveConsoleBuffer(session),
-							request.args,
-							{
-								json: request.json,
-							},
-						);
-					case "network":
-						return handleNetwork(
-							getActiveNetworkBuffer(session),
-							request.args,
-							{
-								json: request.json,
-							},
-						);
-					case "auth-state":
-						return handleAuthState(sessionContext, page, request.args);
-					case "login":
-						return handleLogin(config, page, request.args, configCtx);
-					case "tab":
-						return handleTab(tabRegistry, request.args, {
-							clearRefs,
-							createTab: () => createTab(sessionContext),
-						});
-					case "flow":
-						return handleFlow(
-							config,
-							page,
-							request.args,
-							{
-								consoleBuffer: getActiveConsoleBuffer(session),
-								networkBuffer: getActiveNetworkBuffer(session),
-								performWipe: () =>
-									handleWipe({
-										context: sessionContext,
-										tabRegistry,
-										clearRefs,
-									}),
-							},
-							configCtx,
-							flowSources,
-							flowLoadErrors,
-						);
-					case "assert":
-						return handleAssert(config, page, request.args);
-					case "healthcheck":
-						return handleHealthcheck(
-							config,
-							page,
-							request.args,
-							{
-								consoleBuffer: getActiveConsoleBuffer(session),
-								networkBuffer: getActiveNetworkBuffer(session),
-							},
-							sessionContext,
-							configCtx,
-						);
-					case "wipe":
-						return handleWipe({
-							context: sessionContext,
-							tabRegistry,
-							clearRefs,
-						});
-					case "viewport":
-						return handleViewport(page, request.args);
-					case "eval":
-						return handleEval(page, request.args);
-					case "page-eval":
-						return handlePageEval(page, request.args);
-					case "wait":
-						return handleWait(page, request.args);
-					case "url":
-						return handleUrl(page);
-					case "back":
-						return handleBack(page);
-					case "forward":
-						return handleForward(page);
-					case "reload":
-						return handleReload(page, request.args);
-					case "attr":
-						return handleAttr(page, request.args);
-					case "upload":
-						return handleUpload(page, request.args);
-					case "a11y":
-						return handleA11y(page, request.args, undefined, {
-							json: request.json,
-						});
-					case "benchmark":
-						return handleBenchmark({ context: sessionContext }, request.args);
-					case "dialog":
-						return handleDialog(session.dialogState, request.args);
-					case "download":
-						return handleDownload(page, request.args, request.timeout);
-					case "frame":
-						return handleFrame(page, request.args, activeTabState);
-					case "intercept":
-						return handleIntercept(page, request.args, session.interceptState);
-					case "cookies":
-						return handleCookies(sessionContext, request.args, {
-							json: request.json,
-						});
-					case "storage":
-						return handleStorage(page, request.args, {
-							json: request.json,
-						});
-					case "html":
-						return handleHtml(page, request.args);
-					case "title":
-						return handleTitle(page);
-					case "pdf":
-						return handlePdf(page, request.args);
-					case "element-count":
-						return handleElementCount(page, request.args);
-					case "trace":
-						return handleTrace(
-							sessionContext,
-							getTraceState(sessionContext),
-							request.args,
-						);
-					case "video":
-						return handleVideo(
-							sessionContext,
-							getVideoState(session.name),
-							activeTabState,
-							request.args,
-							{
-								attachListeners: (p) =>
-									attachPageListeners(p, activeTabState, browserName),
-								stealthOpts: stealthOpts
-									? { userAgent: stealthOpts.userAgent }
-									: undefined,
-								proxyConfig,
-								passthroughContextOptions: config?.playwright?.contextOptions,
-							},
-						);
-					case "init":
-						return handleInit(request.args);
-					case "screenshots":
-						return handleScreenshots(request.args);
-					case "report":
-						return handleReport(request.args);
-					case "completions": {
-						const shell = request.args[0] ?? "bash";
-						const script = generateCompletions(shell);
-						if (script) {
-							return { ok: true, data: script };
-						}
-						return {
-							ok: false,
-							error: `Unknown shell: '${shell}'. Supported: bash, zsh, fish`,
 						};
 					}
-					case "form":
-						return handleForm(page, request.args);
-					case "test-matrix":
-						return handleTestMatrix(
-							config,
-							page,
-							request.args,
-							{
-								consoleBuffer: getActiveConsoleBuffer(session),
-								networkBuffer: getActiveNetworkBuffer(session),
-							},
-							sessionContext,
-							context,
-							stealthOpts,
-							configCtx,
-							proxyConfig,
-						);
-					case "assert-ai":
-						return handleAssertAi(page, request.args);
-					case "replay":
-						return handleReplay(request.args);
-					case "diff":
-						return handleDiff(
-							config,
-							page,
-							request.args,
-							{
-								consoleBuffer: getActiveConsoleBuffer(session),
-								networkBuffer: getActiveNetworkBuffer(session),
-							},
-							sessionContext,
-						);
-					case "flow-share":
-						return handleFlowShare(config, request.args);
-					case "perf":
-						return handlePerf(page, request.args, {
-							json: request.json,
-						});
-					case "security":
-						return handleSecurity(
-							page,
-							request.args,
-							{
-								context: sessionContext,
-								networkBuffer: getActiveNetworkBuffer(session),
-							},
-							{ json: request.json },
-						);
-					case "responsive":
-						return handleResponsive(page, request.args, {
-							json: request.json,
-						});
-					case "extract":
-						return handleExtract(page, request.args, {
-							json: request.json,
-						});
-					case "crawl":
-						return handleCrawl(page, request.args, {
-							json: request.json,
-						});
-					case "record":
-						return handleRecord(page, request.args);
-					case "throttle":
-						return handleThrottle(page, request.args);
-					case "offline":
-						return handleOffline(page, request.args);
-					case "do":
-						return handleDo(page, request.args);
-					case "vrt":
-						return handleVrt(page, request.args, {
-							json: request.json,
-						});
-					case "ci-init":
-						return handleCiInit(page, request.args);
-					case "watch":
-						return handleWatch(page, request.args);
-					case "repl":
-						return handleRepl(page, request.args);
-					case "seo":
-						return handleSeo(page, request.args, {
-							json: request.json,
-						});
-					case "subscribe":
-						return handleSubscribe(page, request.args);
-					case "dev":
-						return handleDev(page, request.args, {
-							config,
-						});
-					case "compliance":
-						return handleCompliance(
-							page,
-							request.args,
-							{
-								context: sessionContext,
-								networkBuffer: getActiveNetworkBuffer(session),
-							},
-							{ json: request.json },
-						);
-					case "security-scan":
-						return handleSecurityScan(page, request.args, {
-							json: request.json,
-						});
-					case "i18n":
-						return handleI18n(page, request.args, {
-							json: request.json,
-						});
-					case "api-assert":
-						return handleApiAssertCmd(page, request.args, {
-							json: request.json,
-						});
-					case "design-audit":
-						return handleDesignAudit(page, request.args, {
-							json: request.json,
-						});
-					case "doc-capture":
-						return handleDocCapture(page, request.args, {
-							json: request.json,
-						});
-					case "gesture":
-						return handleGesture(page, request.args);
-					case "devices":
-						return handleDevices(page, request.args);
-					case "monitor":
-						return handleMonitor(page, request.args);
-					case "quit":
-						return handleQuit();
-					default: {
-						// Dispatch to plugin commands
-						const pluginCmd = pluginRegistry.commands.get(request.cmd);
-						if (pluginCmd) {
-							const ctx: CommandContext = {
-								page,
-								context: sessionContext,
-								config,
-								args: request.args,
-								sessionState: getPluginSessionState(
-									session.pluginState,
-									pluginCmd.plugin,
-								),
-								request: {
-									session: request.session,
-									json: request.json,
-									timeout: request.timeout,
-								},
-							};
-							try {
-								return await pluginCmd.command.handler(ctx);
-							} catch (err) {
-								const message =
-									err instanceof Error ? err.message : String(err);
-								return {
-									ok: false,
-									error: `Plugin '${pluginCmd.plugin}' error: ${message}`,
-								};
+				}
+
+				async function executeCommand(): Promise<Response> {
+					switch (request.cmd) {
+						case "goto":
+							return handleGoto(page, request.args, {
+								autoSnapshot: request.args.includes("--auto-snapshot"),
+							});
+						case "text":
+							return handleText(page);
+						case "snapshot": {
+							const cacheKey = `${request.json === true ? "json" : "text"}::${request.args.join("\u0000")}`;
+							const cached = activeTabState.snapshotCache?.get(cacheKey);
+							if (cached) {
+								return cached;
 							}
+							const response = await handleSnapshot(page, request.args, {
+								json: request.json,
+							});
+							if (response.ok) {
+								if (!activeTabState.snapshotCache) {
+									activeTabState.snapshotCache = new Map();
+								}
+								activeTabState.snapshotCache.set(cacheKey, response);
+							}
+							return response;
 						}
-						return {
-							ok: false,
-							error: `Command '${request.cmd}' is not yet implemented.`,
-						};
+						case "click":
+							return handleClick(page, request.args, {
+								autoSnapshot: request.args.includes("--auto-snapshot"),
+							});
+						case "hover":
+							return handleHover(page, request.args);
+						case "fill":
+							return handleFill(page, request.args);
+						case "select":
+							return handleSelect(page, request.args);
+						case "scroll":
+							return handleScroll(page, request.args);
+						case "press":
+							return handlePress(page, request.args, {
+								autoSnapshot: request.args.includes("--auto-snapshot"),
+							});
+						case "screenshot":
+							return handleScreenshot(page, request.args, {
+								retention:
+									config?.artifacts?.retention?.screenshots ??
+									config?.artifacts?.retention?.default,
+							});
+						case "console":
+							return handleConsole(
+								getActiveConsoleBuffer(session),
+								request.args,
+								{
+									json: request.json,
+								},
+							);
+						case "network":
+							return handleNetwork(
+								getActiveNetworkBuffer(session),
+								request.args,
+								{
+									json: request.json,
+								},
+							);
+						case "auth-state":
+							return handleAuthState(sessionContext, page, request.args);
+						case "login":
+							return handleLogin(config, page, request.args, configCtx);
+						case "tab":
+							return handleTab(tabRegistry, request.args, {
+								clearRefs,
+								createTab: () => createTab(sessionContext),
+							});
+						case "flow":
+							return handleFlow(
+								config,
+								page,
+								request.args,
+								{
+									consoleBuffer: getActiveConsoleBuffer(session),
+									networkBuffer: getActiveNetworkBuffer(session),
+									performWipe: () =>
+										handleWipe({
+											context: sessionContext,
+											tabRegistry,
+											clearRefs,
+										}),
+								},
+								configCtx,
+								flowSources,
+								flowLoadErrors,
+							);
+						case "assert":
+							return handleAssert(config, page, request.args);
+						case "healthcheck":
+							return handleHealthcheck(
+								config,
+								page,
+								request.args,
+								{
+									consoleBuffer: getActiveConsoleBuffer(session),
+									networkBuffer: getActiveNetworkBuffer(session),
+								},
+								sessionContext,
+								configCtx,
+							);
+						case "wipe":
+							return handleWipe({
+								context: sessionContext,
+								tabRegistry,
+								clearRefs,
+							});
+						case "viewport":
+							return handleViewport(page, request.args);
+						case "eval":
+							return handleEval(page, request.args);
+						case "page-eval":
+							return handlePageEval(page, request.args);
+						case "wait":
+							return handleWait(page, request.args);
+						case "url":
+							return handleUrl(page);
+						case "back":
+							return handleBack(page);
+						case "forward":
+							return handleForward(page);
+						case "reload":
+							return handleReload(page, request.args);
+						case "attr":
+							return handleAttr(page, request.args);
+						case "upload":
+							return handleUpload(page, request.args);
+						case "a11y":
+							return handleA11y(page, request.args, undefined, {
+								json: request.json,
+							});
+						case "benchmark":
+							return handleBenchmark(
+								{
+									context: sessionContext,
+									scratchPage: await getScratchPage(sessionContext),
+								},
+								request.args,
+								{
+									json: request.json,
+								},
+							);
+						case "dialog":
+							return handleDialog(session.dialogState, request.args);
+						case "download":
+							return handleDownload(page, request.args, request.timeout);
+						case "frame":
+							return handleFrame(page, request.args, activeTabState);
+						case "intercept":
+							return handleIntercept(
+								page,
+								request.args,
+								session.interceptState,
+							);
+						case "cookies":
+							return handleCookies(sessionContext, request.args, {
+								json: request.json,
+							});
+						case "storage":
+							return handleStorage(page, request.args, {
+								json: request.json,
+							});
+						case "html":
+							return handleHtml(page, request.args);
+						case "title":
+							return handleTitle(page);
+						case "pdf":
+							return handlePdf(page, request.args);
+						case "element-count":
+							return handleElementCount(page, request.args);
+						case "trace":
+							return handleTrace(
+								sessionContext,
+								getTraceState(sessionContext),
+								request.args,
+								{
+									retention:
+										config?.artifacts?.retention?.traces ??
+										config?.artifacts?.retention?.default,
+								},
+							);
+						case "video":
+							return handleVideo(
+								sessionContext,
+								getVideoState(session.name),
+								activeTabState,
+								request.args,
+								{
+									attachListeners: (p) =>
+										attachPageListeners(p, activeTabState, browserName),
+									stealthOpts: stealthOpts
+										? { userAgent: stealthOpts.userAgent }
+										: undefined,
+									proxyConfig,
+									passthroughContextOptions: config?.playwright?.contextOptions,
+									retention:
+										config?.artifacts?.retention?.videos ??
+										config?.artifacts?.retention?.default,
+								},
+							);
+						case "init":
+							return handleInit(request.args);
+						case "screenshots":
+							return handleScreenshots(request.args);
+						case "report":
+							return handleReport(request.args);
+						case "completions": {
+							const shell = request.args[0] ?? "bash";
+							const script = generateCompletions(shell);
+							if (script) {
+								return { ok: true, data: script };
+							}
+							return {
+								ok: false,
+								error: `Unknown shell: '${shell}'. Supported: bash, zsh, fish`,
+							};
+						}
+						case "form":
+							return handleForm(page, request.args);
+						case "test-matrix":
+							return handleTestMatrix(
+								config,
+								page,
+								request.args,
+								{
+									consoleBuffer: getActiveConsoleBuffer(session),
+									networkBuffer: getActiveNetworkBuffer(session),
+								},
+								sessionContext,
+								context,
+								stealthOpts,
+								configCtx,
+								proxyConfig,
+							);
+						case "assert-ai":
+							return handleAssertAi(page, request.args);
+						case "replay":
+							return handleReplay(request.args);
+						case "diff":
+							return handleDiff(
+								config,
+								page,
+								request.args,
+								{
+									consoleBuffer: getActiveConsoleBuffer(session),
+									networkBuffer: getActiveNetworkBuffer(session),
+									scratchPage: await getScratchPage(sessionContext),
+								},
+								sessionContext,
+							);
+						case "flow-share":
+							return handleFlowShare(config, request.args);
+						case "perf":
+							return handlePerf(page, request.args, {
+								json: request.json,
+							});
+						case "security":
+							return handleSecurity(
+								page,
+								request.args,
+								{
+									context: sessionContext,
+									networkBuffer: getActiveNetworkBuffer(session),
+								},
+								{ json: request.json },
+							);
+						case "responsive":
+							return handleResponsive(page, request.args, {
+								json: request.json,
+							});
+						case "extract":
+							return handleExtract(page, request.args, {
+								json: request.json,
+							});
+						case "crawl":
+							return handleCrawl(page, request.args, {
+								json: request.json,
+							});
+						case "record":
+							return handleRecord(page, request.args);
+						case "throttle":
+							return handleThrottle(page, request.args);
+						case "offline":
+							return handleOffline(page, request.args);
+						case "do":
+							return handleDo(page, request.args);
+						case "vrt":
+							return handleVrt(page, request.args, {
+								json: request.json,
+							});
+						case "ci-init":
+							return handleCiInit(page, request.args);
+						case "watch":
+							return handleWatch(page, request.args);
+						case "repl":
+							return handleRepl(page, request.args);
+						case "seo":
+							return handleSeo(page, request.args, {
+								json: request.json,
+							});
+						case "subscribe":
+							return handleSubscribe(page, request.args);
+						case "dev":
+							return handleDev(page, request.args, {
+								config,
+							});
+						case "compliance":
+							return handleCompliance(
+								page,
+								request.args,
+								{
+									context: sessionContext,
+									networkBuffer: getActiveNetworkBuffer(session),
+								},
+								{ json: request.json },
+							);
+						case "security-scan":
+							return handleSecurityScan(page, request.args, {
+								json: request.json,
+							});
+						case "i18n":
+							return handleI18n(page, request.args, {
+								json: request.json,
+							});
+						case "api-assert":
+							return handleApiAssertCmd(page, request.args, {
+								json: request.json,
+							});
+						case "design-audit":
+							return handleDesignAudit(page, request.args, {
+								json: request.json,
+							});
+						case "doc-capture":
+							return handleDocCapture(page, request.args, {
+								json: request.json,
+							});
+						case "gesture":
+							return handleGesture(page, request.args);
+						case "devices":
+							return handleDevices(page, request.args);
+						case "monitor":
+							return handleMonitor(page, request.args);
+						case "quit":
+							return handleQuit();
+						default: {
+							// Dispatch to plugin commands
+							const pluginCmd = pluginRegistry.commands.get(request.cmd);
+							if (pluginCmd) {
+								const ctx: CommandContext = {
+									page,
+									context: sessionContext,
+									config,
+									args: request.args,
+									sessionState: getPluginSessionState(
+										session.pluginState,
+										pluginCmd.plugin,
+									),
+									request: {
+										session: request.session,
+										json: request.json,
+										timeout: request.timeout,
+									},
+								};
+								try {
+									return await pluginCmd.command.handler(ctx);
+								} catch (err) {
+									const message =
+										err instanceof Error ? err.message : String(err);
+									return {
+										ok: false,
+										error: `Plugin '${pluginCmd.plugin}' error: ${message}`,
+									};
+								}
+							}
+							return {
+								ok: false,
+								error: `Command '${request.cmd}' is not yet implemented.`,
+							};
+						}
 					}
 				}
-			}
 
-			// Build plugin context for hooks (only if hooks are registered)
-			const hasHooks =
-				pluginRegistry.hooks.beforeCommand.length > 0 ||
-				pluginRegistry.hooks.afterCommand.length > 0;
-			let pluginCtx: CommandContext | undefined;
-			if (hasHooks) {
-				const pluginCmd = pluginRegistry.commands.get(request.cmd);
-				pluginCtx = {
-					page,
-					context: sessionContext,
-					config,
-					args: request.args,
-					sessionState: pluginCmd
-						? getPluginSessionState(session.pluginState, pluginCmd.plugin)
-						: {},
-					request: {
-						session: request.session,
-						json: request.json,
-						timeout: request.timeout,
-					},
-				};
-			}
-
-			// Run beforeCommand hooks
-			if (pluginCtx) {
-				const hookResponse = await runBeforeHooks(
-					pluginRegistry,
-					request.cmd,
-					pluginCtx,
-				);
-				if (hookResponse) {
-					finalizeMetrics(hookResponse);
-					return reply(serialiseResponse(hookResponse));
+				// Build plugin context for hooks (only if hooks are registered)
+				const hasHooks =
+					pluginRegistry.hooks.beforeCommand.length > 0 ||
+					pluginRegistry.hooks.afterCommand.length > 0;
+				let pluginCtx: CommandContext | undefined;
+				if (hasHooks) {
+					const pluginCmd = pluginRegistry.commands.get(request.cmd);
+					pluginCtx = {
+						page,
+						context: sessionContext,
+						config,
+						args: request.args,
+						sessionState: pluginCmd
+							? getPluginSessionState(session.pluginState, pluginCmd.plugin)
+							: {},
+						request: {
+							session: request.session,
+							json: request.json,
+							timeout: request.timeout,
+						},
+					};
 				}
+
+				// Run beforeCommand hooks
+				if (pluginCtx) {
+					const hookResponse = await runBeforeHooks(
+						pluginRegistry,
+						request.cmd,
+						pluginCtx,
+					);
+					if (hookResponse) {
+						return hookResponse;
+					}
+				}
+
+				const isExempt =
+					TIMEOUT_EXEMPT.has(request.cmd) ||
+					pluginRegistry.commands.get(request.cmd)?.command.timeoutExempt ===
+						true;
+
+				let response: Response;
+				if (isExempt) {
+					response = await executeCommand();
+				} else {
+					const timeoutMs = resolveTimeout(request.timeout, config?.timeout);
+					response = await withTimeout(executeCommand, timeoutMs);
+				}
+
+				// Run afterCommand hooks
+				if (pluginCtx) {
+					await runAfterHooks(pluginRegistry, request.cmd, pluginCtx, response);
+				}
+
+				if (
+					request.cmd !== "status" &&
+					request.cmd !== "ping" &&
+					request.cmd !== "quit"
+				) {
+					scheduleSessionStatePersist();
+				}
+				if (!SNAPSHOT_CACHE_SAFE_COMMANDS.has(request.cmd)) {
+					activeTabState.snapshotCache = undefined;
+				}
+				return response;
 			}
 
-			const isExempt =
-				TIMEOUT_EXEMPT.has(request.cmd) ||
-				pluginRegistry.commands.get(request.cmd)?.command.timeoutExempt ===
-					true;
+			if (isBatchRequest(parsedRequest)) {
+				const results: BatchItemResponse[] = [];
+				for (const entry of parsedRequest.batch) {
+					if (entry.cmd === "quit") {
+						results.push({
+							cmd: entry.cmd,
+							ok: false,
+							error: "The 'quit' command cannot be used inside a batch.",
+						});
+						finalizeMetrics({
+							ok: true,
+							batch: results,
+							stoppedEarly: true,
+						});
+						return reply(
+							serialiseResponse({
+								ok: true,
+								batch: results,
+								stoppedEarly: true,
+							}),
+						);
+					}
 
-			let response: Response;
-			if (isExempt) {
-				response = await executeCommand();
-			} else {
-				const timeoutMs = resolveTimeout(request.timeout, config?.timeout);
-				response = await withTimeout(executeCommand, timeoutMs);
+					const response = await executeRequest({
+						cmd: entry.cmd,
+						args: entry.args,
+						timeout: entry.timeout ?? parsedRequest.timeout,
+						session: entry.session ?? parsedRequest.session,
+						json: entry.json ?? parsedRequest.json,
+						token: parsedRequest.token,
+					});
+					if (response.ok) {
+						results.push({
+							cmd: entry.cmd,
+							ok: true,
+							data: response.data,
+						});
+					} else {
+						results.push({
+							cmd: entry.cmd,
+							ok: false,
+							error: response.error,
+						});
+						if (!parsedRequest.continueOnError) {
+							const batchResponse = {
+								ok: true as const,
+								batch: results,
+								stoppedEarly: true,
+							};
+							finalizeMetrics(batchResponse);
+							return reply(serialiseResponse(batchResponse));
+						}
+					}
+				}
+
+				const batchResponse = {
+					ok: true as const,
+					batch: results,
+				};
+				finalizeMetrics(batchResponse);
+				return reply(serialiseResponse(batchResponse));
 			}
 
-			// Run afterCommand hooks
-			if (pluginCtx) {
-				await runAfterHooks(pluginRegistry, request.cmd, pluginCtx, response);
-			}
-
+			const response = await executeRequest(parsedRequest);
 			finalizeMetrics(response);
-			if (
-				request.cmd !== "status" &&
-				request.cmd !== "ping" &&
-				request.cmd !== "quit"
-			) {
-				scheduleSessionStatePersist();
-			}
-			return reply(serialiseResponse(response), request.cmd === "quit");
+			return reply(serialiseResponse(response), parsedRequest.cmd === "quit");
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			return reply(serialiseResponse({ ok: false, error: message }));
@@ -1410,33 +1584,59 @@ export async function startServer(
 		}
 	}
 
-	server = createServer((socket) => {
+	function attachSocketHandler(socket: Socket) {
 		let buffer = "";
+		let queue = Promise.resolve();
+		let closing = false;
 
 		socket.on("data", (chunk) => {
 			buffer += chunk.toString();
 
-			const newlineIndex = buffer.indexOf("\n");
-			if (newlineIndex === -1) return;
+			while (true) {
+				const newlineIndex = buffer.indexOf("\n");
+				if (newlineIndex === -1) return;
 
-			const line = buffer.slice(0, newlineIndex);
-			buffer = buffer.slice(newlineIndex + 1);
+				const line = buffer.slice(0, newlineIndex).trim();
+				buffer = buffer.slice(newlineIndex + 1);
+				if (!line) continue;
 
-			handleConnection(line).then(
-				(result) => {
-					socket.end(result.responseStr, () => {
-						if (result.quit) shutdownOnce();
-					});
-				},
-				(err) => {
-					const errResponse = serialiseResponse({
-						ok: false,
-						error: err instanceof Error ? err.message : String(err),
-					});
-					socket.end(errResponse);
-				},
-			);
+				queue = queue.then(async () => {
+					if (closing || socket.destroyed) return;
+
+					try {
+						const result = await handleConnection(line);
+						if (socket.destroyed) return;
+
+						await new Promise<void>((resolve, reject) => {
+							socket.write(result.responseStr, (err) => {
+								if (err) reject(err);
+								else resolve();
+							});
+						});
+
+						if (result.quit) {
+							closing = true;
+							socket.end(() => {
+								shutdownOnce();
+							});
+						}
+					} catch (err) {
+						if (socket.destroyed) return;
+						const errResponse = serialiseResponse({
+							ok: false,
+							error: err instanceof Error ? err.message : String(err),
+						});
+						await new Promise<void>((resolve) => {
+							socket.write(errResponse, () => resolve());
+						});
+					}
+				});
+			}
 		});
+	}
+
+	server = createServer((socket) => {
+		attachSocketHandler(socket);
 	});
 
 	await new Promise<void>((resolve, reject) => {
@@ -1471,30 +1671,7 @@ export async function startServer(
 			const port = Number.parseInt(portStr, 10);
 
 			tcpServer = createServer((socket) => {
-				let tcpBuffer = "";
-				socket.on("data", (chunk) => {
-					tcpBuffer += chunk.toString();
-					const newlineIndex = tcpBuffer.indexOf("\n");
-					if (newlineIndex === -1) return;
-
-					const line = tcpBuffer.slice(0, newlineIndex);
-					tcpBuffer = tcpBuffer.slice(newlineIndex + 1);
-
-					handleConnection(line).then(
-						(result) => {
-							socket.end(result.responseStr, () => {
-								if (result.quit) shutdownOnce();
-							});
-						},
-						(err) => {
-							const errResponse = serialiseResponse({
-								ok: false,
-								error: err instanceof Error ? err.message : String(err),
-							});
-							socket.end(errResponse);
-						},
-					);
-				});
+				attachSocketHandler(socket);
 			});
 
 			await new Promise<void>((resolve, reject) => {

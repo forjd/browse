@@ -54,23 +54,23 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 
 ### Speed Optimisations
 
-- [ ] **Connection pooling** ([#154](https://github.com/forjd/browse/issues/154)) — Reuse Playwright connections across commands
-- [ ] **Lazy context creation** ([#155](https://github.com/forjd/browse/issues/155)) — Defer browser context creation until needed
-- [ ] **Snapshot caching** ([#156](https://github.com/forjd/browse/issues/156)) — Cache accessibility trees for unchanged pages
-- [ ] **Command batching** ([#157](https://github.com/forjd/browse/issues/157)) — Execute multiple commands in a single daemon round-trip
+- [x] **Connection pooling** ([#154](https://github.com/forjd/browse/issues/154)) — Reuse Playwright connections across commands
+- [x] **Lazy context creation** ([#155](https://github.com/forjd/browse/issues/155)) — Defer browser context creation until needed
+- [x] **Snapshot caching** ([#156](https://github.com/forjd/browse/issues/156)) — Cache accessibility trees for unchanged pages
+- [x] **Command batching** ([#157](https://github.com/forjd/browse/issues/157)) — Execute multiple commands in a single daemon round-trip
 
 ### Resource Efficiency
 
-- [ ] **Memory optimisation** ([#158](https://github.com/forjd/browse/issues/158)) — Reduce per-page memory footprint
-- [ ] **Disk usage management** ([#159](https://github.com/forjd/browse/issues/159)) — Auto-cleanup of screenshots, traces, videos by retention policy
-- [ ] **Browser tab recycling** ([#160](https://github.com/forjd/browse/issues/160)) — Reuse tabs instead of creating new ones
-- [ ] **Lazy screenshot encoding** ([#161](https://github.com/forjd/browse/issues/161)) — Encode only when needed
+- [x] **Memory optimisation** ([#158](https://github.com/forjd/browse/issues/158)) — Reduce per-page memory footprint
+- [x] **Disk usage management** ([#159](https://github.com/forjd/browse/issues/159)) — Auto-cleanup of screenshots, traces, videos by retention policy
+- [x] **Browser tab recycling** ([#160](https://github.com/forjd/browse/issues/160)) — Reuse tabs instead of creating new ones
+- [x] **Lazy screenshot encoding** ([#161](https://github.com/forjd/browse/issues/161)) — Benchmarked the common file-backed path and kept encoding on-demand only where needed
 
 ### Benchmarking
 
-- [ ] **Performance regression suite** ([#162](https://github.com/forjd/browse/issues/162)) — Automated benchmarks on every commit
-- [ ] **Competitive benchmarking** ([#163](https://github.com/forjd/browse/issues/163)) — Compare against Playwright, Selenium, Cypress
-- [ ] **Real-world workload testing** ([#164](https://github.com/forjd/browse/issues/164)) — Typical QA workflows as benchmarks
+- [x] **Performance regression suite** ([#162](https://github.com/forjd/browse/issues/162)) — Automated benchmarks on every commit
+- [x] **Competitive benchmarking** ([#163](https://github.com/forjd/browse/issues/163)) — Compare against Playwright, Selenium, Cypress
+- [x] **Real-world workload testing** ([#164](https://github.com/forjd/browse/issues/164)) — Typical QA workflows as benchmarks
 
 ---
 

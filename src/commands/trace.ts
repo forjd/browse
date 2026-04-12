@@ -1,7 +1,14 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import type { BrowserContext } from "playwright";
+import {
+	applyArtifactRetention,
+	cleanArtifacts,
+	formatArtifactBytes,
+	listArtifactFiles,
+	TRACE_ARTIFACT_KIND,
+} from "../artifacts.ts";
 import type { Response } from "../protocol.ts";
 
 export type TraceState = {
@@ -15,8 +22,8 @@ export function createTraceState(): TraceState {
 
 const TRACES_DIR = join(homedir(), ".bun-browse", "traces");
 
-function generateDefaultTracePath(): string {
-	mkdirSync(TRACES_DIR, { recursive: true });
+function generateDefaultTracePath(tracesDir = TRACES_DIR): string {
+	mkdirSync(tracesDir, { recursive: true });
 
 	const now = new Date();
 	const pad = (n: number, len = 2) => String(n).padStart(len, "0");
@@ -30,7 +37,7 @@ function generateDefaultTracePath(): string {
 		pad(now.getSeconds()),
 	].join("");
 
-	return join(TRACES_DIR, `trace-${timestamp}.zip`);
+	return join(tracesDir, `trace-${timestamp}.zip`);
 }
 
 /** List trace .zip files sorted newest-first. */
@@ -40,22 +47,12 @@ export function listTraceFiles(): {
 	mtime: Date;
 	sizeBytes: number;
 }[] {
-	if (!existsSync(TRACES_DIR)) return [];
-
-	return readdirSync(TRACES_DIR)
-		.filter((f) => f.endsWith(".zip"))
-		.map((f) => {
-			const fullPath = join(TRACES_DIR, f);
-			const st = statSync(fullPath);
-			return { name: f, path: fullPath, mtime: st.mtime, sizeBytes: st.size };
-		})
-		.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
-}
-
-function formatSize(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	return listArtifactFiles(TRACES_DIR, TRACE_ARTIFACT_KIND).map((entry) => ({
+		name: entry.name,
+		path: entry.path,
+		mtime: new Date(entry.mtimeMs),
+		sizeBytes: entry.sizeBytes,
+	}));
 }
 
 function findPlaywrightCli(): string {
@@ -87,13 +84,19 @@ export async function handleTrace(
 	context: BrowserContext,
 	traceState: TraceState,
 	args: string[],
-	deps?: { spawn?: SpawnFn },
+	deps?: {
+		spawn?: SpawnFn;
+		tracesDir?: string;
+		retention?: string;
+	},
 ): Promise<Response> {
+	const tracesDir = deps?.tracesDir ?? TRACES_DIR;
+
 	if (args.length === 0) {
 		return {
 			ok: false,
 			error:
-				"Usage: browse trace start [--screenshots] [--snapshots]\n       browse trace stop [--out <path>]\n       browse trace view [<path>] [--latest] [--port <port>]\n       browse trace list\n       browse trace status",
+				"Usage: browse trace start [--screenshots] [--snapshots]\n       browse trace stop [--out <path>]\n       browse trace view [<path>] [--latest] [--port <port>]\n       browse trace list\n       browse trace clean [--older-than <duration>] [--dry-run]\n       browse trace status",
 		};
 	}
 
@@ -151,6 +154,13 @@ export async function handleTrace(
 		}
 	}
 
+	if (subcommand === "clean") {
+		return cleanArtifacts(args.slice(1), {
+			dir: tracesDir,
+			kind: TRACE_ARTIFACT_KIND,
+		});
+	}
+
 	if (subcommand === "stop") {
 		if (!traceState.recording) {
 			return {
@@ -169,7 +179,7 @@ export async function handleTrace(
 			}
 		}
 
-		const savePath = outPath ?? generateDefaultTracePath();
+		const savePath = outPath ?? generateDefaultTracePath(tracesDir);
 
 		// Prepare filesystem before stopping the trace — fail fast without
 		// altering traceState so the recording can be recovered.
@@ -199,6 +209,8 @@ export async function handleTrace(
 				};
 			}
 
+			applyArtifactRetention(tracesDir, TRACE_ARTIFACT_KIND, deps?.retention);
+
 			return {
 				ok: true,
 				data: `Trace saved to ${savePath} (${elapsed}s recording)\nView with: browse trace view ${savePath}`,
@@ -215,14 +227,14 @@ export async function handleTrace(
 	}
 
 	if (subcommand === "list") {
-		const traces = listTraceFiles();
+		const traces = listArtifactFiles(tracesDir, TRACE_ARTIFACT_KIND);
 		if (traces.length === 0) {
 			return { ok: true, data: "No traces found." };
 		}
 
 		const lines = traces.map(
 			(t) =>
-				`${t.name}  ${formatSize(t.sizeBytes)}  ${t.mtime.toISOString().replace("T", " ").slice(0, 19)}`,
+				`${t.name}  ${formatArtifactBytes(t.sizeBytes)}  ${new Date(t.mtimeMs).toISOString().replace("T", " ").slice(0, 19)}`,
 		);
 		return {
 			ok: true,
@@ -246,7 +258,7 @@ export async function handleTrace(
 		let tracePath: string | undefined;
 
 		if (useLatest) {
-			const traces = listTraceFiles();
+			const traces = listArtifactFiles(tracesDir, TRACE_ARTIFACT_KIND);
 			if (traces.length === 0) {
 				return {
 					ok: false,
@@ -321,6 +333,6 @@ export async function handleTrace(
 
 	return {
 		ok: false,
-		error: `Unknown trace subcommand: '${subcommand}'. Use start, stop, view, list, or status.`,
+		error: `Unknown trace subcommand: '${subcommand}'. Use start, stop, view, list, clean, or status.`,
 	};
 }

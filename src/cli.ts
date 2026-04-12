@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { connect } from "node:net";
 import { readToken } from "./auth.ts";
 import type { BrowserName } from "./config.ts";
@@ -14,8 +15,9 @@ import {
 } from "./help.ts";
 import { cleanupFiles, DEFAULT_CONFIG } from "./lifecycle.ts";
 import { discoverPluginPaths, validatePlugin } from "./plugin-loader.ts";
-import type { Response } from "./protocol.ts";
-import { sendWithRetry } from "./retry.ts";
+import type { BatchResponse, ProtocolResponse, Response } from "./protocol.ts";
+import { isBatchResponse } from "./protocol.ts";
+import { runWithRetry, sendWithRetry } from "./retry.ts";
 import { formatVersion } from "./version.ts";
 
 /**
@@ -254,6 +256,106 @@ export function formatOutput(response: Response): {
 	return { output: `Error: ${response.error}`, isError: true };
 }
 
+export function parseBatchArgs(args: string[]): {
+	filePath?: string;
+	continueOnError: boolean;
+} {
+	let filePath: string | undefined;
+	let continueOnError = false;
+
+	for (let i = 0; i < args.length; i++) {
+		if (args[i] === "--continue-on-error") {
+			continueOnError = true;
+		} else if (args[i] === "--file" && i + 1 < args.length) {
+			filePath = args[i + 1];
+			i++;
+		} else if (!args[i]?.startsWith("--") && !filePath) {
+			filePath = args[i];
+		}
+	}
+
+	return { filePath, continueOnError };
+}
+
+export function formatBatchOutput(response: BatchResponse): {
+	output: string;
+	isError: boolean;
+} {
+	const lines = ["Batch Results:", ""];
+	let isError = false;
+
+	for (const entry of response.batch) {
+		if (entry.ok) {
+			lines.push(`[PASS] ${entry.cmd}: ${entry.data}`);
+		} else {
+			isError = true;
+			lines.push(`[FAIL] ${entry.cmd}: ${entry.error}`);
+		}
+	}
+
+	if (response.stoppedEarly) {
+		lines.push("");
+		lines.push("Stopped early after the first failure.");
+	}
+
+	return {
+		output: lines.join("\n"),
+		isError,
+	};
+}
+
+function sendPayload(
+	socketPath: string,
+	payload: Record<string, unknown>,
+): Promise<ProtocolResponse> {
+	return new Promise((resolve, reject) => {
+		let settled = false;
+		const settle = (fn: () => void) => {
+			if (!settled) {
+				settled = true;
+				fn();
+			}
+		};
+
+		const client = connect(socketPath, () => {
+			client.write(`${JSON.stringify(payload)}\n`);
+		});
+
+		let buffer = "";
+		client.on("data", (chunk) => {
+			buffer += chunk.toString();
+			const newlineIndex = buffer.indexOf("\n");
+			if (newlineIndex === -1) return;
+			const line = buffer.slice(0, newlineIndex).trim();
+			client.end();
+			settle(() => {
+				try {
+					resolve(JSON.parse(line));
+				} catch {
+					reject(new Error("Failed to parse daemon response"));
+				}
+			});
+		});
+		client.on("end", () => {
+			if (!settled) {
+				settle(() => reject(new Error("Failed to parse daemon response")));
+			}
+		});
+		client.on("error", (err) => {
+			settle(() => {
+				if (
+					(err as NodeJS.ErrnoException).code === "ECONNREFUSED" ||
+					(err as NodeJS.ErrnoException).code === "ENOENT"
+				) {
+					reject(new Error("DAEMON_NOT_RUNNING"));
+				} else {
+					reject(new Error("Daemon connection lost."));
+				}
+			});
+		});
+	});
+}
+
 function sendRequest(
 	socketPath: string,
 	cmd: string,
@@ -263,39 +365,12 @@ function sendRequest(
 	json?: boolean,
 	token?: string | null,
 ): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		const payload: Record<string, unknown> = { cmd, args };
-		if (timeout) payload.timeout = timeout;
-		if (session) payload.session = session;
-		if (json) payload.json = json;
-		if (token) payload.token = token;
-
-		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify(payload)}\n`);
-		});
-
-		let data = "";
-		client.on("data", (chunk) => {
-			data += chunk.toString();
-		});
-		client.on("end", () => {
-			try {
-				resolve(JSON.parse(data.trim()));
-			} catch {
-				reject(new Error("Failed to parse daemon response"));
-			}
-		});
-		client.on("error", (err) => {
-			if (
-				(err as NodeJS.ErrnoException).code === "ECONNREFUSED" ||
-				(err as NodeJS.ErrnoException).code === "ENOENT"
-			) {
-				reject(new Error("DAEMON_NOT_RUNNING"));
-			} else {
-				reject(new Error("Daemon connection lost."));
-			}
-		});
-	});
+	const payload: Record<string, unknown> = { cmd, args };
+	if (timeout) payload.timeout = timeout;
+	if (session) payload.session = session;
+	if (json) payload.json = json;
+	if (token) payload.token = token;
+	return sendPayload(socketPath, payload) as Promise<Response>;
 }
 
 async function waitForSocket(
@@ -328,7 +403,33 @@ async function spawnDaemon(
 	browserName?: BrowserName,
 	proxyServer?: string,
 ): Promise<void> {
-	const args = [process.execPath, "--daemon"];
+	const args = buildDaemonSpawnArgs(
+		process.execPath,
+		process.argv[1],
+		configPath,
+		browserName,
+		proxyServer,
+	);
+	const proc = Bun.spawn(args, {
+		stdio: ["ignore", "ignore", "ignore"],
+	});
+	proc.unref();
+
+	await waitForSocket(DEFAULT_CONFIG.socketPath);
+}
+
+export function buildDaemonSpawnArgs(
+	execPath: string,
+	argv1?: string,
+	configPath?: string,
+	browserName?: BrowserName,
+	proxyServer?: string,
+): string[] {
+	const args =
+		argv1 && /\.(?:[cm]?[jt]s|tsx?)$/i.test(argv1)
+			? [execPath, argv1, "--daemon"]
+			: [execPath, "--daemon"];
+
 	if (configPath) {
 		args.push("--config", configPath);
 	}
@@ -338,12 +439,8 @@ async function spawnDaemon(
 	if (proxyServer) {
 		args.push("--proxy", proxyServer);
 	}
-	const proc = Bun.spawn(args, {
-		stdio: ["ignore", "ignore", "ignore"],
-	});
-	proc.unref();
 
-	await waitForSocket(DEFAULT_CONFIG.socketPath);
+	return args;
 }
 
 async function runCli(): Promise<void> {
@@ -404,6 +501,95 @@ async function runCli(): Promise<void> {
 			process.stderr.write(
 				`Unknown command: ${cmd}\n\n${formatOverview(pluginHelp)}\n`,
 			);
+			process.exit(1);
+		}
+		return;
+	}
+
+	if (cmd === "batch") {
+		const batchArgs = parseBatchArgs(args);
+		if (!batchArgs.filePath) {
+			process.stderr.write(
+				"Error: Usage: browse batch <commands.json> [--continue-on-error]\n",
+			);
+			process.exit(1);
+		}
+
+		let rawBatch: unknown;
+		try {
+			rawBatch = JSON.parse(readFileSync(batchArgs.filePath, "utf-8"));
+		} catch (err) {
+			process.stderr.write(
+				`Error: Failed to read batch file: ${err instanceof Error ? err.message : String(err)}\n`,
+			);
+			process.exit(1);
+		}
+
+		let payload: Record<string, unknown>;
+		if (Array.isArray(rawBatch)) {
+			payload = { batch: rawBatch };
+		} else if (
+			typeof rawBatch === "object" &&
+			rawBatch !== null &&
+			Array.isArray((rawBatch as Record<string, unknown>).batch)
+		) {
+			payload = { ...(rawBatch as Record<string, unknown>) };
+		} else {
+			process.stderr.write(
+				"Error: Batch file must be a JSON array of commands or an object with a batch array.\n",
+			);
+			process.exit(1);
+		}
+
+		if (timeout && payload.timeout === undefined) payload.timeout = timeout;
+		if (session && payload.session === undefined) payload.session = session;
+		if (json) payload.json = true;
+		if (batchArgs.continueOnError) payload.continueOnError = true;
+		let response: ProtocolResponse;
+		try {
+			response = await runWithRetry(
+				{
+					spawnDaemon: () =>
+						spawnDaemon(configPath, resolveBrowserFromFlag(), resolveProxy()),
+					cleanupStaleFiles: () => cleanupFiles(DEFAULT_CONFIG),
+				},
+				() => {
+					const token = readToken();
+					const attemptPayload = { ...payload };
+					if (token) {
+						attemptPayload.token = token;
+					} else {
+						delete attemptPayload.token;
+					}
+					return sendPayload(DEFAULT_CONFIG.socketPath, attemptPayload);
+				},
+			);
+		} catch (err) {
+			process.stderr.write(
+				`Error: ${err instanceof Error ? err.message : String(err)}\n`,
+			);
+			process.exit(1);
+		}
+
+		if (isBatchResponse(response)) {
+			const formatted = json
+				? {
+						output: JSON.stringify(response, null, 2),
+						isError: response.batch.some((entry) => entry.ok === false),
+					}
+				: formatBatchOutput(response);
+			const target = formatted.isError ? process.stderr : process.stdout;
+			target.write(`${formatted.output}\n`);
+			if (formatted.isError) {
+				process.exit(1);
+			}
+			return;
+		}
+
+		const formatted = formatOutput(response);
+		const target = formatted.isError ? process.stderr : process.stdout;
+		target.write(`${formatted.output}\n`);
+		if (formatted.isError) {
 			process.exit(1);
 		}
 		return;

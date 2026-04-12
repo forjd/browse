@@ -25,6 +25,7 @@ src/
 ├── protocol.ts         # Request/response types, JSON serialisation
 ├── refs.ts             # Ref system — assignment, staleness, resolution
 ├── config.ts           # Config file loading and validation (browse.config.json)
+├── artifacts.ts        # Shared artifact listing, cleanup, and retention helpers
 ├── pool.ts             # Multi-session pool manager (library API)
 ├── lifecycle.ts        # PID/socket file management, idle timer
 ├── auth.ts             # Daemon socket authentication token management
@@ -102,6 +103,11 @@ test/
 ├── integration/        # Integration test suites
 ├── integration.ts      # Standalone integration tests
 └── fixtures/           # Test data
+benchmarks/
+├── performance-regression.ts   # Warm-path regression suite with JSON output
+├── competitive.ts              # Browse vs Playwright (+ optional Cypress/Selenium)
+├── workloads.ts                # Typical QA workflow benchmark runner
+└── lib.ts                      # Shared benchmark helpers
 ```
 
 ## Scripts
@@ -114,6 +120,9 @@ test/
 | Check | `bun run check` | Check lint + format without fixing |
 | Test | `bun test` | Run all tests |
 | Integration | `bun run test:integration` | Run standalone integration tests |
+| Regression benchmarks | `bun run bench:regression` | Run machine-readable warm-path benchmarks |
+| Competitive benchmarks | `bun run bench:competitive` | Compare Browse with Playwright and optional external runners |
+| Workload benchmarks | `bun run bench:workloads` | Run representative QA workflow timings |
 | Build | `bun run build` | Compile binary to dist/browse |
 | Full setup | `./setup.sh` | Install deps, Chromium, build, and symlink |
 
@@ -136,7 +145,10 @@ test/
 bun test                          # all tests
 bun test test/snapshot.test.ts    # single test file
 bun run test:integration          # standalone integration
+bun run bench:regression          # advisory benchmark JSON artifact
 ```
+
+Benchmark scripts write JSON artifacts under `.benchmarks/` by default. CI uses `.github/workflows/benchmarks.yml` to run the regression and workload suites on every push and pull request, upload the artifacts, and keep the results advisory rather than blocking.
 
 ## Building
 

@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
-import { connect } from "node:net";
 import { join } from "node:path";
 import type { ServerDeps } from "../src/daemon.ts";
 import { startServer } from "../src/daemon.ts";
 import type { LifecycleConfig } from "../src/lifecycle.ts";
 import type { Response } from "../src/protocol.ts";
+import { sendSocketRequest } from "./support/socket-command.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-new-cmds");
 let testIndex = 0;
@@ -78,49 +78,11 @@ function sendJsonCommand(
 	args: string[] = [],
 	timeoutMs = 5_000,
 ): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		let settled = false;
-		const settle = (fn: () => void) => {
-			if (!settled) {
-				settled = true;
-				fn();
-			}
-		};
-
-		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify({ cmd, args, json: true })}\n`);
-		});
-
-		const timer = setTimeout(() => {
-			settle(() => {
-				client.destroy();
-				reject(
-					new Error(
-						`sendJsonCommand timed out after ${timeoutMs}ms: ${cmd} ${args.join(" ")}`,
-					),
-				);
-			});
-		}, timeoutMs);
-
-		let data = "";
-		client.on("data", (chunk) => {
-			data += chunk.toString();
-		});
-		client.on("end", () => {
-			clearTimeout(timer);
-			settle(() => {
-				try {
-					resolve(JSON.parse(data.trim()));
-				} catch {
-					reject(new Error(`Failed to parse response: ${data}`));
-				}
-			});
-		});
-		client.on("error", (err) => {
-			clearTimeout(timer);
-			settle(() => reject(err));
-		});
-	});
+	return sendSocketRequest<Response>(
+		socketPath,
+		{ cmd, args, json: true },
+		timeoutMs,
+	);
 }
 
 function sendCommand(
@@ -129,49 +91,7 @@ function sendCommand(
 	args: string[] = [],
 	timeoutMs = 5_000,
 ): Promise<Response> {
-	return new Promise((resolve, reject) => {
-		let settled = false;
-		const settle = (fn: () => void) => {
-			if (!settled) {
-				settled = true;
-				fn();
-			}
-		};
-
-		const client = connect(socketPath, () => {
-			client.write(`${JSON.stringify({ cmd, args })}\n`);
-		});
-
-		const timer = setTimeout(() => {
-			settle(() => {
-				client.destroy();
-				reject(
-					new Error(
-						`sendCommand timed out after ${timeoutMs}ms: ${cmd} ${args.join(" ")}`,
-					),
-				);
-			});
-		}, timeoutMs);
-
-		let data = "";
-		client.on("data", (chunk) => {
-			data += chunk.toString();
-		});
-		client.on("end", () => {
-			clearTimeout(timer);
-			settle(() => {
-				try {
-					resolve(JSON.parse(data.trim()));
-				} catch {
-					reject(new Error(`Failed to parse response: ${data}`));
-				}
-			});
-		});
-		client.on("error", (err) => {
-			clearTimeout(timer);
-			settle(() => reject(err));
-		});
-	});
+	return sendSocketRequest<Response>(socketPath, { cmd, args }, timeoutMs);
 }
 
 beforeEach(() => {

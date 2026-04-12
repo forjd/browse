@@ -1,7 +1,14 @@
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { BrowserContext, Page } from "playwright";
+import {
+	applyArtifactRetention,
+	cleanArtifacts,
+	formatArtifactBytes,
+	listArtifactFiles,
+	VIDEO_ARTIFACT_KIND,
+} from "../artifacts.ts";
 import type { Response } from "../protocol.ts";
 
 export type VideoState = {
@@ -18,8 +25,8 @@ export function createVideoState(): VideoState {
 
 const VIDEOS_DIR = join(homedir(), ".bun-browse", "videos");
 
-function generateDefaultVideoPath(): string {
-	mkdirSync(VIDEOS_DIR, { recursive: true });
+function generateDefaultVideoPath(videosDir = VIDEOS_DIR): string {
+	mkdirSync(videosDir, { recursive: true });
 
 	const now = new Date();
 	const pad = (n: number, len = 2) => String(n).padStart(len, "0");
@@ -33,7 +40,7 @@ function generateDefaultVideoPath(): string {
 		pad(now.getSeconds()),
 	].join("");
 
-	return join(VIDEOS_DIR, `video-${timestamp}.webm`);
+	return join(videosDir, `video-${timestamp}.webm`);
 }
 
 /** List video files sorted newest-first. */
@@ -43,22 +50,12 @@ export function listVideoFiles(): {
 	mtime: Date;
 	sizeBytes: number;
 }[] {
-	if (!existsSync(VIDEOS_DIR)) return [];
-
-	return readdirSync(VIDEOS_DIR)
-		.filter((f) => f.endsWith(".webm"))
-		.map((f) => {
-			const fullPath = join(VIDEOS_DIR, f);
-			const st = statSync(fullPath);
-			return { name: f, path: fullPath, mtime: st.mtime, sizeBytes: st.size };
-		})
-		.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
-}
-
-function formatSize(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	return listArtifactFiles(VIDEOS_DIR, VIDEO_ARTIFACT_KIND).map((entry) => ({
+		name: entry.name,
+		path: entry.path,
+		mtime: new Date(entry.mtimeMs),
+		sizeBytes: entry.sizeBytes,
+	}));
 }
 
 function parseSize(sizeStr: string): { width: number; height: number } | null {
@@ -82,6 +79,8 @@ export type VideoDeps = {
 		password?: string;
 	};
 	passthroughContextOptions?: Record<string, unknown>;
+	videosDir?: string;
+	retention?: string;
 };
 
 export async function handleVideo(
@@ -91,11 +90,13 @@ export async function handleVideo(
 	args: string[],
 	deps?: VideoDeps,
 ): Promise<Response> {
+	const videosDir = deps?.videosDir ?? VIDEOS_DIR;
+
 	if (args.length === 0) {
 		return {
 			ok: false,
 			error:
-				"Usage: browse video start [--size <WxH>]\n       browse video stop [--out <path>]\n       browse video status\n       browse video list",
+				"Usage: browse video start [--size <WxH>]\n       browse video stop [--out <path>]\n       browse video status\n       browse video list\n       browse video clean [--older-than <duration>] [--dry-run]",
 		};
 	}
 
@@ -115,19 +116,26 @@ export async function handleVideo(
 	}
 
 	if (subcommand === "list") {
-		const videos = listVideoFiles();
+		const videos = listArtifactFiles(videosDir, VIDEO_ARTIFACT_KIND);
 		if (videos.length === 0) {
 			return { ok: true, data: "No videos found." };
 		}
 
 		const lines = videos.map(
 			(v) =>
-				`${v.name}  ${formatSize(v.sizeBytes)}  ${v.mtime.toISOString().replace("T", " ").slice(0, 19)}`,
+				`${v.name}  ${formatArtifactBytes(v.sizeBytes)}  ${new Date(v.mtimeMs).toISOString().replace("T", " ").slice(0, 19)}`,
 		);
 		return {
 			ok: true,
 			data: `${videos.length} video(s):\n${lines.join("\n")}`,
 		};
+	}
+
+	if (subcommand === "clean") {
+		return cleanArtifacts(args.slice(1), {
+			dir: videosDir,
+			kind: VIDEO_ARTIFACT_KIND,
+		});
 	}
 
 	if (subcommand === "start") {
@@ -264,7 +272,7 @@ export async function handleVideo(
 			}
 		}
 
-		const savePath = outPath ?? generateDefaultVideoPath();
+		const savePath = outPath ?? generateDefaultVideoPath(videosDir);
 
 		// Ensure output directory exists
 		try {
@@ -324,9 +332,10 @@ export async function handleVideo(
 			}
 
 			const st = statSync(savePath);
+			applyArtifactRetention(videosDir, VIDEO_ARTIFACT_KIND, deps?.retention);
 			return {
 				ok: true,
-				data: `Video saved to ${savePath} (${elapsed}s, ${formatSize(st.size)})`,
+				data: `Video saved to ${savePath} (${elapsed}s, ${formatArtifactBytes(st.size)})`,
 			};
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -350,6 +359,6 @@ export async function handleVideo(
 
 	return {
 		ok: false,
-		error: `Unknown video subcommand: '${subcommand}'. Use start, stop, status, or list.`,
+		error: `Unknown video subcommand: '${subcommand}'. Use start, stop, status, list, or clean.`,
 	};
 }

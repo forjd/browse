@@ -188,10 +188,23 @@ Pages are defined in browse.config.json.`,
 	},
 	benchmark: {
 		summary: "Measure command latency",
-		usage: `browse benchmark [--iterations N]
+		usage: `browse benchmark [--iterations N] [--json]
 
 Flags:
-  --iterations N   Number of iterations (default: 10)`,
+  --iterations N   Number of iterations (default: 10)
+  --json           Emit structured benchmark output for automation`,
+	},
+	batch: {
+		summary: "Run multiple commands in one daemon round-trip",
+		usage: `browse batch <commands.json> [--continue-on-error] [--json]
+
+Accepts either a JSON array of command objects or an object with a top-level
+\`batch\` array. Global flags such as \`--timeout\`, \`--session\`, and \`--json\`
+apply to the whole batch unless an entry overrides them.
+
+Flags:
+  --continue-on-error   Continue running entries after a failure
+  --json                Print the raw batch response as JSON`,
 	},
 	viewport: {
 		summary: "Get or set browser viewport size",
@@ -448,6 +461,7 @@ Returns the number of elements matching the selector.`,
 browse trace stop [--out <path>]                   Stop and save trace
 browse trace view [<path>] [--latest] [--port <n>] Open trace in viewer
 browse trace list                                  List saved traces
+browse trace clean [--older-than <duration>] [--dry-run]  Delete saved traces
 browse trace status                                Check recording status
 
 Flags:
@@ -455,7 +469,9 @@ Flags:
   --snapshots     Capture DOM snapshots during recording
   --out <path>    Output path for trace file (default: ~/.bun-browse/traces/)
   --latest        View the most recent trace
-  --port <n>      Serve trace viewer on a specific port`,
+  --port <n>      Serve trace viewer on a specific port
+  --older-than    Delete only traces older than the given duration
+  --dry-run       Preview cleanup candidates without deleting them`,
 	},
 	init: {
 		summary: "Generate a browse.config.json template",
@@ -475,7 +491,10 @@ browse screenshots count                  Show count and total size
 
 Flags:
   --older-than <duration>   Only delete screenshots older than duration (e.g. 7d, 24h, 30m)
-  --dry-run                 Show what would be deleted without removing files`,
+  --dry-run                 Show what would be deleted without removing files
+
+Automatic retention can also be set in browse.config.json:
+  "artifacts": { "retention": { "screenshots": "7d" } }`,
 	},
 	report: {
 		summary: "Generate an HTML QA report",
@@ -595,10 +614,13 @@ Examples:
 browse video stop [--out <path>]                 Stop and save the video file
 browse video status                              Check recording status
 browse video list                                List saved videos
+browse video clean [--older-than <duration>] [--dry-run]  Delete saved videos
 
 Flags:
   --size <WxH>   Video resolution (default: current viewport or 1280x720)
   --out <path>   Output path for the video file (default: ~/.bun-browse/videos/)
+  --older-than   Delete only videos older than the given duration
+  --dry-run      Preview cleanup candidates without deleting them
 
 When recording starts, a new browser context is created with video capture
 enabled. Cookies are copied from the current session. The recording page

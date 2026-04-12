@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { extractStatusFlags, formatOutput, parseArgs } from "../src/cli.ts";
+import {
+	buildDaemonSpawnArgs,
+	extractStatusFlags,
+	formatBatchOutput,
+	formatOutput,
+	parseArgs,
+	parseBatchArgs,
+} from "../src/cli.ts";
 
 describe("parseArgs", () => {
 	test("parses goto command with URL", () => {
@@ -388,6 +395,76 @@ describe("parseArgs", () => {
 			json: false,
 			config: "/tmp/cfg.json",
 		});
+	});
+});
+
+describe("parseBatchArgs", () => {
+	test("accepts a positional file path and continue-on-error flag", () => {
+		expect(parseBatchArgs(["commands.json", "--continue-on-error"])).toEqual({
+			filePath: "commands.json",
+			continueOnError: true,
+		});
+	});
+
+	test("accepts --file syntax", () => {
+		expect(parseBatchArgs(["--file", "commands.json"])).toEqual({
+			filePath: "commands.json",
+			continueOnError: false,
+		});
+	});
+});
+
+describe("buildDaemonSpawnArgs", () => {
+	test("includes the source script path when running via bun", () => {
+		expect(
+			buildDaemonSpawnArgs(
+				"/Users/dan/.bun/bin/bun",
+				"/Users/dan/Projects/browse/src/cli.ts",
+				"/tmp/browse.config.json",
+				"chrome",
+				"http://proxy:8080",
+			),
+		).toEqual([
+			"/Users/dan/.bun/bin/bun",
+			"/Users/dan/Projects/browse/src/cli.ts",
+			"--daemon",
+			"--config",
+			"/tmp/browse.config.json",
+			"--browser",
+			"chrome",
+			"--proxy",
+			"http://proxy:8080",
+		]);
+	});
+
+	test("uses the executable directly for compiled binaries", () => {
+		expect(
+			buildDaemonSpawnArgs(
+				"/Users/dan/Projects/browse/dist/browse",
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+			),
+		).toEqual(["/Users/dan/Projects/browse/dist/browse", "--daemon"]);
+	});
+});
+
+describe("formatBatchOutput", () => {
+	test("formats batch responses and reports failures", () => {
+		const formatted = formatBatchOutput({
+			ok: true,
+			batch: [
+				{ cmd: "ping", ok: true, data: "pong" },
+				{ cmd: "goto", ok: false, error: "Usage: browse goto <url>" },
+			],
+			stoppedEarly: true,
+		});
+
+		expect(formatted.output).toContain("[PASS] ping");
+		expect(formatted.output).toContain("[FAIL] goto");
+		expect(formatted.output).toContain("Stopped early");
+		expect(formatted.isError).toBe(true);
 	});
 });
 
