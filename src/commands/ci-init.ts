@@ -2,6 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Response } from "../protocol.ts";
 
+const BUN_VERSION = "1.3.11";
+
 const GITHUB_ACTIONS_TEMPLATE = `name: Browse QA
 
 on:
@@ -18,6 +20,8 @@ jobs:
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${BUN_VERSION}
 
       - name: Install dependencies
         run: bun install
@@ -37,7 +41,7 @@ jobs:
 const GITLAB_CI_TEMPLATE = `browse-qa:
   image: node:20
   before_script:
-    - curl -fsSL https://bun.sh/install | bash
+    - curl -fsSL https://bun.sh/install | bash -s -- bun-v${BUN_VERSION}
     - export PATH="$HOME/.bun/bin:$PATH"
     - bun install
     - ./setup.sh
@@ -58,7 +62,7 @@ jobs:
       - checkout
       - run:
           name: Install Bun
-          command: curl -fsSL https://bun.sh/install | bash
+          command: curl -fsSL https://bun.sh/install | bash -s -- bun-v${BUN_VERSION}
       - run:
           name: Build browse
           command: |

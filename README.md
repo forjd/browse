@@ -129,7 +129,7 @@ Inputs:
 |-------|---------|-------------|
 | `command` | `healthcheck` | Browse command to run |
 | `config` | `browse.config.json` | Path to the config file in your repository |
-| `bun-version` | `latest` | Bun version installed by the action |
+| `bun-version` | `1.3.11` | Bun version installed by the action |
 | `browser` | `chrome` | Patchright browser channel installed by the action |
 
 The action executes `browse` from the action checkout, but runs it against your repository workspace so relative config paths, flows, and output files still behave normally.
