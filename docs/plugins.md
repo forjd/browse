@@ -152,6 +152,20 @@ Any `.ts` or `.js` files in `~/.browse/plugins/` are automatically loaded. This 
 
 Config-declared plugins take precedence on name collision.
 
+### 3. Marketplace discovery
+
+Browse can also help you discover published plugins before you install them:
+
+```bash
+browse plugins official
+browse plugins search slack
+browse plugins search jira --limit 10
+```
+
+- `browse plugins official` lists first-party plugin packages
+- `browse plugins search <query>` searches npm for packages tagged with the `browse-plugin` keyword
+- Add the global `--json` flag for machine-readable output
+
 ## Error handling
 
 The plugin system is designed to be resilient:
