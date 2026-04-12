@@ -8,6 +8,7 @@ import {
 	VALID_BROWSER_NAMES,
 } from "./config.ts";
 import { startDaemon } from "./daemon.ts";
+import { handleFrameworkCommand } from "./framework-runner.ts";
 import {
 	formatCommandHelp,
 	formatOverview,
@@ -509,6 +510,17 @@ async function runCli(): Promise<void> {
 
 	if (cmd === "plugins") {
 		const response = await handlePluginsCommand(args, { json });
+		const formatted = formatOutput(response);
+		const target = formatted.isError ? process.stderr : process.stdout;
+		target.write(`${formatted.output}\n`);
+		if (formatted.isError) {
+			process.exit(1);
+		}
+		return;
+	}
+
+	if (cmd === "framework") {
+		const response = await handleFrameworkCommand(args);
 		const formatted = formatOutput(response);
 		const target = formatted.isError ? process.stderr : process.stdout;
 		target.write(`${formatted.output}\n`);

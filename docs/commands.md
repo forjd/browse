@@ -1378,6 +1378,31 @@ browse video clean --older-than 24h --dry-run
 
 ## Project Setup
 
+### framework init
+
+```
+browse framework init <vitest|jest> [--dir <path>] [--force]
+```
+
+Generate a small Browse harness plus a starter spec for a local Vitest or Jest suite.
+
+| Flag | Description |
+|------|-------------|
+| `--dir <path>` | Output directory for generated files (default: `tests`) |
+| `--force` | Overwrite previously generated files |
+
+**Examples:**
+
+```bash
+browse framework init vitest
+browse framework init jest --dir qa
+browse framework init vitest --force
+```
+
+Generated files include a `browse-harness.cjs` helper that shells out to the Browse binary. Set `BROWSE_BIN=./dist/browse` if you want the starter tests to use a local build.
+
+---
+
 ### init
 
 ```

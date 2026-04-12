@@ -52,6 +52,7 @@ browse click @e2
   - [Data Extraction](#data-extraction)
   - [Responsive Testing](#responsive-testing)
   - [Flows & Assertions](#flows-and-assertions)
+  - [Test Runner Integration](#test-runner-integration)
 - [Advanced](#advanced)
   - [Named Sessions](#named-sessions)
   - [Network Interception](#network-interception)
@@ -351,6 +352,17 @@ browse assert visible ".dashboard"
 browse healthcheck --var base_url=https://staging.example.com
 ```
 
+### Test runner integration
+
+Generate starter Browse tests for an existing Vitest or Jest suite:
+
+```bash
+browse framework init vitest
+browse framework init jest --dir qa
+```
+
+This creates a small `browse-harness.cjs` helper plus a runner-specific sample test that shells out to `browse`. Set `BROWSE_BIN=./dist/browse` if you want the generated tests to target a local build instead of a globally installed binary.
+
 ---
 
 ## Advanced
@@ -615,6 +627,7 @@ Browse has 90+ commands. Here are the most commonly used:
 | `perf` | Core Web Vitals |
 | `security` | Security audit |
 | `flow <name>` | Run configured flow |
+| `framework init <runner>` | Scaffold Vitest/Jest Browse tests |
 | `session create <name>` | Create named session |
 | `status` | Daemon status (`--json`, `--watch`, `--exit-code`, `--metrics`) |
 | `quit` | Stop the daemon |
@@ -628,6 +641,7 @@ Browse has 90+ commands. Here are the most commonly used:
 - Auth (`login`, `auth-state`)
 - Visual regression (`vrt`, `diff`)
 - CI/CD (`ci-init`, `test-matrix`)
+- Test runners (`framework init vitest\|jest`)
 - And more...
 
 ---

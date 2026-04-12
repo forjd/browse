@@ -29,6 +29,7 @@ describe("COMMANDS registry", () => {
 			"wipe",
 			"benchmark",
 			"viewport",
+			"framework",
 			"quit",
 			"help",
 		];
@@ -100,5 +101,13 @@ describe("formatCommandHelp", () => {
 		const help = formatCommandHelp("help");
 		expect(help).not.toBeNull();
 		expect(help).toContain("help");
+	});
+
+	test("documents the framework scaffolding command", () => {
+		const help = formatCommandHelp("framework");
+		expect(help).not.toBeNull();
+		expect(help).toContain("browse framework init <vitest|jest>");
+		expect(help).toContain("--dir");
+		expect(help).toContain("--force");
 	});
 });
