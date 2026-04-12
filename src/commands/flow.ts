@@ -1,8 +1,11 @@
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 import type { Page } from "playwright";
 import type { RingBuffer } from "../buffers.ts";
 import type { BrowseConfig, ConfigContext } from "../config.ts";
 import type { CustomReporterRegistry } from "../custom-reporter.ts";
 import type { FlowSource } from "../flow-loader.ts";
+import { isValidFlowName } from "../flow-loader.ts";
 import {
 	dryRunFlow,
 	formatFlowReport,
@@ -10,6 +13,11 @@ import {
 	runFlow,
 	type StepResult,
 } from "../flow-runner.ts";
+import {
+	formatFlowTemplateList,
+	getFlowTemplate,
+	getFlowTemplateNames,
+} from "../flow-templates.ts";
 import type { Response } from "../protocol.ts";
 import {
 	formatFlowReporter,
@@ -31,6 +39,104 @@ export type FlowDeps = {
 	performWipe?: () => Promise<Response>;
 };
 
+const FLOW_INIT_USAGE = `Usage: browse flow init <template> [name] [--force]
+
+Available templates:
+${formatFlowTemplateList()}`;
+
+const FLOW_USAGE = `Usage: browse flow <name> [--var key=value ...] [--continue-on-error] [--reporter <format>] [--junit-property key=value ...] [--dry-run] [--stream] [--webhook <url>]
+browse flow list
+browse flow init <template> [name] [--force]`;
+
+const RESERVED_FLOW_SUBCOMMANDS = new Set(["init", "list"]);
+
+function initFlowFromTemplate(
+	args: string[],
+	configCtx?: ConfigContext,
+): Response {
+	const templateName = args[0];
+	if (!templateName) {
+		return { ok: false, error: FLOW_INIT_USAGE };
+	}
+
+	const template = getFlowTemplate(templateName);
+	if (!template) {
+		return {
+			ok: false,
+			error: `Unknown flow template '${templateName}'. Available: ${getFlowTemplateNames().join(", ")}.`,
+		};
+	}
+
+	let flowName: string | undefined;
+	let force = false;
+	for (let i = 1; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === "--force") {
+			force = true;
+			continue;
+		}
+		if (!flowName) {
+			flowName = arg;
+			continue;
+		}
+		return { ok: false, error: FLOW_INIT_USAGE };
+	}
+
+	const resolvedFlowName = flowName ?? templateName;
+	if (RESERVED_FLOW_SUBCOMMANDS.has(resolvedFlowName)) {
+		return {
+			ok: false,
+			error: `Invalid flow name '${resolvedFlowName}'. 'init' and 'list' are reserved for flow subcommands.`,
+		};
+	}
+	if (!isValidFlowName(resolvedFlowName)) {
+		return {
+			ok: false,
+			error: `Invalid flow name '${resolvedFlowName}'. Use letters, numbers, dots, underscores, or hyphens.`,
+		};
+	}
+
+	if (!configCtx?.configPath) {
+		return {
+			ok: false,
+			error:
+				"No browse.config.json found. Create one with 'browse init' first.",
+		};
+	}
+
+	const configDir = dirname(configCtx.configPath);
+	const flowsDir = join(configDir, "flows");
+	const outputPath = join(flowsDir, `${resolvedFlowName}.json`);
+	const displayPath =
+		relative(configDir, outputPath) || `${resolvedFlowName}.json`;
+
+	if (existsSync(outputPath) && !force) {
+		return {
+			ok: false,
+			error: `${displayPath} already exists. Use --force to overwrite the generated flow.`,
+		};
+	}
+
+	try {
+		mkdirSync(flowsDir, { recursive: true });
+		writeFileSync(
+			outputPath,
+			`${JSON.stringify(template.flow, null, 2)}\n`,
+			"utf-8",
+		);
+	} catch (error) {
+		return {
+			ok: false,
+			error: `Failed to write flow template: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+
+	return {
+		ok: true,
+		data: `Created ${displayPath} from template ${templateName}.`,
+	};
+}
+
 export async function handleFlow(
 	config: BrowseConfig | null,
 	page: Page,
@@ -42,6 +148,9 @@ export async function handleFlow(
 	customReporters?: CustomReporterRegistry,
 ): Promise<Response> {
 	if (!config) {
+		if (args[0] === "init") {
+			return initFlowFromTemplate(args.slice(1), configCtx);
+		}
 		return {
 			ok: false,
 			error:
@@ -53,12 +162,14 @@ export async function handleFlow(
 	if (args.length === 0) {
 		return {
 			ok: false,
-			error:
-				"Usage: browse flow <name> [--var key=value ...] [--continue-on-error] [--reporter <format>] [--junit-property key=value ...] [--dry-run] [--stream]\nbrowse flow list",
+			error: FLOW_USAGE,
 		};
 	}
 
 	const subcommand = args[0];
+	if (subcommand === "init") {
+		return initFlowFromTemplate(args.slice(1), configCtx);
+	}
 
 	// flow list
 	if (subcommand === "list") {

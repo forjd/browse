@@ -340,6 +340,7 @@ browse responsive --breakpoints 320x568,768x1024,1920x1080  # custom breakpoints
 Define reusable flows in `browse.config.json` or as individual JSON files in a `flows/` directory, then run them:
 
 ```bash
+browse flow init smoke release-smoke
 browse flow list
 browse flow signup --var base_url=https://staging.example.com
 browse flow signup --reporter junit          # JUnit XML output for CI
@@ -627,6 +628,7 @@ Browse has 90+ commands. Here are the most commonly used:
 | `perf` | Core Web Vitals |
 | `security` | Security audit |
 | `flow <name>` | Run configured flow |
+| `flow init <template>` | Scaffold a built-in flow template |
 | `framework init <runner>` | Scaffold Vitest/Jest Browse tests |
 | `session create <name>` | Create named session |
 | `status` | Daemon status (`--json`, `--watch`, `--exit-code`, `--metrics`) |

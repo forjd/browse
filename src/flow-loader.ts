@@ -15,6 +15,10 @@ export type FlowDirectory = {
 
 const VALID_FLOW_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
+export function isValidFlowName(name: string): boolean {
+	return VALID_FLOW_NAME_RE.test(name);
+}
+
 /**
  * Discover flow directories in precedence order (local first, then global).
  */
@@ -127,7 +131,7 @@ export function loadFlowsFromDirectories(dirs: FlowDirectory[]): {
 		for (const file of files) {
 			const flowName = basename(file, ".json");
 
-			if (!VALID_FLOW_NAME_RE.test(flowName)) {
+			if (!isValidFlowName(flowName)) {
 				errors.push(
 					`Skipping flow file ${file}: invalid flow name '${flowName}'.`,
 				);

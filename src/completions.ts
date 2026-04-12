@@ -112,6 +112,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--junit-property",
 		"--dry-run",
 		"--stream",
+		"--force",
 	],
 	assert: ["--var", "--json"],
 	healthcheck: [

@@ -728,6 +728,33 @@ browse flow list
 
 List all defined flows. Shows source annotations (`[inline]` or `[file: ...]`) indicating where each flow is defined.
 
+### flow init
+
+```
+browse flow init <template> [name] [--force]
+```
+
+Scaffold a built-in flow template into `flows/` next to the active `browse.config.json`. The generated file is an ordinary flow JSON file that you can edit immediately.
+
+Available templates:
+
+- `smoke` — open a URL and verify expected text
+- `login-smoke` — sign in to an environment and verify a post-login cue
+
+| Argument / Flag | Description |
+|------|-------------|
+| `<template>` | Built-in template name to scaffold |
+| `[name]` | Optional output flow name. Defaults to the template name |
+| `--force` | Overwrite an existing generated flow file |
+
+**Examples:**
+
+```bash
+browse flow init smoke
+browse flow init smoke checkout-smoke
+browse flow init login-smoke admin-login --force
+```
+
 ### flow
 
 ```
