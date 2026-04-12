@@ -181,7 +181,7 @@ Config-declared plugins take precedence on name collision.
 
 ### 3. Marketplace discovery
 
-Browse can also help you discover published plugins before you install them:
+Browse can also help you discover official starters and published community plugins before you install them:
 
 ```bash
 browse plugins official
@@ -189,9 +189,27 @@ browse plugins search slack
 browse plugins search jira --limit 10
 ```
 
-- `browse plugins official` lists first-party plugin packages
+- `browse plugins official` lists first-party plugin starters, including their in-repo source paths
 - `browse plugins search <query>` searches npm for packages tagged with the `browse-plugin` keyword
 - Add the global `--json` flag for machine-readable output
+
+## Official starter plugins
+
+Browse ships first-party starter plugins under `examples/plugins/` for common team integrations:
+
+- `./examples/plugins/slack/index.ts` — send a message to a Slack webhook
+- `./examples/plugins/discord/index.ts` — send a message to a Discord webhook
+- `./examples/plugins/jira/index.ts` — create a JIRA issue for the current page
+
+Register them directly in `browse.config.json` while the standalone packages are being formalised:
+
+```json
+{
+  "plugins": ["./examples/plugins/slack/index.ts"]
+}
+```
+
+Each plugin directory includes its own README with the required environment variables and usage examples.
 
 ## Error handling
 

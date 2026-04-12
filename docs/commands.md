@@ -1409,7 +1409,7 @@ browse plugins official
 browse plugins search [query...] [--page <n>] [--limit <n>]
 ```
 
-Discover official Browse plugins and search npm for community plugins tagged with the `browse-plugin` keyword.
+Discover official Browse plugin starters and search npm for community plugins tagged with the `browse-plugin` keyword.
 
 | Flag | Description |
 |------|-------------|

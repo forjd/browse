@@ -15,6 +15,9 @@ describe("official plugins", () => {
 
 	test("finds plugin by slug", () => {
 		expect(findOfficialPlugin("jira")?.packageName).toBe("@browse/plugin-jira");
+		expect(findOfficialPlugin("jira")?.sourcePath).toBe(
+			"./examples/plugins/jira/index.ts",
+		);
 		expect(findOfficialPlugin("unknown")).toBeUndefined();
 	});
 });

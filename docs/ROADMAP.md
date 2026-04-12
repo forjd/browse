@@ -83,7 +83,7 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 - [x] **Plugin architecture** — Load external plugins from `~/.browse/plugins/`
 - [x] **Plugin API** — Stable API for adding custom commands and reporters
 - [x] **Plugin marketplace** ([#165](https://github.com/forjd/browse/issues/165)) — Registry/discovery for community plugins
-- [ ] **Official plugins** ([#166](https://github.com/forjd/browse/issues/166)) — First-party plugins for popular tools (Slack, Discord, JIRA)
+- [x] **Official plugins** ([#166](https://github.com/forjd/browse/issues/166)) — First-party starter plugins for popular tools (Slack, Discord, JIRA)
 
 ### Framework Integrations
 

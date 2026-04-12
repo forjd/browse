@@ -159,9 +159,17 @@ Plugins are discovered from two sources:
 - **`afterCommand` is read-only** — observe the response but cannot mutate it.
 - **`init` failures are non-fatal** — the plugin's commands and hooks still register.
 
-## Example plugin
+## Example plugins
 
 See `examples/plugin-example.ts` for a working example with a command and lifecycle hooks.
+
+Browse also ships official starter plugins under `examples/plugins/`:
+
+- `examples/plugins/slack/index.ts`
+- `examples/plugins/discord/index.ts`
+- `examples/plugins/jira/index.ts`
+
+Use them as references when building integrations around webhooks or external issue trackers.
 
 ## Full documentation
 
