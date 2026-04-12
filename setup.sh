@@ -28,10 +28,10 @@ echo "[2/5] Installing dependencies..."
 bun install --frozen-lockfile 2>/dev/null || bun install
 echo "  ✓ Dependencies installed"
 
-# Step 3: Install Playwright browsers
+# Step 3: Install browser binaries
 echo ""
-echo "[3/5] Installing Playwright browsers..."
-bunx playwright install chrome
+echo "[3/5] Installing browser binaries..."
+bun x patchright install chrome
 echo "  ✓ Chrome installed"
 
 # Optional: install additional browsers via BROWSE_BROWSERS env var
@@ -39,7 +39,7 @@ echo "  ✓ Chrome installed"
 if [ -n "$BROWSE_BROWSERS" ]; then
   for EXTRA_BROWSER in $BROWSE_BROWSERS; do
     echo "  Installing $EXTRA_BROWSER..."
-    bunx playwright install "$EXTRA_BROWSER"
+    bun x patchright install "$EXTRA_BROWSER"
     echo "  ✓ $EXTRA_BROWSER installed"
   done
 fi

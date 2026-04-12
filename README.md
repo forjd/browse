@@ -18,7 +18,7 @@ Built for AI agents doing QA and web scraping, but works just as well by hand.
 ```bash
 # Install
 brew install forjd/tap/browse
-bunx playwright install chrome
+bun x patchright install chrome
 
 # Navigate and screenshot in 2 commands
 browse goto https://example.com
@@ -71,7 +71,7 @@ browse click @e2
 
 ```bash
 brew install forjd/tap/browse
-bunx playwright install chrome
+bun x patchright install chrome
 ```
 
 ### Manual install

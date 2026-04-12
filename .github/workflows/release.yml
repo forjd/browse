@@ -137,7 +137,7 @@ jobs:
               <<~EOS
                 browse requires Bun and a browser to work. After installing:
                   curl -fsSL https://bun.sh/install | bash
-                  bunx playwright install chrome
+                  bun x patchright install chrome
               EOS
             end
 

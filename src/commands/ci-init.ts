@@ -25,8 +25,8 @@ jobs:
       - name: Build browse
         run: ./setup.sh
 
-      - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium
+      - name: Install browser binaries
+        run: bun x patchright install --with-deps chromium
 
       - name: Run healthcheck
         run: ./dist/browse healthcheck --reporter junit
@@ -41,7 +41,7 @@ const GITLAB_CI_TEMPLATE = `browse-qa:
     - export PATH="$HOME/.bun/bin:$PATH"
     - bun install
     - ./setup.sh
-    - bunx playwright install --with-deps chromium
+    - bun x patchright install --with-deps chromium
   script:
     - ./dist/browse healthcheck --reporter junit
   variables:
