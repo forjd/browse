@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.16.0](https://github.com/forjd/browse/compare/browse-v0.15.0...browse-v0.16.0) (2026-04-12)
+
+
+### Features
+
+* add custom reporter registry API ([#173](https://github.com/forjd/browse/issues/173)) ([0beea54](https://github.com/forjd/browse/commit/0beea5498fc76f00f43add5abcfc197cbb492d6e))
+* add official plugin starters ([01ac5a4](https://github.com/forjd/browse/commit/01ac5a48e18c2328bc22d38329f8b4de96a9e36f))
+* add plugin marketplace discovery command ([4dc5fb6](https://github.com/forjd/browse/commit/4dc5fb6f5ed29f97a5c7b4199b77cf57184b265f))
+* complete phase 9 performance roadmap ([6989938](https://github.com/forjd/browse/commit/6989938b579b48e6c5ce81020cf66a3dcc98a679))
+* expose additional flow reporters ([1b9bcdf](https://github.com/forjd/browse/commit/1b9bcdf6cd8f58b846507fed8c1d255c0c2874e4))
+* expose JUnit suite metadata flags ([f2322e3](https://github.com/forjd/browse/commit/f2322e3d3458a4ef0f5281ca15ccb8e00adccf7f))
+* implement phase 8 production hardening foundations ([5a1b180](https://github.com/forjd/browse/commit/5a1b180e02f5b9055375f933d04943d9df9219b4))
+* optimise Docker image builds ([f94ddd0](https://github.com/forjd/browse/commit/f94ddd0157a03388156e41bdfa9eff49ee16bcad))
+* scaffold Browse starter tests for Vitest and Jest ([639eb12](https://github.com/forjd/browse/commit/639eb128b77c8638048ea0deb2cfb3079969a67a))
+* scaffold built-in flow templates ([e70e362](https://github.com/forjd/browse/commit/e70e3629aa5add33463691a2f82d4eb231d9f4b6))
+* ship a reusable GitHub Action ([648d2bf](https://github.com/forjd/browse/commit/648d2bf7d445a2cb59ea4dfefc225e0360395cd2))
+* support plugin-provided flow reporters ([adac3f1](https://github.com/forjd/browse/commit/adac3f1fee22144cbd2391c4b7ad72e45ce3f99d))
+
+
+### Bug Fixes
+
+* address phase 8 review findings ([91b6ffe](https://github.com/forjd/browse/commit/91b6ffef51d311bc795d5ac22496f6d6296b14fb))
+* **ci:** run chromium smoke on linux arm64 ([8931166](https://github.com/forjd/browse/commit/89311668e16cf3b2d4af8c6b5156fd6e632d4b63))
+* **ci:** use bun x for Playwright install ([fc57c33](https://github.com/forjd/browse/commit/fc57c3385d06be037a5b80f4acefbead3eace5f3))
+* **ci:** use firefox on linux arm64 ([5b9be37](https://github.com/forjd/browse/commit/5b9be37df6a609290ac0a99203fab5749f00ffd7))
+* install browsers with patchright ([2b8c2f1](https://github.com/forjd/browse/commit/2b8c2f1574e1ac4aae5c3b12e5cdcc1a81031145))
+* isolate daemon session state in tests ([32ec5bc](https://github.com/forjd/browse/commit/32ec5bc7a1ae4c1338b8c97455c0ae58b3d7ff5f))
+
 ## [0.15.0](https://github.com/forjd/browse/compare/browse-v0.14.0...browse-v0.15.0) (2026-04-09)
 
 
