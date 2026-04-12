@@ -186,6 +186,9 @@ describe("handleFlow — reporter validation", () => {
 			expect(result.error).toContain("json");
 			expect(result.error).toContain("markdown");
 			expect(result.error).toContain("junit");
+			expect(result.error).toContain("tap");
+			expect(result.error).toContain("allure");
+			expect(result.error).toContain("html");
 		}
 	});
 
@@ -299,6 +302,56 @@ describe("handleFlow — running flows", () => {
 		if (result.ok) {
 			expect(result.data).toContain("# Flow: simple");
 			expect(result.data).toContain("1 passed");
+		}
+	});
+
+	test("returns TAP output with --reporter tap", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			["simple", "--reporter", "tap"],
+			deps as any,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("TAP version 13");
+			expect(result.data).toContain("1..1");
+		}
+	});
+
+	test("returns Allure output with --reporter allure", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			["simple", "--reporter", "allure"],
+			deps as any,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const parsed = JSON.parse(result.data);
+			expect(parsed.name).toBe("simple");
+			expect(parsed.status).toBe("passed");
+			expect(parsed.steps).toHaveLength(1);
+		}
+	});
+
+	test("returns HTML output with --reporter html", async () => {
+		const page = createMockFlowPage();
+		const deps = createMockDeps();
+		const result = await handleFlow(
+			BASE_CONFIG,
+			page,
+			["simple", "--reporter", "html"],
+			deps as any,
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.data).toContain("<!doctype html>");
+			expect(result.data).toContain('id="flow-search"');
 		}
 	});
 

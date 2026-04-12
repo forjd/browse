@@ -12,6 +12,45 @@ function escapeXml(str: string): string {
 		.replace(/'/g, "&apos;");
 }
 
+function escapeHtml(str: string): string {
+	return str
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+export const FLOW_REPORTERS = [
+	"junit",
+	"json",
+	"markdown",
+	"tap",
+	"allure",
+	"html",
+] as const;
+
+export type FlowReporter = (typeof FLOW_REPORTERS)[number];
+
+const FLOW_REPORTER_DESCRIPTIONS: Record<FlowReporter, string> = {
+	junit: "JUnit XML",
+	json: "structured JSON",
+	markdown: "human-readable Markdown",
+	tap: "TAP 13",
+	allure: "Allure-compatible JSON",
+	html: "interactive HTML report",
+};
+
+export const FLOW_REPORTER_NAMES = FLOW_REPORTERS.join(", ");
+
+export const FLOW_REPORTER_HELP = FLOW_REPORTERS.map(
+	(reporter) => `${reporter} (${FLOW_REPORTER_DESCRIPTIONS[reporter]})`,
+).join(", ");
+
+export function isFlowReporter(value: string): value is FlowReporter {
+	return FLOW_REPORTERS.includes(value as FlowReporter);
+}
+
 /**
  * Format flow results as JUnit XML.
  */
@@ -304,14 +343,14 @@ export function formatFlowTap(flowName: string, results: StepResult[]): string {
 		`# Flow: ${flowName}`,
 		`1..${results.length}`,
 	];
-	for (const result of results) {
+	for (const [index, result] of results.entries()) {
 		const status = result.passed ? "ok" : "not ok";
 		lines.push(
-			`${status} ${result.stepNum} - Step ${result.stepNum}: ${result.description}`,
+			`${status} ${index + 1} - Step ${result.stepNum}: ${result.description}`,
 		);
 		if (!result.passed && result.error) {
 			lines.push(`  ---`);
-			lines.push(`  message: "${result.error.replace(/"/g, '"')}"`);
+			lines.push(`  message: ${JSON.stringify(result.error)}`);
 			lines.push(`  ...`);
 		}
 	}
@@ -345,24 +384,61 @@ export function formatFlowHtml(
 	const rows = results
 		.map(
 			(result) =>
-				`<tr data-step="${result.stepNum}" data-status="${result.passed ? "passed" : "failed"}"><td>${result.stepNum}</td><td>${result.description}</td><td>${result.passed ? "passed" : "failed"}</td><td>${result.error ?? ""}</td></tr>`,
+				`<tr data-step="${result.stepNum}" data-status="${result.passed ? "passed" : "failed"}"><td>${result.stepNum}</td><td>${escapeHtml(result.description)}</td><td>${result.passed ? "passed" : "failed"}</td><td>${escapeHtml(result.error ?? "")}</td></tr>`,
 		)
 		.join("");
+	const escapedFlowName = escapeHtml(flowName);
 
 	return `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Browse report: ${flowName}</title></head>
+<head><meta charset="utf-8"><title>Browse report: ${escapedFlowName}</title></head>
 <body>
-  <h1>Flow report: ${flowName}</h1>
+  <h1>Flow report: ${escapedFlowName}</h1>
   <p>Duration: ${durationMs}ms</p>
   <label for="flow-search">Filter</label>
-  <input id="flow-search" placeholder="Search steps" />
+  <input id="flow-search" type="search" placeholder="Search steps" />
   <table>
     <thead><tr><th>Step</th><th>Description</th><th>Status</th><th>Error</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
+  <script>
+    const search = document.getElementById("flow-search");
+    const rows = Array.from(document.querySelectorAll("tbody tr"));
+    search?.addEventListener("input", () => {
+      const query = search.value.trim().toLowerCase();
+      for (const row of rows) {
+        const text = row.textContent?.toLowerCase() ?? "";
+        row.hidden = query.length > 0 && !text.includes(query);
+      }
+    });
+  </script>
 </body>
 </html>`;
+}
+
+export function formatFlowReporter(
+	flowName: string,
+	results: StepResult[],
+	durationMs: number,
+	reporter: FlowReporter,
+): string {
+	switch (reporter) {
+		case "junit":
+			return formatFlowJUnit(flowName, results, durationMs);
+		case "json":
+			return formatFlowJson(flowName, results, durationMs);
+		case "markdown":
+			return formatFlowMarkdown(flowName, results, durationMs);
+		case "tap":
+			return formatFlowTap(flowName, results);
+		case "allure":
+			return formatFlowAllureJson(flowName, results, durationMs);
+		case "html":
+			return formatFlowHtml(flowName, results, durationMs);
+	}
+
+	const exhaustive: never = reporter;
+	return exhaustive;
 }
 
 export function computeFlakySteps(
