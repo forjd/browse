@@ -10,19 +10,57 @@ inputs:
     description: "Path to browse config file"
     required: false
     default: "browse.config.json"
+  bun-version:
+    description: "Bun version to install"
+    required: false
+    default: "latest"
+  browser:
+    description: "Patchright browser channel to install"
+    required: false
+    default: "chrome"
 runs:
   using: "composite"
   steps:
+    - name: Validate runner support
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        echo "Browse GitHub Action currently supports Linux and macOS runners."
+        exit 1
     - name: Setup Bun
       uses: oven-sh/setup-bun@v2
       with:
-        bun-version: latest
-    - name: Install dependencies
+        bun-version: ${{ inputs.bun-version }}
+    - name: Cache Browse runtime
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.bun/install/cache
+          ${{ github.action_path }}/../../../node_modules
+        key: browse-bun-${{ runner.os }}-${{ inputs.bun-version }}-${{ github.action_ref || github.sha }}
+        restore-keys: |
+          browse-bun-${{ runner.os }}-${{ inputs.bun-version }}-
+    - name: Install Browse runtime
+      working-directory: ${{ github.action_path }}/../../..
       shell: bash
       run: bun install --frozen-lockfile
-    - name: Install Playwright browser
+    - name: Cache Playwright browser
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: browse-browser-${{ runner.os }}-${{ inputs.browser }}-${{ github.action_ref || github.sha }}
+        restore-keys: |
+          browse-browser-${{ runner.os }}-${{ inputs.browser }}-
+    - name: Install Playwright browser (Linux)
+      if: runner.os == 'Linux'
+      working-directory: ${{ github.action_path }}/../../..
       shell: bash
-      run: bunx playwright install --with-deps chromium
+      run: bunx patchright install ${{ inputs.browser }} --with-deps
+    - name: Install Playwright browser (macOS)
+      if: runner.os == 'macOS'
+      working-directory: ${{ github.action_path }}/../../..
+      shell: bash
+      run: bunx patchright install ${{ inputs.browser }}
     - name: Run Browse
       shell: bash
-      run: bun run src/cli.ts ${{ inputs.command }} --config ${{ inputs.config }}
+      run: bun run "${{ github.action_path }}/../../../src/cli.ts" ${{ inputs.command }} --config "${{ inputs.config }}"
