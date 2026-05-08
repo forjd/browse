@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/forjd/browse/compare/browse-v0.16.1...browse-v0.16.2) (2026-05-08)
+
+
+### Bug Fixes
+
+* handle browse install resolution and CDN diagnostics ([e313cd1](https://github.com/forjd/browse/commit/e313cd1eb40517f28f9b638a0b2db8734d9400a8))
+
 ## [0.16.1](https://github.com/forjd/browse/compare/browse-v0.16.0...browse-v0.16.1) (2026-04-12)
 
 
