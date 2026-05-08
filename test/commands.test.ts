@@ -41,6 +41,60 @@ describe("handleGoto", () => {
 			expect(result.error).toContain("net::ERR_NAME_NOT_RESOLVED");
 		}
 	});
+
+	test("reports CDN access-denied diagnostics for 403 navigation responses", async () => {
+		const page = mockPage({
+			goto: mock(() =>
+				Promise.resolve({
+					status: () => 403,
+					statusText: () => "Forbidden",
+					url: () => "https://www.war.gov/UFO/",
+					headers: () => ({
+						server: "AkamaiGHost",
+						"content-type": "text/html",
+					}),
+					text: () =>
+						Promise.resolve(
+							"<html><head><title>Access Denied</title></head><body>Reference #18.deadbeef</body></html>",
+						),
+				}),
+			),
+		});
+		const result = await handleGoto(page as never, [
+			"https://www.war.gov/UFO/",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("HTTP 403 Forbidden");
+			expect(result.error).toContain("AkamaiGHost");
+			expect(result.error).toContain("Access Denied");
+			expect(result.error).toContain("CDN/bot-protection");
+			expect(result.error).toContain("BROWSE_PROXY");
+		}
+	});
+
+	test("reports HTTP error diagnostics for non-OK navigation responses", async () => {
+		const page = mockPage({
+			goto: mock(() =>
+				Promise.resolve({
+					status: () => 503,
+					statusText: () => "Service Unavailable",
+					url: () => "https://example.com/down",
+					headers: () => ({ server: "nginx" }),
+					text: () => Promise.resolve("temporarily unavailable"),
+				}),
+			),
+		});
+		const result = await handleGoto(page as never, [
+			"https://example.com/down",
+		]);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain("HTTP 503 Service Unavailable");
+			expect(result.error).toContain("Server: nginx");
+			expect(result.error).toContain("Body: temporarily unavailable");
+		}
+	});
 });
 
 describe("handleText", () => {

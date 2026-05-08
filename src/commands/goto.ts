@@ -1,7 +1,14 @@
 import { devices, type Page } from "playwright";
 import type { Response } from "../protocol.ts";
 import { handleSnapshot } from "./snapshot.ts";
-import { PRESETS, type ViewportParsedArgs } from "./viewport.ts";
+import { PRESETS } from "./viewport.ts";
+
+type NavigationResponse = Awaited<ReturnType<Page["goto"]>>;
+type GotoViewport =
+	| { action: "set"; width: number; height: number; label?: string }
+	| { error: string };
+
+const BODY_SNIPPET_LIMIT = 500;
 
 /**
  * Parse viewport-related flags from goto args.
@@ -9,7 +16,7 @@ import { PRESETS, type ViewportParsedArgs } from "./viewport.ts";
  */
 function parseGotoArgs(args: string[]): {
 	url: string | undefined;
-	viewport: ViewportParsedArgs | null;
+	viewport: GotoViewport | null;
 } {
 	let device: string | undefined;
 	let preset: string | undefined;
@@ -102,6 +109,81 @@ function parseGotoArgs(args: string[]): {
 	return { url, viewport: null };
 }
 
+function cleanSnippet(text: string): string {
+	return text.replace(/\s+/g, " ").trim().slice(0, BODY_SNIPPET_LIMIT);
+}
+
+function extractTitle(html: string): string | undefined {
+	const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+	return match?.[1] ? cleanSnippet(match[1]) : undefined;
+}
+
+function isLikelyCdnAccessDenied(
+	status: number,
+	headers: Record<string, string>,
+	bodySnippet: string,
+	title?: string,
+): boolean {
+	if (status !== 403) return false;
+	const haystack = [
+		headers.server,
+		headers["x-cache"],
+		headers["x-akamai-transformed"],
+		bodySnippet,
+		title,
+	]
+		.filter(Boolean)
+		.join("\n")
+		.toLowerCase();
+	return (
+		haystack.includes("akamai") ||
+		haystack.includes("access denied") ||
+		haystack.includes("bot") ||
+		haystack.includes("forbidden")
+	);
+}
+
+function isViewportSet(
+	viewport: GotoViewport | null,
+): viewport is Extract<GotoViewport, { action: "set" }> {
+	return Boolean(viewport && "action" in viewport && viewport.action === "set");
+}
+
+async function formatNavigationHttpError(
+	response: NavigationResponse,
+): Promise<string | undefined> {
+	if (!response) return undefined;
+	const status = response.status();
+	if (status < 400) return undefined;
+
+	const statusText = response.statusText();
+	const headers = response.headers();
+	let bodySnippet = "";
+	try {
+		bodySnippet = cleanSnippet(await response.text());
+	} catch {
+		// Some responses cannot be read after navigation; headers/status still help.
+	}
+	const title = bodySnippet ? extractTitle(bodySnippet) : undefined;
+	const lines = [`HTTP ${status}${statusText ? ` ${statusText}` : ""}`];
+	lines.push(`URL: ${response.url()}`);
+
+	const server = headers.server;
+	if (server) lines.push(`Server: ${server}`);
+	const contentType = headers["content-type"];
+	if (contentType) lines.push(`Content-Type: ${contentType}`);
+	if (title) lines.push(`Title: ${title}`);
+	if (bodySnippet) lines.push(`Body: ${bodySnippet}`);
+
+	if (isLikelyCdnAccessDenied(status, headers, bodySnippet, title)) {
+		lines.push(
+			"Detected likely CDN/bot-protection access denial. If this target is authorized, retry with an appropriate configured browser profile or proxy (for example --proxy/BROWSE_PROXY).",
+		);
+	}
+
+	return lines.join("\n");
+}
+
 export async function handleGoto(
 	page: Page,
 	args: string[],
@@ -119,22 +201,30 @@ export async function handleGoto(
 
 	try {
 		// Resize viewport before navigating
-		if (viewport && viewport.action === "set") {
+		if (isViewportSet(viewport)) {
 			await page.setViewportSize({
 				width: viewport.width,
 				height: viewport.height,
 			});
 		}
 
-		await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+		const navigationResponse = await page.goto(url, {
+			waitUntil: "domcontentloaded",
+			timeout: 30_000,
+		});
+		const httpError = await formatNavigationHttpError(navigationResponse);
+		if (httpError) {
+			return { ok: false, error: httpError };
+		}
 
 		// Inject stealth patches to fix CreepJS detection.
 		// This runs on every navigation since addInitScript only affects new pages.
 		try {
 			await page.evaluate(() => {
 				// Only inject once per page
-				if ((window as Record<string, unknown>).__stealthGotoInjected) return;
-				(window as Record<string, unknown>).__stealthGotoInjected = true;
+				const globalWindow = window as unknown as Record<string, unknown>;
+				if (globalWindow.__stealthGotoInjected) return;
+				globalWindow.__stealthGotoInjected = true;
 
 				// Override getComputedStyle to fix ActiveText
 				const originalGetComputedStyle = window.getComputedStyle;
@@ -170,7 +260,7 @@ export async function handleGoto(
 		const title = await page.title();
 
 		let result: string;
-		if (viewport && viewport.action === "set") {
+		if (isViewportSet(viewport)) {
 			const suffix = viewport.label ? ` (${viewport.label})` : "";
 			result = `${title} [${viewport.width}x${viewport.height}${suffix}]`;
 		} else {
