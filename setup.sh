@@ -87,8 +87,10 @@ echo "  ✓ dist/browse ($OS-$ARCH_LABEL)"
 echo ""
 echo "[5/5] Creating symlink..."
 
-# Target: ~/.local/bin/browse
-SYMLINK_DIR="$HOME/.local/bin"
+# Target: ~/.local/bin/browse by default.
+# Override with INSTALL_DIR=/usr/local/bin ./setup.sh when a system PATH entry
+# should own the command name.
+SYMLINK_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 SYMLINK_PATH="$SYMLINK_DIR/browse"
 
 mkdir -p "$SYMLINK_DIR"
@@ -101,11 +103,25 @@ ln -s "$SCRIPT_DIR/dist/browse" "$SYMLINK_PATH"
 echo "  ✓ $SYMLINK_PATH → $SCRIPT_DIR/dist/browse"
 
 if ! echo "$PATH" | tr ':' '\n' | grep -q "$SYMLINK_DIR"; then
-  echo ""
-  echo "Note: ~/.local/bin is not on your PATH. Add it with:"
-  echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-  echo "Add this to your shell profile (~/.zshrc or ~/.bashrc) to make it permanent."
+	echo ""
+	echo "Warning: $SYMLINK_DIR is not on your PATH. Add it with:"
+	echo "  export PATH=\"$SYMLINK_DIR:\$PATH\""
+	echo "Add this to your shell profile (~/.zshrc or ~/.bashrc) to make it permanent."
+fi
+
+RESOLVED_BROWSE="$(command -v browse || true)"
+if [ -n "$RESOLVED_BROWSE" ] && [ "$RESOLVED_BROWSE" != "$SYMLINK_PATH" ]; then
+	echo ""
+	echo "Warning: 'browse' currently resolves to:"
+	echo "  $RESOLVED_BROWSE"
+	echo "not the installed CLI:"
+	echo "  $SYMLINK_PATH"
+	echo "Run '$SYMLINK_PATH ...', move $SYMLINK_DIR earlier in PATH, or reinstall with INSTALL_DIR set to an earlier PATH directory."
+elif [ -z "$RESOLVED_BROWSE" ]; then
+	echo ""
+	echo "Warning: 'browse' is not currently resolvable from PATH."
+	echo "Run '$SYMLINK_PATH ...' or add $SYMLINK_DIR to PATH."
 fi
 
 echo ""
-echo "Setup complete. Run 'browse goto https://example.com' to get started."
+echo "Setup complete. Run '$SYMLINK_PATH goto https://example.com' to get started."

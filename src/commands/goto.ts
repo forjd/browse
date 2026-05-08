@@ -1,4 +1,8 @@
-import { devices, type Page } from "playwright";
+import {
+	devices,
+	type Page,
+	type Response as PlaywrightResponse,
+} from "playwright";
 import type { Response } from "../protocol.ts";
 import { handleSnapshot } from "./snapshot.ts";
 import { PRESETS, type ViewportParsedArgs } from "./viewport.ts";
@@ -102,6 +106,79 @@ function parseGotoArgs(args: string[]): {
 	return { url, viewport: null };
 }
 
+function trimSnippet(text: string): string {
+	return text.replace(/\s+/g, " ").trim().slice(0, 500);
+}
+
+function headerValue(
+	headers: Record<string, string>,
+	name: string,
+): string | undefined {
+	return headers[name] ?? headers[name.toLowerCase()];
+}
+
+async function getBodySnippet(page: Page): Promise<string> {
+	try {
+		return trimSnippet(
+			await page.locator("body").innerText({ timeout: 2_000 }),
+		);
+	} catch {
+		return "";
+	}
+}
+
+function looksLikeCdnAccessBlock(
+	status: number,
+	headers: Record<string, string>,
+	title: string,
+	bodySnippet: string,
+): boolean {
+	if (status !== 403) return false;
+
+	const server = headerValue(headers, "server")?.toLowerCase() ?? "";
+	const combined = `${title}\n${bodySnippet}`.toLowerCase();
+
+	return (
+		server.includes("akamaighost") ||
+		server.includes("akamai") ||
+		(combined.includes("access denied") &&
+			(combined.includes("edgesuite") || combined.includes("permission")))
+	);
+}
+
+async function cdnBlockDiagnostic(
+	page: Page,
+	response: PlaywrightResponse,
+	title: string,
+): Promise<string | null> {
+	const status = response.status();
+	const headers = response.headers();
+	const bodySnippet = await getBodySnippet(page);
+
+	if (!looksLikeCdnAccessBlock(status, headers, title, bodySnippet)) {
+		return null;
+	}
+
+	const server = headerValue(headers, "server") ?? "unknown";
+	const finalUrl = response.url();
+	const lines = [
+		`Navigation blocked by CDN/access controls (${status}).`,
+		`URL: ${finalUrl}`,
+		`Server: ${server}`,
+		`Title: ${title || "untitled"}`,
+	];
+
+	if (bodySnippet) {
+		lines.push(`Body: ${bodySnippet}`);
+	}
+
+	lines.push(
+		"Try a real browser session, configured proxy, or verify that the installed 'browse' binary is the project CLI with 'browse version'.",
+	);
+
+	return lines.join("\n");
+}
+
 export async function handleGoto(
 	page: Page,
 	args: string[],
@@ -126,7 +203,10 @@ export async function handleGoto(
 			});
 		}
 
-		await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+		const navigationResponse = await page.goto(url, {
+			waitUntil: "domcontentloaded",
+			timeout: 30_000,
+		});
 
 		// Inject stealth patches to fix CreepJS detection.
 		// This runs on every navigation since addInitScript only affects new pages.
@@ -168,6 +248,17 @@ export async function handleGoto(
 		}
 
 		const title = await page.title();
+
+		if (navigationResponse) {
+			const blockDiagnostic = await cdnBlockDiagnostic(
+				page,
+				navigationResponse,
+				title,
+			);
+			if (blockDiagnostic) {
+				return { ok: false, error: blockDiagnostic };
+			}
+		}
 
 		let result: string;
 		if (viewport && viewport.action === "set") {

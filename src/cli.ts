@@ -87,6 +87,10 @@ function resolveBrowserFromFlag(flag?: string): BrowserName | undefined {
 	return undefined;
 }
 
+function looksLikeUrl(value: string): boolean {
+	return /^(?:https?:\/\/|file:\/\/|about:)/i.test(value);
+}
+
 export type ParsedArgs =
 	| {
 			cmd: string;
@@ -207,7 +211,10 @@ export function parseArgs(argv: string[]): ParsedArgs {
 	if (remaining.length === 0)
 		return { cmd: "help", args: [], timeout, session, json, config };
 
-	const [cmd, ...args] = remaining;
+	const [rawCmd, ...rawArgs] = remaining;
+	const [cmd, args] = looksLikeUrl(rawCmd)
+		? ["goto", [rawCmd, ...rawArgs]]
+		: [rawCmd, rawArgs];
 
 	return { cmd: cmd as string, args, timeout, session, json, config };
 }

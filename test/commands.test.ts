@@ -41,6 +41,39 @@ describe("handleGoto", () => {
 			expect(result.error).toContain("net::ERR_NAME_NOT_RESOLVED");
 		}
 	});
+
+	test("returns diagnostic for Akamai access denied pages", async () => {
+		const page = mockPage({
+			goto: mock(() =>
+				Promise.resolve({
+					status: () => 403,
+					headers: () => ({ server: "AkamaiGHost" }),
+					url: () => "https://www.war.gov/UFO/",
+				}),
+			),
+			title: mock(() => Promise.resolve("Access Denied")),
+			locator: mock(() => ({
+				innerText: mock(() =>
+					Promise.resolve(
+						'Access Denied You do not have permission to access "https://www.war.gov/UFO/" on this server.',
+					),
+				),
+			})),
+		});
+
+		const result = await handleGoto(page as never, [
+			"https://www.war.gov/UFO/",
+		]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error).toContain(
+				"Navigation blocked by CDN/access controls",
+			);
+			expect(result.error).toContain("Server: AkamaiGHost");
+			expect(result.error).toContain("browse version");
+		}
+	});
 });
 
 describe("handleText", () => {

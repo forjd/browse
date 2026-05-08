@@ -20,6 +20,17 @@ describe("parseArgs", () => {
 		});
 	});
 
+	test("treats a bare URL as goto shorthand", () => {
+		const result = parseArgs(["https://example.com", "--timeout", "60000"]);
+		expect(result).toEqual({
+			cmd: "goto",
+			args: ["https://example.com"],
+			timeout: 60000,
+			session: undefined,
+			json: false,
+		});
+	});
+
 	test("parses text command with no args", () => {
 		const result = parseArgs(["text"]);
 		expect(result).toEqual({
