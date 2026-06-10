@@ -39,6 +39,8 @@ export type SessionCallbacks = {
 	/** The shared (default) browser context */
 	defaultContext: BrowserContext;
 	attachListeners: (page: Page, tabState: TabState) => void;
+	/** Notify the daemon that a session was closed, so per-session state can be released */
+	onClose?: (name: string) => void;
 };
 
 const VALID_SUBCOMMANDS = ["list", "create", "close"] as const;
@@ -68,7 +70,7 @@ export async function handleSession(
 		case "create":
 			return handleCreate(registry, args, callbacks);
 		case "close":
-			return handleClose(registry, args);
+			return handleClose(registry, args, callbacks);
 		default:
 			throw new Error(`Unexpected subcommand: ${subcommand}`);
 	}
@@ -162,6 +164,7 @@ async function handleCreate(
 async function handleClose(
 	registry: SessionRegistry,
 	args: string[],
+	callbacks: SessionCallbacks,
 ): Promise<Response> {
 	const name = args[1];
 	if (!name) {
@@ -205,6 +208,7 @@ async function handleClose(
 	}
 
 	registry.sessions.delete(name);
+	callbacks.onClose?.(name);
 
 	return {
 		ok: true,

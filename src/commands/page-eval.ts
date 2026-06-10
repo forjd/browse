@@ -21,20 +21,27 @@ export async function handlePageEval(
 		};
 	}
 
+	// Only fall back to the unwrapped form when *construction* fails
+	// (statements that can't be parenthesized). Falling back on runtime
+	// errors would re-execute side-effectful code a second time.
+	let fn: (page: Page) => Promise<unknown>;
 	try {
-		const fn = new AsyncFunction("page", `return (${expression});`);
-		const result = await fn(page);
-		return { ok: true, data: formatResult(result) };
+		fn = new AsyncFunction("page", `return (${expression});`);
 	} catch {
-		// Retry without wrapping in parens — handles statements like `throw ...`
 		try {
-			const fn = new AsyncFunction("page", expression);
-			const result = await fn(page);
-			return { ok: true, data: formatResult(result) };
+			fn = new AsyncFunction("page", expression);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: message };
 		}
+	}
+
+	try {
+		const result = await fn(page);
+		return { ok: true, data: formatResult(result) };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: message };
 	}
 }
 

@@ -30,10 +30,11 @@ export async function handleForward(page: Page): Promise<Response> {
 				}
 			}
 		};
-		await Promise.race([
-			page.goForward({ waitUntil: "domcontentloaded" }),
-			pollForUrlChange(),
-		]);
+		const navigation = page.goForward({ waitUntil: "domcontentloaded" });
+		// If the poller wins the race, the navigation promise may still reject
+		// later (e.g. timeout) — swallow it to avoid an unhandled rejection.
+		navigation.catch(() => {});
+		await Promise.race([navigation, pollForUrlChange()]);
 		const title = await page.title();
 		return { ok: true, data: title };
 	} catch (err) {

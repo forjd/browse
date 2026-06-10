@@ -8,7 +8,9 @@ Browse has a plugin system that lets you add custom commands and hook into the c
 
 ```typescript
 // plugins/hello.ts
-import type { BrowsePlugin } from "browse/plugin";
+// Import the plugin types from the browse repo's src/plugin.ts
+// (adjust the relative path to where browse is checked out)
+import type { BrowsePlugin } from "../path/to/browse/src/plugin.ts";
 
 const plugin: BrowsePlugin = {
   name: "hello",
@@ -266,8 +268,8 @@ npm install browse-plugin-foo
 }
 ```
 
-For type safety during development, install `browse` as a dev dependency and import the types:
+For type safety during development, import the types from the browse repo's `src/plugin.ts` (browse is not published to npm, so use a relative path to a checkout — see `examples/plugins/` for working examples):
 
 ```typescript
-import type { BrowsePlugin, CommandContext } from "browse/plugin";
+import type { BrowsePlugin, CommandContext } from "../path/to/browse/src/plugin.ts";
 ```

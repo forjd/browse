@@ -1,6 +1,14 @@
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
-import { resolveRef } from "../refs.ts";
+import { type RefEntry, resolveRef } from "../refs.ts";
+
+function refLocator(page: Page, resolved: RefEntry) {
+	const locator = page.getByRole(
+		resolved.role as Parameters<Page["getByRole"]>[0],
+		{ name: resolved.name, exact: true },
+	);
+	return resolved.totalMatches > 1 ? locator.nth(resolved.nthMatch) : locator;
+}
 
 export async function handleGesture(
 	page: Page,
@@ -78,10 +86,7 @@ async function handleSwipe(page: Page, args: string[]): Promise<Response> {
 		if ("error" in resolved) {
 			return { ok: false, error: resolved.error };
 		}
-		const locator = page.getByRole(
-			resolved.role as Parameters<typeof page.getByRole>[0],
-			{ name: resolved.name, exact: true },
-		);
+		const locator = refLocator(page, resolved);
 		const box = await locator.boundingBox();
 		if (!box) {
 			return { ok: false, error: `Could not find bounding box for ${refArg}` };
@@ -182,10 +187,7 @@ async function handleLongPress(page: Page, args: string[]): Promise<Response> {
 	}
 
 	try {
-		const locator = page.getByRole(
-			resolved.role as Parameters<typeof page.getByRole>[0],
-			{ name: resolved.name, exact: true },
-		);
+		const locator = refLocator(page, resolved);
 		const box = await locator.boundingBox();
 		if (!box) {
 			return { ok: false, error: `Could not find bounding box for ${ref}` };
@@ -244,10 +246,7 @@ async function handleDoubleTap(page: Page, args: string[]): Promise<Response> {
 	}
 
 	try {
-		const locator = page.getByRole(
-			resolved.role as Parameters<typeof page.getByRole>[0],
-			{ name: resolved.name, exact: true },
-		);
+		const locator = refLocator(page, resolved);
 
 		const box = await locator.boundingBox();
 		if (!box) {
@@ -331,14 +330,8 @@ async function handleDrag(page: Page, args: string[]): Promise<Response> {
 	}
 
 	try {
-		const srcLocator = page.getByRole(
-			source.role as Parameters<typeof page.getByRole>[0],
-			{ name: source.name, exact: true },
-		);
-		const tgtLocator = page.getByRole(
-			target.role as Parameters<typeof page.getByRole>[0],
-			{ name: target.name, exact: true },
-		);
+		const srcLocator = refLocator(page, source);
+		const tgtLocator = refLocator(page, target);
 
 		await srcLocator.dragTo(tgtLocator, { timeout: 10_000 });
 

@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 import { resolveLocator } from "../refs.ts";
+import { DEFAULT_TIMEOUT_MS } from "../timeout.ts";
 
 const POLL_INTERVAL_MS = 100;
 
@@ -8,11 +9,15 @@ const POLL_INTERVAL_MS = 100;
  * Wait for a condition before proceeding. Useful for SPAs where client-side
  * navigation doesn't trigger full page loads.
  *
- * The daemon-level --timeout flag bounds the total wait time.
+ * The poll loops are bounded by `timeoutMs` (the daemon-level --timeout):
+ * the daemon's outer timeout only abandons the promise, it doesn't cancel
+ * it, so without an internal deadline a timed-out wait would keep polling
+ * for the daemon's entire lifetime.
  */
 export async function handleWait(
 	page: Page,
 	args: string[],
+	timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<Response> {
 	const subcommand = args[0];
 
@@ -24,16 +29,19 @@ export async function handleWait(
 		};
 	}
 
+	const deadline =
+		Date.now() + (timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS);
+
 	try {
 		switch (subcommand) {
 			case "url":
-				return await waitUrl(page, args.slice(1));
+				return await waitUrl(page, args.slice(1), deadline);
 			case "text":
-				return await waitText(page, args.slice(1));
+				return await waitText(page, args.slice(1), deadline);
 			case "visible":
-				return await waitVisible(page, args.slice(1));
+				return await waitVisible(page, args.slice(1), deadline);
 			case "hidden":
-				return await waitHidden(page, args.slice(1));
+				return await waitHidden(page, args.slice(1), deadline);
 			case "network-idle":
 				return await waitNetworkIdle(page);
 			default: {
@@ -54,7 +62,15 @@ export async function handleWait(
 	}
 }
 
-async function waitUrl(page: Page, args: string[]): Promise<Response> {
+function timedOut(what: string): Response {
+	return { ok: false, error: `Timed out waiting for ${what}` };
+}
+
+async function waitUrl(
+	page: Page,
+	args: string[],
+	deadline: number,
+): Promise<Response> {
 	const substring = args[0];
 	if (!substring) {
 		return {
@@ -64,13 +80,20 @@ async function waitUrl(page: Page, args: string[]): Promise<Response> {
 	}
 
 	while (!page.url().includes(substring)) {
+		if (Date.now() >= deadline) {
+			return timedOut(`URL to contain "${substring}"`);
+		}
 		await sleep(POLL_INTERVAL_MS);
 	}
 
 	return { ok: true, data: `URL contains "${substring}"` };
 }
 
-async function waitText(page: Page, args: string[]): Promise<Response> {
+async function waitText(
+	page: Page,
+	args: string[],
+	deadline: number,
+): Promise<Response> {
 	const text = args[0];
 	if (!text) {
 		return {
@@ -88,11 +111,18 @@ async function waitText(page: Page, args: string[]): Promise<Response> {
 		} catch {
 			// Page may not be ready yet
 		}
+		if (Date.now() >= deadline) {
+			return timedOut(`page text to contain "${text}"`);
+		}
 		await sleep(POLL_INTERVAL_MS);
 	}
 }
 
-async function waitVisible(page: Page, args: string[]): Promise<Response> {
+async function waitVisible(
+	page: Page,
+	args: string[],
+	deadline: number,
+): Promise<Response> {
 	const target = args[0];
 	if (!target) {
 		return {
@@ -115,11 +145,18 @@ async function waitVisible(page: Page, args: string[]): Promise<Response> {
 		} catch {
 			// Element not found yet
 		}
+		if (Date.now() >= deadline) {
+			return timedOut(`element "${target}" to become visible`);
+		}
 		await sleep(POLL_INTERVAL_MS);
 	}
 }
 
-async function waitHidden(page: Page, args: string[]): Promise<Response> {
+async function waitHidden(
+	page: Page,
+	args: string[],
+	deadline: number,
+): Promise<Response> {
 	const target = args[0];
 	if (!target) {
 		return {
@@ -142,6 +179,9 @@ async function waitHidden(page: Page, args: string[]): Promise<Response> {
 		} catch {
 			// Element not found = hidden
 			return { ok: true, data: `Element "${target}" is hidden` };
+		}
+		if (Date.now() >= deadline) {
+			return timedOut(`element "${target}" to become hidden`);
 		}
 		await sleep(POLL_INTERVAL_MS);
 	}

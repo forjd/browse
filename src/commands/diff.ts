@@ -42,7 +42,7 @@ export async function handleDiff(
 	config: BrowseConfig | null,
 	_page: Page,
 	args: string[],
-	_deps: DiffDeps,
+	deps: DiffDeps,
 	context: BrowserContext,
 ): Promise<Response> {
 	// Parse args

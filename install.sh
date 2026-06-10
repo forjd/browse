@@ -75,10 +75,12 @@ fi
 
 echo "  binary: ${BIN_DIR}/browse"
 
-# Install Chrome for Testing (matches setup.sh and CI)
+# Install Chrome for Testing (matches setup.sh and CI). The release binary
+# embeds patchright, so browsers must be installed via patchright — upstream
+# playwright fetches different browser revisions the binary won't find.
 echo ""
 echo "Installing Chrome..."
-bunx playwright install chrome
+bunx patchright install chrome
 echo "  Chrome installed"
 
 # Optional: install additional browsers via BROWSE_BROWSERS env var
@@ -86,7 +88,7 @@ echo "  Chrome installed"
 if [ -n "$BROWSE_BROWSERS" ]; then
   for EXTRA_BROWSER in $BROWSE_BROWSERS; do
     echo "  Installing $EXTRA_BROWSER..."
-    bunx playwright install "$EXTRA_BROWSER"
+    bunx patchright install "$EXTRA_BROWSER"
     echo "  $EXTRA_BROWSER installed"
   done
 fi

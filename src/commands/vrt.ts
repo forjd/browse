@@ -268,9 +268,12 @@ async function vrtCheck(
 		const currentPath = join(currentDir, baselineFile);
 		await page.screenshot({ path: currentPath, fullPage: true });
 
-		// Compare
+		// Compare. The vrt threshold is a pass/fail *percentage*; the third
+		// argument of compareScreenshots is a per-pixel colour tolerance
+		// (0-255), so keep the library default there rather than conflating
+		// the two meanings.
 		const baselinePath = join(baselinesDir, baselineFile);
-		const diffResult = compareScreenshots(currentPath, baselinePath, threshold);
+		const diffResult = compareScreenshots(currentPath, baselinePath);
 
 		// Copy diff image to diffs dir if it was generated
 		const diffDstPath = join(

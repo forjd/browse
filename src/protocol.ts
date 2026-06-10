@@ -217,7 +217,12 @@ export function parseRequest(
 				args: parsedEntry.args,
 				timeout: parsedEntry.timeout,
 				session: parsedEntry.session,
-				json: parsedEntry.json,
+				// Preserve absence so the batch-level json flag can apply as
+				// a fallback when the entry doesn't specify one
+				json:
+					(entry as Record<string, unknown>).json === undefined
+						? undefined
+						: parsedEntry.json,
 			};
 		});
 

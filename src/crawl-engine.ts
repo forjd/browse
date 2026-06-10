@@ -4,8 +4,10 @@ import type { Page } from "playwright";
  * Simple glob-to-regex matching for --include/--exclude patterns.
  */
 export function matchGlob(pattern: string, url: string): boolean {
+	// Escape regex metacharacters so only * and ? act as wildcards
+	const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
 	const regex = new RegExp(
-		`^${pattern.replace(/\*/g, ".*").replace(/\?/g, ".")}$`,
+		`^${escaped.replace(/\*/g, ".*").replace(/\?/g, ".")}$`,
 	);
 	return regex.test(url);
 }
@@ -18,7 +20,9 @@ export function normalizeUrl(raw: string): string {
 		const u = new URL(raw);
 		u.hash = "";
 		let href = u.href;
-		if (href.endsWith("/") && u.pathname !== "/") {
+		// Only strip a trailing slash from the path — when a query string is
+		// present the final character belongs to the query, not the path
+		if (href.endsWith("/") && u.pathname !== "/" && !u.search) {
 			href = href.slice(0, -1);
 		}
 		// Lowercase protocol+host (URL constructor already lowercases host)
@@ -364,12 +368,14 @@ export class CrawlEngine {
 			});
 			pagesVisited++;
 
-			// Handle pagination if configured
+			// Handle pagination if configured, bounded by the remaining
+			// page budget so --max-pages holds overall
 			if (this.options.paginate) {
 				const paginationResults = await this.handlePagination(
 					page,
 					entry.url,
 					entry.depth,
+					this.options.maxPages - pagesVisited,
 				);
 				results.push(...paginationResults);
 				pagesVisited += paginationResults.length;
@@ -440,14 +446,15 @@ export class CrawlEngine {
 		page: Page,
 		baseUrl: string,
 		depth: number,
+		remainingBudget: number,
 	): Promise<CrawlResult[]> {
 		const results: CrawlResult[] = [];
 		const selector = this.options.paginate;
-		if (!selector) return results;
+		if (!selector || remainingBudget <= 0) return results;
+		// pageNum labels results (#page-2 onwards; the base page is #1)
 		let pageNum = 1;
-		const maxPaginationPages = this.options.maxPages;
 
-		while (pageNum < maxPaginationPages) {
+		while (results.length < remainingBudget) {
 			try {
 				const element = await page.$(selector);
 				if (!element) break;

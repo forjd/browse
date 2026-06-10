@@ -417,15 +417,14 @@ async function auditTabOrder(page: Page, json: boolean): Promise<Response> {
 async function auditHeadings(page: Page, json: boolean): Promise<Response> {
 	const headings = await page.evaluate(() => {
 		const result: { level: number; text: string }[] = [];
-		for (const tag of ["h1", "h2", "h3", "h4", "h5", "h6"]) {
-			for (const el of document.querySelectorAll(tag)) {
-				result.push({
-					level: Number.parseInt(tag[1], 10),
-					text: (el as HTMLElement).innerText?.trim().slice(0, 80) ?? "",
-				});
-			}
+		// querySelectorAll returns elements in document order, which the
+		// heading-skip check below depends on
+		for (const el of document.querySelectorAll("h1,h2,h3,h4,h5,h6")) {
+			result.push({
+				level: Number.parseInt(el.tagName[1], 10),
+				text: (el as HTMLElement).innerText?.trim().slice(0, 80) ?? "",
+			});
 		}
-		// Sort by document order
 		return result;
 	});
 

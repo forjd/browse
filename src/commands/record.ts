@@ -15,6 +15,14 @@ import {
 	stopSession,
 } from "../recorder.ts";
 
+// The active navigation listener, so recordStop can detach it. Without
+// removal, each start/stop cycle would stack another listener and record
+// duplicate goto steps.
+let navListener: {
+	page: Page;
+	handler: (frame: import("playwright").Frame) => void;
+} | null = null;
+
 function parseFlag(args: string[], flag: string): string | null {
 	const idx = args.indexOf(flag);
 	if (idx === -1 || idx + 1 >= args.length) return null;
@@ -51,8 +59,8 @@ async function recordStart(page: Page, args: string[]): Promise<Response> {
 		// Function may already be exposed from a previous session
 	}
 
-	// Listen for navigations
-	page.on("framenavigated", (frame) => {
+	// Listen for navigations (detached again in recordStop)
+	const handler = (frame: import("playwright").Frame) => {
 		if (frame === page.mainFrame()) {
 			pushEvent({
 				type: "navigation",
@@ -60,7 +68,9 @@ async function recordStart(page: Page, args: string[]): Promise<Response> {
 				timestamp: Date.now(),
 			});
 		}
-	});
+	};
+	navListener = { page, handler };
+	page.on("framenavigated", handler);
 
 	// Inject the observer script
 	const script = getInjectedScript();
@@ -78,6 +88,15 @@ async function recordStart(page: Page, args: string[]): Promise<Response> {
 async function recordStop(): Promise<Response> {
 	if (!isRecording()) {
 		return { ok: false, error: "No recording in progress." };
+	}
+
+	if (navListener) {
+		try {
+			navListener.page.off("framenavigated", navListener.handler);
+		} catch {
+			// Page may already be closed
+		}
+		navListener = null;
 	}
 
 	const { config, outputPath } = stopSession();

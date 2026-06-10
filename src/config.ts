@@ -239,6 +239,18 @@ const VALID_CONDITION_KEYS = new Set([
 	"textVisible",
 ]);
 
+/**
+ * Keys allowed for an environment's login successCondition. Narrower than
+ * VALID_CONDITION_KEYS: these are the only variants the login flow's
+ * waitForSuccess implements, so accepting the others would let a login
+ * report success without verifying anything.
+ */
+const VALID_SUCCESS_CONDITION_KEYS = new Set([
+	"urlContains",
+	"urlPattern",
+	"elementVisible",
+]);
+
 const VALID_FLOW_STEP_KEYS = new Set([
 	"goto",
 	"click",
@@ -504,7 +516,7 @@ export function validateConfig(data: unknown): string | null {
 		const keys = Object.keys(condition);
 		if (
 			keys.length !== 1 ||
-			!VALID_CONDITION_KEYS.has(keys[0]) ||
+			!VALID_SUCCESS_CONDITION_KEYS.has(keys[0]) ||
 			typeof condition[keys[0]] !== "string"
 		) {
 			return `Invalid browse.config.json: environment '${name}' has an invalid 'successCondition'. Must have exactly one of: urlContains, urlPattern, elementVisible.`;

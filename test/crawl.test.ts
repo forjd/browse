@@ -38,6 +38,12 @@ describe("normalizeUrl", () => {
 			"https://example.com/page",
 		);
 	});
+
+	test("keeps a trailing slash that belongs to the query string", () => {
+		expect(normalizeUrl("https://example.com/search?q=foo/")).toBe(
+			"https://example.com/search?q=foo/",
+		);
+	});
 });
 
 describe("matchGlob", () => {
@@ -61,6 +67,16 @@ describe("matchGlob", () => {
 
 	test("matches URL path patterns", () => {
 		expect(matchGlob("*/blog/*", "https://example.com/blog/post-1")).toBe(true);
+	});
+
+	test("treats regex metacharacters as literals", () => {
+		expect(matchGlob("*example.com*", "https://xexamplexcom.evil")).toBe(false);
+		expect(matchGlob("*price (usd)*", "https://shop.com/price (usd)")).toBe(
+			true,
+		);
+		// Patterns with regex specials must not throw
+		expect(matchGlob("*[id]*", "https://example.com/[id]/edit")).toBe(true);
+		expect(matchGlob("*a+b*", "https://example.com/a+b")).toBe(true);
 	});
 });
 

@@ -26,7 +26,7 @@ export async function handleCookies(
 					(c) =>
 						c.domain === domain ||
 						c.domain === `.${domain}` ||
-						(c.domain.startsWith(".") && domain.endsWith(c.domain.slice(1))),
+						(c.domain.startsWith(".") && domain.endsWith(c.domain)),
 				)
 			: cookies;
 

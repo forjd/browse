@@ -90,6 +90,7 @@ async function extractTable(
 
 	// Resolve @ref if needed
 	let selector = selectorArg;
+	let nthIndex = 0;
 	if (selectorArg.startsWith("@")) {
 		const resolved = resolveRef(selectorArg);
 		if ("error" in resolved) {
@@ -101,69 +102,74 @@ async function extractTable(
 				error: `Ref ${selectorArg} points to a "${resolved.role}" element, not a table.`,
 			};
 		}
-		// Build a selector that targets this specific table via nth-match
-		selector =
-			resolved.totalMatches > 1
-				? `table:nth-of-type(${resolved.nthMatch})`
-				: "table";
+		// Target this specific table by its 0-based document-order index
+		selector = "table";
+		nthIndex = resolved.nthMatch;
 	}
 
-	const tableData = await page.evaluate((sel) => {
-		const table = document.querySelector(sel);
-		if (!table) return null;
+	const tableData = await page.evaluate(
+		({ sel, index }) => {
+			const table = document.querySelectorAll(sel)[index];
+			if (!table) return null;
 
-		const headers: string[] = [];
-		const rows: string[][] = [];
+			const headers: string[] = [];
+			const rows: string[][] = [];
 
-		const ths = table.querySelectorAll("thead th, thead td, tr:first-child th");
-		if (ths.length > 0) {
-			for (const th of ths) {
-				headers.push(
-					(th as HTMLElement).innerText?.trim() ?? th.textContent?.trim() ?? "",
-				);
+			const ths = table.querySelectorAll(
+				"thead th, thead td, tr:first-child th",
+			);
+			if (ths.length > 0) {
+				for (const th of ths) {
+					headers.push(
+						(th as HTMLElement).innerText?.trim() ??
+							th.textContent?.trim() ??
+							"",
+					);
+				}
 			}
-		}
 
-		// Select body rows, excluding any inside thead
-		const hasTbody = table.querySelector("tbody");
-		const allRows = hasTbody
-			? table.querySelectorAll("tbody tr")
-			: table.querySelectorAll("tr");
-		let bodyRows = Array.from(allRows).filter((tr) => !tr.closest("thead"));
-		// Skip first row if it's header-like (all th cells) and headers were already captured
-		if (
-			headers.length > 0 &&
-			bodyRows.length > 0 &&
-			bodyRows[0].querySelectorAll("th").length > 0 &&
-			bodyRows[0].querySelectorAll("td").length === 0
-		) {
-			bodyRows = bodyRows.slice(1);
-		}
-
-		for (let i = 0; i < bodyRows.length; i++) {
-			const cells = bodyRows[i].querySelectorAll("td, th");
-			const row: string[] = [];
-			for (const cell of cells) {
-				row.push(
-					(cell as HTMLElement).innerText?.trim() ??
-						cell.textContent?.trim() ??
-						"",
-				);
+			// Select body rows, excluding any inside thead
+			const hasTbody = table.querySelector("tbody");
+			const allRows = hasTbody
+				? table.querySelectorAll("tbody tr")
+				: table.querySelectorAll("tr");
+			let bodyRows = Array.from(allRows).filter((tr) => !tr.closest("thead"));
+			// Skip first row if it's header-like (all th cells) and headers were already captured
+			if (
+				headers.length > 0 &&
+				bodyRows.length > 0 &&
+				bodyRows[0].querySelectorAll("th").length > 0 &&
+				bodyRows[0].querySelectorAll("td").length === 0
+			) {
+				bodyRows = bodyRows.slice(1);
 			}
-			if (row.length > 0) {
-				rows.push(row);
-			}
-		}
 
-		// If no headers found, use column indices
-		if (headers.length === 0 && rows.length > 0) {
-			for (let i = 0; i < rows[0].length; i++) {
-				headers.push(`col${i + 1}`);
+			for (let i = 0; i < bodyRows.length; i++) {
+				const cells = bodyRows[i].querySelectorAll("td, th");
+				const row: string[] = [];
+				for (const cell of cells) {
+					row.push(
+						(cell as HTMLElement).innerText?.trim() ??
+							cell.textContent?.trim() ??
+							"",
+					);
+				}
+				if (row.length > 0) {
+					rows.push(row);
+				}
 			}
-		}
 
-		return { headers, rows };
-	}, selector);
+			// If no headers found, use column indices
+			if (headers.length === 0 && rows.length > 0) {
+				for (let i = 0; i < rows[0].length; i++) {
+					headers.push(`col${i + 1}`);
+				}
+			}
+
+			return { headers, rows };
+		},
+		{ sel: selector, index: nthIndex },
+	);
 
 	if (!tableData) {
 		return { ok: false, error: `No table found matching "${selector}".` };

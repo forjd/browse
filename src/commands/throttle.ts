@@ -109,8 +109,12 @@ export async function handleThrottle(
 		upload = preset.upload;
 		latency = preset.latency;
 		presetName = sub;
-	} else if (sub === "--download" || args.includes("--download")) {
-		// Custom values
+	} else if (
+		args.some(
+			(a) => a === "--download" || a === "--upload" || a === "--latency",
+		)
+	) {
+		// Custom values — any of the three flags can be used independently
 		download = parseNumericFlag(args, "--download", 500) * 1024;
 		upload = parseNumericFlag(args, "--upload", 100) * 1024;
 		latency = parseNumericFlag(args, "--latency", 0);

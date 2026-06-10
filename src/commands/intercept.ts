@@ -75,11 +75,15 @@ export async function handleIntercept(
 			state.rules.set(pattern, rule);
 
 			await page.route(pattern, (route) => {
-				route.fulfill({
-					status: rule.status,
-					body: rule.body,
-					contentType: rule.contentType,
-				});
+				// Fulfillment can fail if the request was cancelled (e.g. the
+				// page navigated away) — swallow to avoid unhandled rejections.
+				route
+					.fulfill({
+						status: rule.status,
+						body: rule.body,
+						contentType: rule.contentType,
+					})
+					.catch(() => {});
 			});
 
 			return {
