@@ -10,14 +10,19 @@ export async function withTimeout<T>(
 ): Promise<T> {
 	const effectiveMs = ms > 0 ? ms : DEFAULT_TIMEOUT_MS;
 
-	const timeout = new Promise<never>((_, reject) =>
-		setTimeout(
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(
 			() => reject(new Error(`Command timed out after ${effectiveMs}ms`)),
 			effectiveMs,
-		),
-	);
+		);
+	});
 
-	return Promise.race([fn(), timeout]);
+	try {
+		return await Promise.race([fn(), timeout]);
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 /**

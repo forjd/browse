@@ -77,7 +77,7 @@ export function getHighEntropyDefaults(): {
  * Returns the full version string (e.g. "146.0.7680.81").
  */
 async function detectChromeVersion(channel: string): Promise<string | null> {
-	const { execSync } = await import("node:child_process");
+	const { execFileSync } = await import("node:child_process");
 	const chromePaths: Record<string, string[]> = {
 		chrome: [
 			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -88,9 +88,12 @@ async function detectChromeVersion(channel: string): Promise<string | null> {
 	const candidates = chromePaths[channel] ?? [channel];
 	for (const bin of candidates) {
 		try {
-			const output = execSync(`"${bin}" --version 2>/dev/null`, {
+			// execFileSync avoids interpolating the (config-supplied) binary
+			// name into a shell command
+			const output = execFileSync(bin, ["--version"], {
 				encoding: "utf-8",
 				timeout: 5000,
+				stdio: ["ignore", "pipe", "ignore"],
 			}).trim();
 			const match = output.match(/(\d+\.\d+\.\d+\.\d+)/);
 			if (match) return match[1];
@@ -348,7 +351,7 @@ export async function applyStealthScripts(
 					runtime.getVersion = makeNativeFunction(
 						"getVersion",
 						function getVersion() {
-							return chromeVersion || "0";
+							return chromeFullVersion || "0";
 						},
 					);
 				if (!("reload" in runtime))
@@ -562,9 +565,13 @@ export async function applyStealthScripts(
 				// the browser returns red as the default background
 				return new Proxy(style, {
 					get(target, prop) {
-						const value = (target as Record<string | symbol, string>)[
-							prop as string
-						];
+						const value = Reflect.get(target, prop);
+						// Bind methods (getPropertyValue, item, ...) to the real
+						// CSSStyleDeclaration — calling them with the Proxy as
+						// receiver fails native brand checks ("Illegal invocation")
+						if (typeof value === "function") {
+							return value.bind(target);
+						}
 						// If the computed background color is red (headless signature), return black
 						if (prop === "backgroundColor" && value === "rgb(255, 0, 0)") {
 							return "rgb(0, 0, 0)"; // Return black instead of red

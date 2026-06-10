@@ -47,6 +47,21 @@ export function buildTarget(target?: RecordedEvent["target"]): string {
 }
 
 /**
+ * Did buildTarget fall back to a CSS selector (rather than an accessible
+ * name)? Selector targets must be emitted as `{ selector }` flow steps —
+ * the replay side treats plain strings as accessible names.
+ */
+function isSelectorTarget(target?: RecordedEvent["target"]): boolean {
+	if (!target) return false;
+	return (
+		!target.accessibleName &&
+		!target.ariaLabel &&
+		!target.placeholder &&
+		Boolean(target.testId || target.selector)
+	);
+}
+
+/**
  * Convert absolute URLs to {{base_url}} variables.
  * Detects the common base from the first navigation URL.
  */
@@ -59,7 +74,14 @@ export function replaceBaseUrl(steps: FlowStep[], baseUrl: string): FlowStep[] {
 	return steps.map((step) => {
 		if ("goto" in step) {
 			const url = (step as { goto: string }).goto;
-			if (url.startsWith(base)) {
+			// Require a path boundary so e.g. https://example.com doesn't
+			// rewrite https://example.communityfoo
+			if (
+				url === base ||
+				url.startsWith(`${base}/`) ||
+				url.startsWith(`${base}?`) ||
+				url.startsWith(`${base}#`)
+			) {
 				return { goto: url.replace(base, "{{base_url}}") };
 			}
 		}
@@ -110,19 +132,31 @@ export function convertToFlowSteps(rawSteps: RawStep[]): FlowStep[] {
 		switch (event.type) {
 			case "click": {
 				const target = buildTarget(event.target);
-				steps.push({ click: target });
+				steps.push(
+					isSelectorTarget(event.target)
+						? { click: { selector: target } }
+						: { click: target },
+				);
 				break;
 			}
 			case "fill": {
 				const target = buildTarget(event.target);
 				const value = event.value ?? "";
-				steps.push({ fill: { [target]: value } });
+				steps.push(
+					isSelectorTarget(event.target)
+						? { fill: { selector: target, value } }
+						: { fill: { [target]: value } },
+				);
 				break;
 			}
 			case "select": {
 				const target = buildTarget(event.target);
 				const value = event.value ?? "";
-				steps.push({ select: { [target]: value } });
+				steps.push(
+					isSelectorTarget(event.target)
+						? { select: { selector: target, value } }
+						: { select: { [target]: value } },
+				);
 				break;
 			}
 			case "navigation": {

@@ -109,14 +109,14 @@ describe("parseRequest", () => {
 					args: [],
 					timeout: undefined,
 					session: undefined,
-					json: false,
+					json: undefined,
 				},
 				{
 					cmd: "url",
 					args: [],
 					timeout: undefined,
 					session: undefined,
-					json: false,
+					json: undefined,
 				},
 			],
 			continueOnError: true,
@@ -125,6 +125,16 @@ describe("parseRequest", () => {
 			json: false,
 			token: undefined,
 		});
+	});
+
+	test("batch entries keep an explicit json flag and inherit the batch-level flag otherwise", () => {
+		const result = parseRequest(
+			'{"batch":[{"cmd":"ping","args":[],"json":true},{"cmd":"url","args":[]}],"json":true}',
+		);
+		if (!("batch" in result)) throw new Error("expected batch request");
+		expect(result.batch[0]?.json).toBe(true);
+		expect(result.batch[1]?.json).toBeUndefined();
+		expect(result.json).toBe(true);
 	});
 
 	test("throws on malformed JSON", () => {

@@ -47,15 +47,24 @@ export async function handleCompliance(
 	// Navigate to URL if provided
 	const targetUrl = args.find((a) => a.startsWith("http"));
 
-	// Use a fresh browser context for compliance auditing to avoid
+	// When a URL is given, audit it in a fresh browser context to avoid
 	// polluted state (existing cookies, storage) from the current session.
+	// Without a URL, audit the current page in its own context — a fresh
+	// context would have none of the page's cookies.
 	const browser = deps.context.browser();
-	const freshContext = browser ? await browser.newContext() : null;
+	const freshContext = browser && targetUrl ? await browser.newContext() : null;
 	const auditContext = freshContext ?? deps.context;
 	let auditPage = page;
 
-	if (freshContext && targetUrl) {
+	// Requests captured for the fresh-context page; the session network
+	// buffer only sees the main session's tabs.
+	const capturedRequests: string[] = [];
+
+	if (freshContext) {
 		auditPage = await freshContext.newPage();
+		auditPage.on("request", (req) => {
+			capturedRequests.push(req.url());
+		});
 	}
 
 	try {
@@ -213,18 +222,20 @@ export async function handleCompliance(
 		}
 
 		// 3. Third-party tracker detection
-		const networkEntries = deps.networkBuffer.peek();
+		const requestUrls = freshContext
+			? capturedRequests
+			: deps.networkBuffer.peek().map((entry) => entry.url);
 		const trackerRequests: {
 			url: string;
 			tracker: string;
 			category: string;
 		}[] = [];
 
-		for (const entry of networkEntries) {
-			const classified = classifyDomain(entry.url);
+		for (const url of requestUrls) {
+			const classified = classifyDomain(url);
 			if (classified) {
 				trackerRequests.push({
-					url: entry.url,
+					url,
 					tracker: classified.tracker,
 					category: classified.category,
 				});

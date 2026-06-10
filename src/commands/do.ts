@@ -181,29 +181,47 @@ export async function handleDo(page: Page, args: string[]): Promise<Response> {
 					messages: [{ role: "user", content: userPrompt }],
 				}),
 			});
+			if (!resp.ok) {
+				const body = await resp.text();
+				return {
+					ok: false,
+					error: `Anthropic API error (${resp.status}): ${body.slice(0, 200)}`,
+				};
+			}
 			const data = (await resp.json()) as {
 				content?: { text?: string }[];
 			};
 			commandsJson = data.content?.[0]?.text ?? "[]";
 		} else {
-			const resp = await fetch(
-				`${baseUrl ?? process.env.OPENAI_BASE_URL ?? "https://api.openai.com"}/v1/chat/completions`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${apiKey}`,
-					},
-					body: JSON.stringify({
-						model: model ?? "gpt-4o",
-						messages: [
-							{ role: "system", content: systemPrompt },
-							{ role: "user", content: userPrompt },
-						],
-						max_tokens: 1024,
-					}),
+			// Base URL is expected to already include the API version segment
+			// (e.g. https://openrouter.ai/api/v1), matching assert-ai
+			const apiBase = (
+				baseUrl ??
+				process.env.OPENAI_BASE_URL ??
+				"https://api.openai.com/v1"
+			).replace(/\/$/, "");
+			const resp = await fetch(`${apiBase}/chat/completions`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${apiKey}`,
 				},
-			);
+				body: JSON.stringify({
+					model: model ?? "gpt-4o",
+					messages: [
+						{ role: "system", content: systemPrompt },
+						{ role: "user", content: userPrompt },
+					],
+					max_tokens: 1024,
+				}),
+			});
+			if (!resp.ok) {
+				const body = await resp.text();
+				return {
+					ok: false,
+					error: `OpenAI API error (${resp.status}): ${body.slice(0, 200)}`,
+				};
+			}
 			const data = (await resp.json()) as {
 				choices?: { message?: { content?: string } }[];
 			};

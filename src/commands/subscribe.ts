@@ -39,7 +39,7 @@ export async function handleSubscribe(
 
 	// Parse --status filter
 	const statusIdx = args.indexOf("--status");
-	const _statusFilter =
+	const statusFilter =
 		statusIdx !== -1 && statusIdx + 1 < args.length
 			? args[statusIdx + 1]
 			: undefined;
@@ -108,6 +108,46 @@ export async function handleSubscribe(
 		};
 		page.on("dialog", handler);
 		listeners.push(() => page.off("dialog", handler));
+	}
+
+	if (eventTypes.includes("network")) {
+		const handler = (response: {
+			url: () => string;
+			status: () => number;
+			request: () => { method: () => string };
+		}) => {
+			const status = response.status();
+			if (statusFilter && String(status) !== statusFilter) return;
+			addEvent({
+				ts: new Date().toISOString(),
+				event: "network",
+				data: {
+					url: response.url(),
+					status,
+					method: response.request().method(),
+				},
+			});
+		};
+		page.on("response", handler);
+		listeners.push(() => page.off("response", handler));
+	}
+
+	if (eventTypes.includes("download")) {
+		const handler = (download: {
+			url: () => string;
+			suggestedFilename: () => string;
+		}) => {
+			addEvent({
+				ts: new Date().toISOString(),
+				event: "download",
+				data: {
+					url: download.url(),
+					filename: download.suggestedFilename(),
+				},
+			});
+		};
+		page.on("download", handler);
+		listeners.push(() => page.off("download", handler));
 	}
 
 	if (eventTypes.includes("error")) {

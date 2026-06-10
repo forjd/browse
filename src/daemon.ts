@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { chmodSync, rmSync, statSync } from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
 import { homedir } from "node:os";
@@ -157,6 +157,15 @@ import {
 } from "./stealth.ts";
 import { resolveTimeout, withTimeout } from "./timeout.ts";
 
+/** Constant-time token comparison over fixed-length hashes. */
+function tokensMatch(provided: string | undefined, expected: string): boolean {
+	if (!provided) return false;
+	return timingSafeEqual(
+		createHash("sha256").update(provided).digest(),
+		createHash("sha256").update(expected).digest(),
+	);
+}
+
 /**
  * Known flags per command. Commands not listed here skip flag validation
  * (e.g. eval/page-eval/fill/select where all args form freeform data).
@@ -225,7 +234,15 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	title: [],
 	pdf: [],
 	"element-count": [],
-	trace: ["--screenshots", "--snapshots", "--out", "--port", "--latest"],
+	trace: [
+		"--screenshots",
+		"--snapshots",
+		"--out",
+		"--port",
+		"--latest",
+		"--older-than",
+		"--dry-run",
+	],
 	init: ["--force"],
 	screenshots: ["--older-than", "--dry-run"],
 	report: ["--out", "--title", "--screenshots"],
@@ -249,7 +266,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--no-screenshots",
 	],
 	"flow-share": [],
-	video: ["--size", "--out"],
+	video: ["--size", "--out", "--older-than", "--dry-run"],
 	perf: ["--budget", "--json"],
 	security: ["--json"],
 	responsive: ["--breakpoints", "--url", "--out", "--json"],
@@ -471,8 +488,9 @@ export async function startServer(
 	let persistTimer: ReturnType<typeof setTimeout> | undefined;
 	let persistInFlight = false;
 
-	// Per-context trace state so each BrowserContext has isolated tracing
-	const traceStates = new Map<
+	// Per-context trace state so each BrowserContext has isolated tracing.
+	// WeakMap so closed contexts (e.g. isolated sessions) can be collected.
+	const traceStates = new WeakMap<
 		BrowserContext,
 		ReturnType<typeof createTraceState>
 	>();
@@ -496,23 +514,39 @@ export async function startServer(
 		return state;
 	}
 
-	const scratchPages = new Map<BrowserContext, Page>();
+	// Cache the in-flight promise (not the resolved page) so concurrent
+	// callers share one page instead of racing to create and leak extras.
+	const scratchPages = new Map<BrowserContext, Promise<Page>>();
 	async function getScratchPage(targetContext: BrowserContext): Promise<Page> {
-		const existing = scratchPages.get(targetContext);
-		if (
-			existing &&
-			(typeof existing.isClosed !== "function" || !existing.isClosed())
-		) {
-			return existing;
+		const pending = scratchPages.get(targetContext);
+		if (pending) {
+			try {
+				const existing = await pending;
+				if (typeof existing.isClosed !== "function" || !existing.isClosed()) {
+					return existing;
+				}
+			} catch {
+				// Creation failed — fall through and retry below
+			}
 		}
-		const scratchPage = await targetContext.newPage();
-		scratchPage.on("close", () => {
-			if (scratchPages.get(targetContext) === scratchPage) {
+		const creating = (async () => {
+			const scratchPage = await targetContext.newPage();
+			scratchPage.on("close", () => {
+				if (scratchPages.get(targetContext) === creating) {
+					scratchPages.delete(targetContext);
+				}
+			});
+			return scratchPage;
+		})();
+		scratchPages.set(targetContext, creating);
+		try {
+			return await creating;
+		} catch (err) {
+			if (scratchPages.get(targetContext) === creating) {
 				scratchPages.delete(targetContext);
 			}
-		});
-		scratchPages.set(targetContext, scratchPage);
-		return scratchPage;
+			throw err;
+		}
 	}
 
 	// Tab registry for default session
@@ -795,6 +829,12 @@ export async function startServer(
 	}
 
 	idleTimer = createIdleTimer(lifecycleConfig, () => {
+		// A long-running command (watch, subscribe, flow with a large
+		// timeout) must not be killed by the idle timer — defer instead.
+		if (activeCommands > 0) {
+			idleTimer.reset();
+			return;
+		}
 		shutdownOnce();
 	});
 
@@ -902,8 +942,10 @@ export async function startServer(
 				});
 			};
 
-			// Validate auth token if the daemon has one
-			if (token && parsedRequest.token !== token) {
+			// Validate auth token if the daemon has one. Compare hashes with
+			// timingSafeEqual: the token can be the only access control when
+			// the daemon listens on TCP, so avoid a timing oracle.
+			if (token && !tokensMatch(parsedRequest.token, token)) {
 				return reply(
 					serialiseResponse({
 						ok: false,
@@ -940,6 +982,9 @@ export async function startServer(
 						},
 						defaultContext: context,
 						attachListeners: attachPageListeners,
+						onClose: (name) => {
+							videoStates.delete(name);
+						},
 					});
 				}
 
@@ -1191,7 +1236,11 @@ export async function startServer(
 						case "page-eval":
 							return handlePageEval(page, request.args);
 						case "wait":
-							return handleWait(page, request.args);
+							return handleWait(
+								page,
+								request.args,
+								resolveTimeout(request.timeout, config?.timeout),
+							);
 						case "url":
 							return handleUrl(page);
 						case "back":
@@ -1607,6 +1656,10 @@ export async function startServer(
 		let buffer = "";
 		let queue = Promise.resolve();
 		let closing = false;
+
+		// Without a listener, an abrupt client disconnect (ECONNRESET/EPIPE)
+		// would raise an uncaught 'error' event and kill the daemon.
+		socket.on("error", () => {});
 
 		socket.on("data", (chunk) => {
 			buffer += chunk.toString();

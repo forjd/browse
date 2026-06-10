@@ -85,6 +85,10 @@ const COMMANDS = [
 	"gesture",
 	"devices",
 	"monitor",
+	"perf",
+	"security",
+	"responsive",
+	"extract",
 ];
 
 const GLOBAL_FLAGS = ["--timeout", "--session", "--json", "--config"];
@@ -113,6 +117,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--dry-run",
 		"--stream",
 		"--force",
+		"--webhook",
 	],
 	assert: ["--var", "--json"],
 	healthcheck: [
@@ -122,6 +127,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--junit-property",
 		"--parallel",
 		"--concurrency",
+		"--webhook",
 	],
 	wipe: [],
 	benchmark: ["--iterations", "--json"],
@@ -142,7 +148,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	plugins: ["--page", "--limit"],
 	session: ["--isolated"],
 	ping: [],
-	status: ["--json", "--watch", "--interval", "--exit-code"],
+	status: ["--json", "--watch", "--interval", "--exit-code", "--metrics"],
 	dialog: [],
 	download: [
 		"--save-to",

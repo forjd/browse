@@ -59,6 +59,21 @@ export const TRACKER_DOMAINS: Record<
 	"t.co": { name: "Twitter", category: "social" },
 };
 
+/**
+ * Tracker cookies that carry a dynamic suffix (e.g. `_ga_XXXXXX`). Only these
+ * are matched by prefix — a blanket prefix match over all tracker names would
+ * misclassify first-party cookies (e.g. `front_session` matching `fr`).
+ */
+const TRACKER_COOKIE_PREFIXES: Record<
+	string,
+	{ name: string; category: TrackerCategory }
+> = {
+	_ga_: { name: "Google Analytics", category: "analytics" },
+	_gat_: { name: "Google Analytics", category: "analytics" },
+	_hj: { name: "Hotjar", category: "analytics" },
+	_gcl_: { name: "Google Ads Conversion", category: "advertising" },
+};
+
 export function classifyCookie(
 	name: string,
 ): { tracker: string; category: TrackerCategory } | null {
@@ -70,8 +85,8 @@ export function classifyCookie(
 		};
 	}
 
-	// Prefix match (e.g., _ga_XXXXX)
-	for (const [prefix, info] of Object.entries(TRACKER_COOKIES)) {
+	// Prefix match for dynamic-suffix cookies (e.g., _ga_XXXXX)
+	for (const [prefix, info] of Object.entries(TRACKER_COOKIE_PREFIXES)) {
 		if (name.startsWith(prefix)) {
 			return { tracker: info.name, category: info.category };
 		}
