@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.3](https://github.com/forjd/browse/compare/browse-v0.16.2...browse-v0.16.3) (2026-06-11)
+
+
+### Bug Fixes
+
+* resolve correctness and security findings from full-repo review ([4f36ca2](https://github.com/forjd/browse/commit/4f36ca2ee75fb4bb69f3d7b70bdd89c635462428))
+
 ## [0.16.2](https://github.com/forjd/browse/compare/browse-v0.16.1...browse-v0.16.2) (2026-05-08)
 
 
