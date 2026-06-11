@@ -51,9 +51,19 @@ jobs:
         if: runner.os == 'Linux' && matrix.label != 'linux-arm64'
         run: bun x patchright install chrome --with-deps
 
+      # Prefer the Chrome preinstalled on GitHub macOS images. patchright's
+      # installer deletes /Applications/Google Chrome.app before downloading,
+      # and dl.google.com intermittently serves runners a stub response —
+      # which would leave the runner with no Chrome at all.
       - name: Install browser binaries (macOS)
         if: runner.os != 'Linux'
-        run: bun x patchright install chrome
+        run: |
+          if [ -d "/Applications/Google Chrome.app" ]; then
+            echo "Using preinstalled Google Chrome"
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version
+          else
+            bun x patchright install chrome
+          fi
 
       - name: Run tests
         run: bun test
