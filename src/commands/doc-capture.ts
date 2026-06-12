@@ -1,5 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+	basename,
+	extname,
+	isAbsolute,
+	relative,
+	resolve,
+	sep,
+} from "node:path";
 import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 
@@ -20,6 +27,49 @@ type DocCaptureFlow = {
 	variables?: string[];
 	steps: CaptureStep[];
 };
+
+const VALID_CAPTURE_EXTENSIONS = new Set(["", ".png"]);
+
+export function sanitizeCaptureFilename(raw: string): string {
+	const trimmed = raw.trim();
+	const ext = extname(trimmed).toLowerCase();
+	if (
+		!trimmed ||
+		isAbsolute(trimmed) ||
+		trimmed.includes("/") ||
+		trimmed.includes("\\") ||
+		trimmed !== basename(trimmed) ||
+		trimmed.includes("..") ||
+		!VALID_CAPTURE_EXTENSIONS.has(ext)
+	) {
+		throw new Error(
+			"Capture filename must be a simple filename with an optional .png extension.",
+		);
+	}
+
+	const withoutExt = ext === ".png" ? trimmed.slice(0, -ext.length) : trimmed;
+	const safe = withoutExt
+		.replace(/[^a-zA-Z0-9_-]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 120);
+	if (!safe) {
+		throw new Error(
+			"Capture filename must include at least one safe character.",
+		);
+	}
+
+	return `${safe}.png`;
+}
+
+function resolveCapturePath(outDir: string, filename: string): string {
+	const resolvedOutDir = resolve(outDir);
+	const target = resolve(resolvedOutDir, filename);
+	const rel = relative(resolvedOutDir, target);
+	if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+		throw new Error("Capture filename resolved outside the output directory.");
+	}
+	return target;
+}
 
 export async function handleDocCapture(
 	page: Page,
@@ -77,7 +127,8 @@ Flow format:
 			}
 		}
 
-		mkdirSync(outDir, { recursive: true });
+		const resolvedOutDir = resolve(outDir);
+		mkdirSync(resolvedOutDir, { recursive: true });
 
 		const captures: {
 			filename: string;
@@ -132,13 +183,16 @@ Flow format:
 
 			// Capture screenshot
 			if (step.capture) {
-				const filename = `${step.capture.filename}.png`;
-				const screenshotPath = join(outDir, filename);
+				const filename = sanitizeCaptureFilename(step.capture.filename);
+				const screenshotPath = resolveCapturePath(resolvedOutDir, filename);
 
 				// Check if update mode and file exists
 				if (update && existsSync(screenshotPath)) {
 					// Take new screenshot to temp, compare
-					const tempPath = join(outDir, `.tmp-${filename}`);
+					const tempPath = resolveCapturePath(
+						resolvedOutDir,
+						`.tmp-${filename}`,
+					);
 					await page.screenshot({ path: tempPath, fullPage: true });
 
 					const oldBuf = readFileSync(screenshotPath);
@@ -210,7 +264,7 @@ Flow format:
 		if (update) {
 			lines.push(`Updated ${updated} screenshot(s), ${unchanged} unchanged`);
 		} else {
-			lines.push(`Saved ${captures.length} screenshot(s) to ${outDir}`);
+			lines.push(`Saved ${captures.length} screenshot(s) to ${resolvedOutDir}`);
 		}
 		if (mdPath) {
 			lines.push(`Generated ${mdPath}`);
