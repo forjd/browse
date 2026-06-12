@@ -79,7 +79,19 @@ jobs:
         id: smoke_source_arm64
         continue-on-error: true
         run: |
-          rm -f /tmp/browse-daemon.pid /tmp/browse-daemon.sock "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
+          if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+            browse_runtime_dir="$XDG_RUNTIME_DIR/browse"
+          else
+            browse_runtime_dir="${XDG_STATE_HOME:-$HOME/.local/state}/browse/run"
+          fi
+          browse_socket="$browse_runtime_dir/browse-daemon.sock"
+          browse_pid="$browse_runtime_dir/browse-daemon.pid"
+          rm -f \
+            /tmp/browse-daemon.pid \
+            /tmp/browse-daemon.sock \
+            "$browse_pid" \
+            "$browse_socket" \
+            "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
           bun ./src/cli.ts --daemon --browser chrome >/tmp/browse-source-daemon.log 2>&1 &
           daemon_pid=$!
           cleanup() {
@@ -88,10 +100,10 @@ jobs:
           }
           trap cleanup EXIT
           for i in $(seq 1 100); do
-            [ -S /tmp/browse-daemon.sock ] && break
+            [ -S "$browse_socket" ] && break
             sleep 0.1
           done
-          [ -S /tmp/browse-daemon.sock ] || { cat /tmp/browse-source-daemon.log; echo "Source daemon failed to start"; exit 1; }
+          [ -S "$browse_socket" ] || { cat /tmp/browse-source-daemon.log; echo "Source daemon failed to start"; exit 1; }
           output=$(bun ./src/cli.ts --browser chrome goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
           echo "$output"
           echo "$output" | grep -q "CI" || { cat /tmp/browse-source-daemon.log; echo "Source CLI smoke failed: expected 'CI' in output"; exit 1; }
@@ -101,7 +113,17 @@ jobs:
         id: smoke_binary_arm64
         continue-on-error: true
         run: |
-          rm -f /tmp/browse-daemon.pid /tmp/browse-daemon.sock "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
+          if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+            browse_runtime_dir="$XDG_RUNTIME_DIR/browse"
+          else
+            browse_runtime_dir="${XDG_STATE_HOME:-$HOME/.local/state}/browse/run"
+          fi
+          rm -f \
+            /tmp/browse-daemon.pid \
+            /tmp/browse-daemon.sock \
+            "$browse_runtime_dir/browse-daemon.pid" \
+            "$browse_runtime_dir/browse-daemon.sock" \
+            "${XDG_STATE_HOME:-$HOME/.local/state}/browse/daemon.token"
           output=$(./dist/browse --browser chrome goto 'data:text/html,<title>CI</title><h1>CI</h1>' 2>&1 || true)
           echo "$output"
           echo "$output" | grep -q "CI" || { echo "Binary smoke failed: expected 'CI' in output"; exit 1; }
