@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrowsePlugin } from "../src/plugin.ts";
@@ -164,7 +164,15 @@ describe("validatePlugin", () => {
 // ── loadPlugins ─────────────────────────────────────────────────────
 
 describe("loadPlugins", () => {
-	const tmpDir = join(tmpdir(), `browse-plugin-test-${Date.now()}`);
+	let tmpDir: string;
+
+	beforeEach(() => {
+		tmpDir = mkdtempSync(join(tmpdir(), "browse-plugin-test-"));
+	});
+
+	afterEach(() => {
+		rmSync(tmpDir, { recursive: true, force: true });
+	});
 
 	function writePlugin(filename: string, content: string): string {
 		const path = join(tmpDir, filename);
@@ -173,7 +181,6 @@ describe("loadPlugins", () => {
 	}
 
 	test("loads a valid plugin from a .ts file", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path = writePlugin(
 			"good-plugin.ts",
 			`export default {
@@ -197,12 +204,9 @@ describe("loadPlugins", () => {
 		expect(errors).toHaveLength(0);
 		expect(registry.plugins.has("good")).toBe(true);
 		expect(registry.commands.has("test-cmd")).toBe(true);
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test("registers plugin-provided custom reporters", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path = writePlugin(
 			"reporter-plugin.ts",
 			`export default {
@@ -223,8 +227,6 @@ describe("loadPlugins", () => {
 
 		expect(errors).toHaveLength(0);
 		expect(registry.reporters.get("teamcity")?.plugin).toBe("reporters");
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test("reports error for non-existent file", async () => {
@@ -240,7 +242,6 @@ describe("loadPlugins", () => {
 	});
 
 	test("rejects plugin commands that collide with built-in commands", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path = writePlugin(
 			"collide-builtin.ts",
 			`export default {
@@ -266,12 +267,9 @@ describe("loadPlugins", () => {
 		expect(registry.commands.has("goto")).toBe(false);
 		// Plugin itself is still registered (only the colliding command is skipped)
 		expect(registry.plugins.has("collider")).toBe(true);
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test("rejects plugin reporters that collide with built-in reporters", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path = writePlugin(
 			"reporter-collision.ts",
 			`export default {
@@ -294,12 +292,9 @@ describe("loadPlugins", () => {
 		expect(errors[0]).toContain("conflicts with a built-in reporter");
 		expect(registry.reporters.has("json")).toBe(false);
 		expect(registry.plugins.has("collision")).toBe(true);
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test("rejects duplicate plugin names", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path1 = writePlugin(
 			"dup1.ts",
 			`export default { name: "dup", version: "1.0.0" };`,
@@ -317,12 +312,9 @@ describe("loadPlugins", () => {
 
 		expect(errors.length).toBeGreaterThan(0);
 		expect(errors[0]).toContain("same name is already loaded");
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test("rejects plugin commands that collide with other plugins", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path1 = writePlugin(
 			"first.ts",
 			`export default {
@@ -360,12 +352,9 @@ describe("loadPlugins", () => {
 		expect(errors[0]).toContain("conflicts with plugin 'first'");
 		// First plugin's command wins
 		expect(registry.commands.get("shared-cmd")?.plugin).toBe("first");
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test("registers lifecycle hooks", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path = writePlugin(
 			"hooks-plugin.ts",
 			`export default {
@@ -389,12 +378,9 @@ describe("loadPlugins", () => {
 		expect(registry.hooks.beforeCommand).toHaveLength(1);
 		expect(registry.hooks.afterCommand).toHaveLength(1);
 		expect(registry.hooks.cleanup).toHaveLength(1);
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 
 	test("continues loading when init hook throws", async () => {
-		mkdirSync(tmpDir, { recursive: true });
 		const path = writePlugin(
 			"bad-init.ts",
 			`export default {
@@ -416,8 +402,6 @@ describe("loadPlugins", () => {
 		expect(errors[0]).toContain("init hook failed");
 		// Plugin is still registered despite init failure
 		expect(registry.plugins.has("bad-init")).toBe(true);
-
-		rmSync(tmpDir, { recursive: true, force: true });
 	});
 });
 
