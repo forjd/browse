@@ -97,7 +97,7 @@ Persist a logged-in session and restore it later.
 browse auth-state save /tmp/auth.json
 ```
 
-Exports cookies and localStorage to a JSON file.
+Exports cookies and localStorage to a JSON file with owner-only (`0600`) permissions.
 
 ### Load
 

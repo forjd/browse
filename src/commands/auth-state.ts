@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { BrowserContext, Page } from "playwright";
 import type { Response } from "../protocol.ts";
@@ -55,7 +55,8 @@ async function handleSave(
 		mkdirSync(dirname(path), { recursive: true });
 
 		const state = await context.storageState();
-		await Bun.write(path, JSON.stringify(state, null, 2));
+		writeFileSync(path, JSON.stringify(state, null, 2), { mode: 0o600 });
+		chmodSync(path, 0o600);
 
 		const cookieCount = state.cookies.length;
 		const lsCount = countLocalStorage(state.origins);

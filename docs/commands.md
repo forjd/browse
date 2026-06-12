@@ -489,7 +489,7 @@ browse login --env production
 browse auth-state save <path>
 ```
 
-Save cookies and localStorage to a file.
+Save cookies and localStorage to a file. The file is written with owner-only (`0600`) permissions.
 
 **Examples:**
 

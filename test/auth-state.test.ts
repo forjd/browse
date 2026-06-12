@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { handleAuthState } from "../src/commands/auth-state.ts";
 
@@ -86,6 +92,20 @@ describe("auth-state command", () => {
 			const saved = JSON.parse(await Bun.file(path).text());
 			expect(saved.cookies).toHaveLength(2);
 			expect(saved.origins).toHaveLength(1);
+			expect(statSync(path).mode & 0o777).toBe(0o600);
+		});
+
+		test("tightens permissions when overwriting an existing auth state file", async () => {
+			const path = join(TEST_DIR, "existing-auth.json");
+			writeFileSync(path, "{}", { mode: 0o644 });
+
+			const res = await handleAuthState(mockContext(), mockPage(), [
+				"save",
+				path,
+			]);
+
+			expect(res.ok).toBe(true);
+			expect(statSync(path).mode & 0o777).toBe(0o600);
 		});
 
 		test("creates parent directories if needed", async () => {
