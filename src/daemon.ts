@@ -122,6 +122,7 @@ import {
 	mergeFlows,
 } from "./flow-loader.ts";
 import {
+	checkStalePid,
 	cleanupFiles,
 	createIdleTimer,
 	type IdleTimer,
@@ -1865,6 +1866,11 @@ export async function startDaemon(
 		socketPath: options.socketPath,
 		idleTimeoutMs: options.idleTimeoutMs,
 	};
+	if (checkStalePid(lifecycleConfig)) {
+		throw new Error(
+			`Browse daemon already running (PID file: ${lifecycleConfig.pidPath})`,
+		);
+	}
 
 	// Load config early so we can read the browser preference from it
 	const resolvedConfig = resolveConfigPathWithSource(options.configPath);

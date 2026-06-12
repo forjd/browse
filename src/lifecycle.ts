@@ -1,12 +1,16 @@
 import {
 	chmodSync,
+	closeSync,
+	constants,
 	existsSync,
+	fchmodSync,
 	lstatSync,
 	mkdirSync,
+	openSync,
 	readFileSync,
 	rmSync,
 	statSync,
-	writeFileSync,
+	writeSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -63,6 +67,15 @@ export const DEFAULT_CONFIG: LifecycleConfig = {
 export function checkStalePid(config: LifecycleConfig): boolean {
 	if (!existsSync(config.pidPath)) return false;
 
+	const stats = lstatSync(config.pidPath);
+	if (stats.isSymbolicLink()) {
+		rmSync(config.pidPath, { force: true });
+		return false;
+	}
+	if (!stats.isFile()) {
+		throw new Error(`Unsafe browse PID file path: ${config.pidPath}`);
+	}
+
 	const content = readFileSync(config.pidPath, "utf-8").trim();
 	const pid = Number.parseInt(content, 10);
 	if (Number.isNaN(pid)) {
@@ -80,7 +93,20 @@ export function checkStalePid(config: LifecycleConfig): boolean {
 }
 
 export function writePidFile(config: LifecycleConfig): void {
-	writeFileSync(config.pidPath, String(process.pid), { mode: 0o600 });
+	const fd = openSync(
+		config.pidPath,
+		constants.O_WRONLY |
+			constants.O_CREAT |
+			constants.O_EXCL |
+			constants.O_NOFOLLOW,
+		0o600,
+	);
+	try {
+		fchmodSync(fd, 0o600);
+		writeSync(fd, String(process.pid));
+	} finally {
+		closeSync(fd);
+	}
 }
 
 export function cleanupFiles(config: LifecycleConfig): void {

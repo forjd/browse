@@ -5,6 +5,7 @@ import {
 	readFileSync,
 	rmSync,
 	statSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -57,12 +58,30 @@ describe("writePidFile", () => {
 		expect(content).toBe(String(process.pid));
 	});
 
-	test("overwrites a stale PID file", () => {
+	test("writes after stale PID cleanup", () => {
 		const config = testConfig();
 		writeFileSync(config.pidPath, "99999999");
+		expect(checkStalePid(config)).toBe(false);
 		writePidFile(config);
 		const content = readFileSync(config.pidPath, "utf-8").trim();
 		expect(content).toBe(String(process.pid));
+	});
+
+	test("does not overwrite an existing PID file", () => {
+		const config = testConfig();
+		writeFileSync(config.pidPath, "99999999");
+		expect(() => writePidFile(config)).toThrow();
+		expect(readFileSync(config.pidPath, "utf-8")).toBe("99999999");
+	});
+
+	test("does not follow a symlinked PID path", () => {
+		const config = testConfig();
+		const targetPath = join(TEST_DIR, "target.pid");
+		writeFileSync(targetPath, "safe");
+		symlinkSync(targetPath, config.pidPath);
+
+		expect(() => writePidFile(config)).toThrow();
+		expect(readFileSync(targetPath, "utf-8")).toBe("safe");
 	});
 });
 
@@ -84,6 +103,17 @@ describe("checkStalePid", () => {
 		writeFileSync(config.pidPath, "99999999");
 		expect(checkStalePid(config)).toBe(false);
 		expect(existsSync(config.pidPath)).toBe(false);
+	});
+
+	test("removes a symlinked PID path without following it", () => {
+		const config = testConfig();
+		const targetPath = join(TEST_DIR, "target.pid");
+		writeFileSync(targetPath, String(process.pid));
+		symlinkSync(targetPath, config.pidPath);
+
+		expect(checkStalePid(config)).toBe(false);
+		expect(existsSync(config.pidPath)).toBe(false);
+		expect(readFileSync(targetPath, "utf-8")).toBe(String(process.pid));
 	});
 });
 
