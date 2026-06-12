@@ -238,4 +238,68 @@ describe("validateConfig", () => {
 		});
 		expect(result).toContain("artifacts.retention.traces");
 	});
+
+	test("accepts safe Playwright passthrough options", () => {
+		const result = validateConfig({
+			environments: {
+				test: {
+					loginUrl: "https://example.com/login",
+					userEnvVar: "U",
+					passEnvVar: "P",
+					successCondition: { urlContains: "/" },
+				},
+			},
+			playwright: {
+				launchOptions: {
+					locale: "fr-FR",
+					timezoneId: "Europe/Paris",
+				},
+				contextOptions: {
+					colorScheme: "dark",
+				},
+			},
+		});
+
+		expect(result).toBeNull();
+	});
+
+	test("rejects Playwright executable launch passthrough", () => {
+		const result = validateConfig({
+			environments: {
+				test: {
+					loginUrl: "https://example.com/login",
+					userEnvVar: "U",
+					passEnvVar: "P",
+					successCondition: { urlContains: "/" },
+				},
+			},
+			playwright: {
+				launchOptions: {
+					executablePath: "./fake-browser",
+				},
+			},
+		});
+
+		expect(result).toContain("playwright.launchOptions.executablePath");
+	});
+
+	test("rejects Playwright process-control launch passthrough", () => {
+		const result = validateConfig({
+			environments: {
+				test: {
+					loginUrl: "https://example.com/login",
+					userEnvVar: "U",
+					passEnvVar: "P",
+					successCondition: { urlContains: "/" },
+				},
+			},
+			playwright: {
+				launchOptions: {
+					args: ["--load-extension=."],
+				},
+			},
+		});
+
+		expect(result).toContain("playwright.launchOptions.args");
+	});
 });

@@ -299,6 +299,16 @@ const VALID_ASSERT_CONDITION_KEYS = new Set([
 	"elementCount",
 ]);
 
+const FORBIDDEN_PLAYWRIGHT_LAUNCH_OPTIONS = new Set([
+	"args",
+	"channel",
+	"chromiumSandbox",
+	"env",
+	"executablePath",
+	"firefoxUserPrefs",
+	"ignoreDefaultArgs",
+]);
+
 export function validateFlowCondition(
 	condition: unknown,
 	context: string,
@@ -728,6 +738,16 @@ export function validateConfig(data: unknown): string | null {
 					Array.isArray(pw[key])
 				) {
 					return `Invalid browse.config.json: 'playwright.${key}' must be an object.`;
+				}
+			}
+		}
+		const launchOptions = pw.launchOptions as
+			| Record<string, unknown>
+			| undefined;
+		if (launchOptions) {
+			for (const option of Object.keys(launchOptions)) {
+				if (FORBIDDEN_PLAYWRIGHT_LAUNCH_OPTIONS.has(option)) {
+					return `Invalid browse.config.json: 'playwright.launchOptions.${option}' is not allowed.`;
 				}
 			}
 		}
