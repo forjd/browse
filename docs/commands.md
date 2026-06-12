@@ -2012,7 +2012,7 @@ These flags control the daemon process and must be set before it starts (i.e., o
 |------|-------------|
 | `--browser <name>` | Browser engine: `chrome` (default), `firefox`, `webkit` |
 | `--proxy <url>` | Route browser traffic through a proxy (e.g. `http://proxy:8080`, `socks5://proxy:1080`) |
-| `--listen <addr>` | Also listen on TCP (e.g. `tcp://0.0.0.0:9222`) for remote agent access |
+| `--listen <addr>` | Also listen on loopback TCP (e.g. `tcp://127.0.0.1:9222`); non-loopback hosts require `BROWSE_ALLOW_INSECURE_TCP=1` |
 
 ## Environment Variables
 

@@ -340,6 +340,8 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 	monitor: ["--config", "--last", "--site", "--json"],
 };
 
+export const ALLOW_INSECURE_TCP_ENV = "BROWSE_ALLOW_INSECURE_TCP";
+
 export type DaemonOptions = {
 	socketPath: string;
 	pidPath: string;
@@ -360,6 +362,53 @@ export type DaemonHandle = {
 };
 
 export type { StealthOpts };
+
+type TcpEndpoint = {
+	host: string;
+	port: number;
+};
+
+function isLoopbackTcpHost(host: string): boolean {
+	const normalized = host.replace(/^\[|\]$/g, "").toLowerCase();
+	return (
+		normalized === "localhost" ||
+		normalized === "ip6-localhost" ||
+		normalized === "::1" ||
+		normalized === "0:0:0:0:0:0:0:1" ||
+		normalized === "127.0.0.1" ||
+		/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalized) ||
+		normalized.startsWith("::ffff:127.")
+	);
+}
+
+function isInsecureTcpAllowed(): boolean {
+	const value = process.env[ALLOW_INSECURE_TCP_ENV];
+	return value === "1" || value === "true";
+}
+
+function parseTcpListen(tcpListen: string): TcpEndpoint {
+	const match = tcpListen.match(/^tcp:\/\/(\[[^\]]+\]|[^:]+):(\d+)$/);
+	if (!match) {
+		throw new Error(
+			`Invalid tcpListen: '${tcpListen}'; expected 'tcp://host:port'`,
+		);
+	}
+
+	const [, rawHost, portStr] = match;
+	const host = rawHost.replace(/^\[|\]$/g, "");
+	const port = Number.parseInt(portStr, 10);
+	if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+		throw new Error(`Invalid tcpListen: '${tcpListen}'; port is out of range.`);
+	}
+
+	if (!isLoopbackTcpHost(host) && !isInsecureTcpAllowed()) {
+		throw new Error(
+			`Refusing insecure TCP listen on non-loopback host '${host}'. Use tcp://127.0.0.1:<port> for local access, or set ${ALLOW_INSECURE_TCP_ENV}=1 only on a trusted network.`,
+		);
+	}
+
+	return { host, port };
+}
 
 export type ServerDeps = {
 	page: Page;
@@ -501,6 +550,7 @@ export async function startServer(
 		lastTraceId: "",
 	};
 	let activeCommands = 0;
+	const tcpEndpoint = tcpListen ? parseTcpListen(tcpListen) : undefined;
 	let persistTimer: ReturnType<typeof setTimeout> | undefined;
 	let persistInFlight = false;
 
@@ -1750,32 +1800,21 @@ export async function startServer(
 
 	// Optional TCP transport — allows remote agents to connect over the network
 	let tcpServer: Server | undefined;
-	if (tcpListen) {
-		const match = tcpListen.match(/^tcp:\/\/([^:]+):(\d+)$/);
-		if (!match) {
-			throw new Error(
-				`Invalid tcpListen: '${tcpListen}'; expected 'tcp://host:port'`,
-			);
-		}
-		{
-			const [, host, portStr] = match;
-			const port = Number.parseInt(portStr, 10);
+	if (tcpEndpoint) {
+		tcpServer = createServer((socket) => {
+			attachSocketHandler(socket);
+		});
 
-			tcpServer = createServer((socket) => {
-				attachSocketHandler(socket);
+		await new Promise<void>((resolve, reject) => {
+			tcpServer?.on("error", (err) => {
+				// TCP bind failed — roll back the already-open Unix socket
+				server.close();
+				reject(err);
 			});
-
-			await new Promise<void>((resolve, reject) => {
-				tcpServer?.on("error", (err) => {
-					// TCP bind failed — roll back the already-open Unix socket
-					server.close();
-					reject(err);
-				});
-				tcpServer?.listen(port, host, () => {
-					resolve();
-				});
+			tcpServer?.listen(tcpEndpoint.port, tcpEndpoint.host, () => {
+				resolve();
 			});
-		}
+		});
 	}
 
 	return { server, idleTimer, shutdown };

@@ -580,7 +580,7 @@ The daemon spawns on first use and stays alive for 30 minutes of inactivity. It 
 
 The daemon socket is secured with a shared-secret authentication token stored at `$XDG_STATE_HOME/browse/daemon.token`. SIGTERM and SIGINT are trapped for graceful shutdown.
 
-For remote agent access, the daemon can also listen on a TCP port via `--listen <host>:<port>`.
+For local agent access over TCP, the daemon can also listen on loopback via `--listen tcp://127.0.0.1:<port>`. Binding TCP to non-loopback hosts requires `BROWSE_ALLOW_INSECURE_TCP=1` and should only be used on a trusted network.
 
 **Stealth:**
 

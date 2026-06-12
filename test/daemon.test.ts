@@ -242,6 +242,31 @@ function sendRawRequest(
 }
 
 describe("daemon server", () => {
+	test("rejects non-loopback TCP listen without explicit insecure opt-in", async () => {
+		const config = testPaths();
+		const page = mockPage();
+
+		await expect(
+			startServer(
+				mockDeps(page, { tcpListen: "tcp://0.0.0.0:0" }),
+				config,
+				async () => {},
+			),
+		).rejects.toThrow("BROWSE_ALLOW_INSECURE_TCP");
+	});
+
+	test("allows loopback TCP listen", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page, { tcpListen: "tcp://127.0.0.1:0" }),
+			config,
+			async () => {},
+		);
+
+		await shutdown();
+	});
+
 	test("responds to unknown commands with an error", async () => {
 		const config = testPaths();
 		const page = mockPage();

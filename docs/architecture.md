@@ -12,7 +12,7 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 ## The Daemon
 
 - Single-threaded server listening on a Unix socket at `/tmp/browse-daemon.sock`
-- Optional TCP transport via `--listen <host>:<port>` for remote agent access
+- Optional loopback TCP transport via `--listen tcp://127.0.0.1:<port>`; non-loopback hosts require `BROWSE_ALLOW_INSECURE_TCP=1`
 - PID file: `/tmp/browse-daemon.pid`
 - Socket permissions: `0o600` (owner-only access)
 - Authentication token: `~/.local/state/browse/daemon.token` (0o600, validated on every request)
