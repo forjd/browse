@@ -28,7 +28,7 @@ function unboundedQuantifierAt(pattern: string, index: number): boolean {
  * every ReDoS pattern (e.g. ambiguous alternation like `(a|a)+`), but it
  * blocks the common exponential cases.
  */
-function hasNestedUnboundedQuantifier(pattern: string): boolean {
+export function hasNestedUnboundedQuantifier(pattern: string): boolean {
 	// One entry per open group: did we see an unbounded quantifier inside?
 	const groupStack: { sawUnbounded: boolean }[] = [];
 	let inCharClass = false;
@@ -52,7 +52,7 @@ function hasNestedUnboundedQuantifier(pattern: string): boolean {
 				break;
 			case ")": {
 				const group = groupStack.pop();
-				// Unbalanced parens are rejected by the RegExp constructor
+				// Unbalanced parens are rejected by the RegExp constructor.
 				if (!group) break;
 				const quantified = unboundedQuantifierAt(pattern, i + 1);
 				if (group.sawUnbounded && quantified) return true;
@@ -62,13 +62,7 @@ function hasNestedUnboundedQuantifier(pattern: string): boolean {
 				break;
 			}
 			default:
-				if (
-					groupStack.length > 0 &&
-					unboundedQuantifierAt(pattern, i) &&
-					// `{` only acts as a quantifier when it parses as one;
-					// skip past it either way so its digits aren't re-scanned
-					true
-				) {
+				if (groupStack.length > 0 && unboundedQuantifierAt(pattern, i)) {
 					groupStack[groupStack.length - 1].sawUnbounded = true;
 				}
 				break;
