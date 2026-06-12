@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 import type { ServerDeps } from "../src/daemon.ts";
-import { startServer } from "../src/daemon.ts";
+import { MAX_SOCKET_REQUEST_BYTES, startServer } from "../src/daemon.ts";
 import type { LifecycleConfig } from "../src/lifecycle.ts";
 import type { Response } from "../src/protocol.ts";
 import {
@@ -237,6 +237,31 @@ function sendRawRequest(
 		});
 		client.on("error", (err) => {
 			settle(() => reject(err));
+		});
+	});
+}
+
+function sendOversizedRequest(socketPath: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const client = connect(socketPath);
+		const timer = setTimeout(() => {
+			client.destroy();
+			reject(new Error("Timed out waiting for oversized request close"));
+		}, 2000);
+
+		client.on("connect", () => {
+			client.write(Buffer.alloc(MAX_SOCKET_REQUEST_BYTES + 1, "a"));
+		});
+		client.on("close", () => {
+			clearTimeout(timer);
+			resolve();
+		});
+		client.on("error", (err: Error & { code?: string }) => {
+			if (err.code === "ECONNRESET" || err.code === "EPIPE") {
+				return;
+			}
+			clearTimeout(timer);
+			reject(err);
 		});
 	});
 }
@@ -564,6 +589,24 @@ describe("daemon server", () => {
 			const response = await sendCommand(config.socketPath, "" as never);
 			// parseRequest will throw on this
 			expect(response.ok).toBe(false);
+		} finally {
+			await shutdown();
+		}
+	});
+
+	test("closes connections with oversized request buffers", async () => {
+		const config = testPaths();
+		const page = mockPage();
+		const { shutdown } = await startServer(
+			mockDeps(page),
+			config,
+			async () => {},
+		);
+
+		try {
+			await sendOversizedRequest(config.socketPath);
+			const response = await sendCommand(config.socketPath, "ping");
+			expect(response).toEqual({ ok: true, data: "pong" });
 		} finally {
 			await shutdown();
 		}

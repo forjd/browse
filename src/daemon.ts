@@ -343,6 +343,7 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 };
 
 export const ALLOW_INSECURE_TCP_ENV = "BROWSE_ALLOW_INSECURE_TCP";
+export const MAX_SOCKET_REQUEST_BYTES = 1024 * 1024;
 
 export type DaemonOptions = {
 	socketPath: string;
@@ -1725,6 +1726,7 @@ export async function startServer(
 
 	function attachSocketHandler(socket: Socket) {
 		let buffer = "";
+		let bufferBytes = 0;
 		let queue = Promise.resolve();
 		let closing = false;
 
@@ -1733,7 +1735,12 @@ export async function startServer(
 		socket.on("error", () => {});
 
 		socket.on("data", (chunk) => {
+			if (bufferBytes + chunk.length > MAX_SOCKET_REQUEST_BYTES) {
+				socket.destroy();
+				return;
+			}
 			buffer += chunk.toString();
+			bufferBytes += chunk.length;
 
 			while (true) {
 				const newlineIndex = buffer.indexOf("\n");
@@ -1741,6 +1748,7 @@ export async function startServer(
 
 				const line = buffer.slice(0, newlineIndex).trim();
 				buffer = buffer.slice(newlineIndex + 1);
+				bufferBytes = Buffer.byteLength(buffer);
 				if (!line) continue;
 
 				queue = queue.then(async () => {
