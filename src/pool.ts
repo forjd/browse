@@ -5,7 +5,10 @@
  * to create sessions with fully separate browser contexts (cookies, storage).
  *
  * Usage:
- *   const pool = createPool({ socketPath: "/tmp/browse-daemon.sock", maxSessions: 10 });
+ *   const pool = createPool({
+ *     socketPath: join(runtimeDir, "browse-daemon.sock"),
+ *     maxSessions: 10,
+ *   });
  *   const session = await pool.acquire();
  *   const result = await session.exec("goto", "https://example.com");
  *   pool.release(session);

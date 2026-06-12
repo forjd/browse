@@ -1,4 +1,15 @@
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	chmodSync,
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export type LifecycleConfig = {
 	pidPath: string;
@@ -6,9 +17,45 @@ export type LifecycleConfig = {
 	idleTimeoutMs: number;
 };
 
+function runtimeBaseDir(): string {
+	if (process.env.XDG_RUNTIME_DIR) {
+		return join(process.env.XDG_RUNTIME_DIR, "browse");
+	}
+	return join(
+		process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
+		"browse",
+		"run",
+	);
+}
+
+function ensurePrivateRuntimeDir(dir: string): string {
+	if (existsSync(dir)) {
+		const lst = lstatSync(dir);
+		if (lst.isSymbolicLink() || !lst.isDirectory()) {
+			throw new Error(`Unsafe browse runtime directory: ${dir}`);
+		}
+		const st = statSync(dir);
+		if (typeof process.getuid === "function" && st.uid !== process.getuid()) {
+			throw new Error(
+				`Browse runtime directory is not owned by this user: ${dir}`,
+			);
+		}
+	} else {
+		mkdirSync(dir, { recursive: true, mode: 0o700 });
+	}
+	chmodSync(dir, 0o700);
+	return dir;
+}
+
+const DEFAULT_RUNTIME_DIR = ensurePrivateRuntimeDir(runtimeBaseDir());
+
+export function getDefaultRuntimeDir(): string {
+	return DEFAULT_RUNTIME_DIR;
+}
+
 export const DEFAULT_CONFIG: LifecycleConfig = {
-	pidPath: "/tmp/browse-daemon.pid",
-	socketPath: "/tmp/browse-daemon.sock",
+	pidPath: join(DEFAULT_RUNTIME_DIR, "browse-daemon.pid"),
+	socketPath: join(DEFAULT_RUNTIME_DIR, "browse-daemon.sock"),
 	idleTimeoutMs: 30 * 60 * 1000,
 };
 

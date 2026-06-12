@@ -132,9 +132,19 @@ type PoolStats = {
 
 ```typescript
 import { createPool } from "browse/pool";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+const runtimeDir = process.env.XDG_RUNTIME_DIR
+  ? join(process.env.XDG_RUNTIME_DIR, "browse")
+  : join(
+      process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
+      "browse",
+      "run",
+    );
 
 const pool = createPool({
-  socketPath: "/tmp/browse-daemon.sock",
+  socketPath: join(runtimeDir, "browse-daemon.sock"),
   maxSessions: 5,
   isolated: true,
 });

@@ -4,13 +4,16 @@ import {
 	mkdirSync,
 	readFileSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	checkStalePid,
 	cleanupFiles,
 	createIdleTimer,
+	DEFAULT_CONFIG,
+	getDefaultRuntimeDir,
 	type LifecycleConfig,
 	writePidFile,
 } from "../src/lifecycle.ts";
@@ -32,6 +35,18 @@ beforeEach(() => {
 
 afterEach(() => {
 	rmSync(TEST_DIR, { recursive: true, force: true });
+});
+
+describe("DEFAULT_CONFIG", () => {
+	test("stores daemon files in the private runtime directory", () => {
+		const runtimeDir = getDefaultRuntimeDir();
+
+		expect(dirname(DEFAULT_CONFIG.socketPath)).toBe(runtimeDir);
+		expect(dirname(DEFAULT_CONFIG.pidPath)).toBe(runtimeDir);
+		expect(DEFAULT_CONFIG.socketPath).not.toBe("/tmp/browse-daemon.sock");
+		expect(DEFAULT_CONFIG.pidPath).not.toBe("/tmp/browse-daemon.pid");
+		expect(statSync(runtimeDir).mode & 0o777).toBe(0o700);
+	});
 });
 
 describe("writePidFile", () => {

@@ -11,9 +11,9 @@ Browse uses a three-layer architecture: a thin CLI client, a persistent daemon, 
 
 ## The Daemon
 
-- Single-threaded server listening on a Unix socket at `/tmp/browse-daemon.sock`
+- Single-threaded server listening on a Unix socket in the private runtime directory (`$XDG_RUNTIME_DIR/browse` when set, otherwise `$XDG_STATE_HOME/browse/run` or `~/.local/state/browse/run`)
 - Optional loopback TCP transport via `--listen tcp://127.0.0.1:<port>`; non-loopback hosts require `BROWSE_ALLOW_INSECURE_TCP=1`
-- PID file: `/tmp/browse-daemon.pid`
+- PID file: `browse-daemon.pid` in the private runtime directory
 - Socket permissions: `0o600` (owner-only access)
 - Authentication token: `~/.local/state/browse/daemon.token` (0o600, validated on every request)
 - Owns one Chromium instance via Playwright (patchright fork)

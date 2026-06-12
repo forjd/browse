@@ -167,7 +167,7 @@ The image uses a multi-stage build, copies only the files needed to compile the 
 **Resources:**
 - Disk: ~500MB for Chromium
 - RAM: ~150MB for daemon, ~300MB per page
-- Socket: Unix domain socket at `/tmp/browse-daemon.sock`
+- Socket: Unix domain socket under the private runtime directory (`$XDG_RUNTIME_DIR/browse` when set, otherwise `$XDG_STATE_HOME/browse/run` or `~/.local/state/browse/run`)
 
 ---
 
@@ -387,8 +387,21 @@ By default, sessions share the browser context (cookies, storage). Use `--isolat
 
 ```typescript
 import { createPool } from "browse/pool";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const pool = createPool({ socketPath: "/tmp/browse-daemon.sock", maxSessions: 10 });
+const runtimeDir = process.env.XDG_RUNTIME_DIR
+  ? join(process.env.XDG_RUNTIME_DIR, "browse")
+  : join(
+      process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
+      "browse",
+      "run",
+    );
+
+const pool = createPool({
+  socketPath: join(runtimeDir, "browse-daemon.sock"),
+  maxSessions: 10,
+});
 const session = await pool.acquire();
 await session.exec("goto", "https://example.com");
 session.release();
