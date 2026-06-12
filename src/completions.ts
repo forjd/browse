@@ -211,6 +211,8 @@ const KNOWN_FLAGS: Record<string, string[]> = {
 		"--include",
 		"--exclude",
 		"--same-origin",
+		"--allow-external",
+		"--allow-private-network",
 		"--dry-run",
 		"--robots",
 		"--json",

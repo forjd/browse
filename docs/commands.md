@@ -2053,7 +2053,7 @@ browse record stop                                              # Stop and save 
 browse crawl <url> [--depth N] [--extract table|links|meta|text]
   [--paginate <selector>] [--max-pages N] [--rate-limit N/s]
   [--output file.jsonl] [--include pattern] [--exclude pattern]
-  [--same-origin] [--dry-run] [--robots]
+  [--allow-external] [--allow-private-network] [--dry-run] [--robots]
 ```
 
 ### Network Simulation

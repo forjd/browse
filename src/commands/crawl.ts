@@ -75,7 +75,7 @@ export async function handleCrawl(
 		return {
 			ok: false,
 			error:
-				"Usage: browse crawl <url> [--depth N] [--extract table|links|meta|text] [--paginate <selector>] [--max-pages N] [--rate-limit N/s] [--output file] [--include pattern] [--exclude pattern] [--same-origin] [--dry-run]",
+				"Usage: browse crawl <url> [--depth N] [--extract table|links|meta|text] [--paginate <selector>] [--max-pages N] [--rate-limit N/s] [--output file] [--include pattern] [--exclude pattern] [--allow-external] [--allow-private-network] [--dry-run]",
 		};
 	}
 
@@ -142,7 +142,9 @@ export async function handleCrawl(
 	const output = parseFlag(args, "--output") ?? undefined;
 	const include = parseMultiFlag(args, "--include");
 	const exclude = parseMultiFlag(args, "--exclude");
-	const sameOrigin = args.includes("--same-origin");
+	const sameOrigin =
+		args.includes("--same-origin") || !args.includes("--allow-external");
+	const allowPrivateNetwork = args.includes("--allow-private-network");
 	const dryRun = args.includes("--dry-run");
 
 	const timeoutStr = parseFlag(args, "--timeout");
@@ -158,6 +160,7 @@ export async function handleCrawl(
 		include,
 		exclude,
 		sameOrigin,
+		allowPrivateNetwork,
 		dryRun,
 		timeout,
 	};

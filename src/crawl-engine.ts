@@ -32,6 +32,79 @@ export function normalizeUrl(raw: string): string {
 	}
 }
 
+export function isPrivateNetworkHost(hostname: string): boolean {
+	const host = hostname
+		.replace(/^\[|\]$/g, "")
+		.replace(/\.$/, "")
+		.toLowerCase();
+
+	if (
+		host === "localhost" ||
+		host.endsWith(".localhost") ||
+		host.endsWith(".local") ||
+		host === "metadata.google.internal"
+	) {
+		return true;
+	}
+
+	const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+	if (ipv4Match) {
+		const octets = ipv4Match.slice(1).map((part) => Number.parseInt(part, 10));
+		if (octets.some((octet) => octet < 0 || octet > 255)) return false;
+		const [a, b] = octets;
+		return (
+			a === 0 ||
+			a === 10 ||
+			a === 127 ||
+			(a === 100 && b >= 64 && b <= 127) ||
+			(a === 169 && b === 254) ||
+			(a === 172 && b >= 16 && b <= 31) ||
+			(a === 192 && b === 168)
+		);
+	}
+
+	if (host.startsWith("::ffff:")) {
+		return isPrivateNetworkHost(host.slice("::ffff:".length));
+	}
+
+	if (!host.includes(":")) return false;
+
+	return (
+		host === "::1" ||
+		host === "0:0:0:0:0:0:0:1" ||
+		host.startsWith("fc") ||
+		host.startsWith("fd") ||
+		host.startsWith("fe8") ||
+		host.startsWith("fe9") ||
+		host.startsWith("fea") ||
+		host.startsWith("feb")
+	);
+}
+
+export function shouldCrawlDiscoveredUrl(
+	link: string,
+	originUrl: string,
+	options: { sameOrigin: boolean; allowPrivateNetwork: boolean },
+): boolean {
+	try {
+		const origin = new URL(originUrl);
+		const target = new URL(link);
+		if (!["http:", "https:"].includes(target.protocol)) return false;
+		const sameOrigin = target.origin === origin.origin;
+		if (options.sameOrigin && !sameOrigin) return false;
+		if (
+			!sameOrigin &&
+			!options.allowPrivateNetwork &&
+			isPrivateNetworkHost(target.hostname)
+		) {
+			return false;
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export type CrawlResult = {
 	url: string;
 	depth: number;
@@ -49,6 +122,7 @@ export type CrawlOptions = {
 	include?: string[];
 	exclude?: string[];
 	sameOrigin: boolean;
+	allowPrivateNetwork: boolean;
 	dryRun: boolean;
 	timeout: number;
 };
@@ -275,6 +349,7 @@ async function discoverLinks(
 	page: Page,
 	sameOrigin: boolean,
 	originUrl: string,
+	allowPrivateNetwork: boolean,
 ): Promise<string[]> {
 	const links = await page.evaluate(() => {
 		const anchors = document.querySelectorAll("a[href]");
@@ -283,22 +358,12 @@ async function discoverLinks(
 			.filter((href) => href.startsWith("http"));
 	});
 
-	if (sameOrigin) {
-		try {
-			const origin = new URL(originUrl).origin;
-			return links.filter((link) => {
-				try {
-					return new URL(link).origin === origin;
-				} catch {
-					return false;
-				}
-			});
-		} catch {
-			return links;
-		}
-	}
-
-	return links;
+	return links.filter((link) =>
+		shouldCrawlDiscoveredUrl(link, originUrl, {
+			sameOrigin,
+			allowPrivateNetwork,
+		}),
+	);
 }
 
 /**
@@ -388,6 +453,7 @@ export class CrawlEngine {
 					page,
 					this.options.sameOrigin,
 					startUrl,
+					this.options.allowPrivateNetwork,
 				);
 				for (const link of links) {
 					frontier.add(link, entry.depth + 1);
@@ -429,6 +495,7 @@ export class CrawlEngine {
 						page,
 						this.options.sameOrigin,
 						startUrl,
+						this.options.allowPrivateNetwork,
 					);
 					for (const link of links) {
 						frontier.add(link, entry.depth + 1);

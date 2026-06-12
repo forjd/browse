@@ -829,6 +829,7 @@ Examples:
 
 Crawl multiple pages starting from a URL, extracting data from each page.
 Uses BFS traversal with configurable depth, rate limiting, and filtering.
+Discovered links stay on the starting origin by default.
 
 Flags:
   --depth <N>              Max link-follow depth (default: 1)
@@ -839,13 +840,16 @@ Flags:
   --output <file>          Write JSON results to file
   --include <pattern>      Only crawl URLs matching glob pattern (repeatable)
   --exclude <pattern>      Skip URLs matching glob pattern (repeatable)
-  --same-origin            Only follow links to the same origin
+  --same-origin            Only follow links to the same origin (default)
+  --allow-external         Allow following links to other public origins
+  --allow-private-network  Allow external links to private-network hosts
   --dry-run                Collect URLs without extracting data
   --json                   Output as JSON
 
 Examples:
   browse crawl https://example.com
-  browse crawl https://example.com --depth 2 --extract links --same-origin
+  browse crawl https://example.com --depth 2 --extract links
+  browse crawl https://example.com --depth 2 --allow-external
   browse crawl https://example.com --paginate ".next-page" --max-pages 10
   browse crawl https://example.com --rate-limit 2/s --output results.json
   browse crawl https://example.com --include "*blog*" --exclude "*admin*"

@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
+	isPrivateNetworkHost,
 	matchGlob,
 	normalizeUrl,
 	RateLimiter,
+	shouldCrawlDiscoveredUrl,
 	URLFrontier,
 } from "../src/crawl-engine.ts";
 
@@ -77,6 +79,68 @@ describe("matchGlob", () => {
 		// Patterns with regex specials must not throw
 		expect(matchGlob("*[id]*", "https://example.com/[id]/edit")).toBe(true);
 		expect(matchGlob("*a+b*", "https://example.com/a+b")).toBe(true);
+	});
+});
+
+describe("crawl link filtering", () => {
+	test("blocks cross-origin discovered links by default", () => {
+		expect(
+			shouldCrawlDiscoveredUrl(
+				"https://other.example/page",
+				"https://example.com/start",
+				{ sameOrigin: true, allowPrivateNetwork: false },
+			),
+		).toBe(false);
+	});
+
+	test("allows public cross-origin links when external traversal is enabled", () => {
+		expect(
+			shouldCrawlDiscoveredUrl(
+				"https://other.example/page",
+				"https://example.com/start",
+				{ sameOrigin: false, allowPrivateNetwork: false },
+			),
+		).toBe(true);
+	});
+
+	test("blocks private-network cross-origin links without explicit opt-in", () => {
+		expect(
+			shouldCrawlDiscoveredUrl(
+				"http://169.254.169.254/latest/meta-data",
+				"https://example.com/start",
+				{ sameOrigin: false, allowPrivateNetwork: false },
+			),
+		).toBe(false);
+	});
+
+	test("allows private-network cross-origin links with explicit opt-in", () => {
+		expect(
+			shouldCrawlDiscoveredUrl(
+				"http://192.168.1.10/admin",
+				"https://example.com/start",
+				{ sameOrigin: false, allowPrivateNetwork: true },
+			),
+		).toBe(true);
+	});
+
+	test("allows private-network links when they are on the seed origin", () => {
+		expect(
+			shouldCrawlDiscoveredUrl(
+				"http://localhost:3000/settings",
+				"http://localhost:3000/",
+				{ sameOrigin: true, allowPrivateNetwork: false },
+			),
+		).toBe(true);
+	});
+
+	test("identifies common private-network host forms", () => {
+		expect(isPrivateNetworkHost("localhost")).toBe(true);
+		expect(isPrivateNetworkHost("10.0.0.5")).toBe(true);
+		expect(isPrivateNetworkHost("172.16.1.1")).toBe(true);
+		expect(isPrivateNetworkHost("192.168.1.1")).toBe(true);
+		expect(isPrivateNetworkHost("169.254.169.254")).toBe(true);
+		expect(isPrivateNetworkHost("example.com")).toBe(false);
+		expect(isPrivateNetworkHost("fd-example.com")).toBe(false);
 	});
 });
 
