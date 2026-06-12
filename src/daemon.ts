@@ -102,8 +102,17 @@ import { handleWait } from "./commands/wait.ts";
 import { handleWatch } from "./commands/watch.ts";
 import { handleWipe } from "./commands/wipe.ts";
 import { generateCompletions } from "./completions.ts";
-import type { BrowseConfig, BrowserName, ProxyConfig } from "./config.ts";
-import { loadConfig, resolveConfigPath } from "./config.ts";
+import type {
+	BrowseConfig,
+	BrowserName,
+	ConfigSource,
+	ProxyConfig,
+} from "./config.ts";
+import {
+	canLoadCodeFromConfig,
+	loadConfig,
+	resolveConfigPathWithSource,
+} from "./config.ts";
 import { CustomReporterRegistry } from "./custom-reporter.ts";
 import { checkUnknownFlags, unknownFlagsError } from "./flags.ts";
 import type { FlowSource } from "./flow-loader.ts";
@@ -368,6 +377,8 @@ export type ServerDeps = {
 	proxyConfig?: ProxyConfig;
 	/** Resolved config file path — used for plugin path resolution. */
 	configPath?: string | null;
+	/** Where the config file came from — used for code-loading trust decisions. */
+	configSource?: ConfigSource | null;
 	/** Provenance map for flows (inline vs file-based). */
 	flowSources?: Map<string, FlowSource>;
 	/** Validation errors encountered when loading flow files. */
@@ -460,6 +471,7 @@ export async function startServer(
 		browserName,
 		proxyConfig,
 		configPath,
+		configSource,
 		flowSources,
 		flowLoadErrors,
 	} = deps;
@@ -624,7 +636,10 @@ export async function startServer(
 	}
 
 	// Load plugins
-	const pluginPaths = discoverPluginPaths(config?.plugins, configPath ?? null);
+	const configPlugins = canLoadCodeFromConfig(configSource ?? null)
+		? config?.plugins
+		: undefined;
+	const pluginPaths = discoverPluginPaths(configPlugins, configPath ?? null);
 	let pluginRegistry: PluginRegistry;
 	if (pluginPaths.length > 0) {
 		const { registry, errors } = await loadPlugins(
@@ -1799,7 +1814,8 @@ export async function startDaemon(
 	};
 
 	// Load config early so we can read the browser preference from it
-	const resolvedConfigPath = resolveConfigPath(options.configPath);
+	const resolvedConfig = resolveConfigPathWithSource(options.configPath);
+	const resolvedConfigPath = resolvedConfig.path;
 	let config: BrowseConfig | null = null;
 	let configError: string | null = null;
 	if (resolvedConfigPath) {
@@ -1994,6 +2010,7 @@ export async function startDaemon(
 			browserName,
 			proxyConfig,
 			configPath: resolvedConfigPath,
+			configSource: resolvedConfig.source,
 			flowSources,
 			flowLoadErrors,
 		},

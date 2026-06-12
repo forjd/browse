@@ -1,9 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, validateConfig } from "../src/config.ts";
+import {
+	canLoadCodeFromConfig,
+	loadConfig,
+	TRUST_PROJECT_CONFIG_ENV,
+	validateConfig,
+} from "../src/config.ts";
 
 const TEST_DIR = join(import.meta.dir, ".tmp-config");
+const ORIGINAL_TRUST_PROJECT_CONFIG = process.env[TRUST_PROJECT_CONFIG_ENV];
 
 beforeEach(() => {
 	mkdirSync(TEST_DIR, { recursive: true });
@@ -11,6 +17,11 @@ beforeEach(() => {
 
 afterEach(() => {
 	rmSync(TEST_DIR, { recursive: true, force: true });
+	if (ORIGINAL_TRUST_PROJECT_CONFIG === undefined) {
+		delete process.env[TRUST_PROJECT_CONFIG_ENV];
+	} else {
+		process.env[TRUST_PROJECT_CONFIG_ENV] = ORIGINAL_TRUST_PROJECT_CONFIG;
+	}
 });
 
 describe("loadConfig", () => {
@@ -45,6 +56,29 @@ describe("loadConfig", () => {
 		const result = loadConfig(path);
 		expect(result.error).toBeNull();
 		expect(result.config).toEqual(config);
+	});
+});
+
+describe("canLoadCodeFromConfig", () => {
+	test("trusts global config plugin entries by default", () => {
+		delete process.env[TRUST_PROJECT_CONFIG_ENV];
+
+		expect(canLoadCodeFromConfig("global")).toBe(true);
+	});
+
+	test("blocks project and explicit config plugin entries by default", () => {
+		delete process.env[TRUST_PROJECT_CONFIG_ENV];
+
+		expect(canLoadCodeFromConfig("project")).toBe(false);
+		expect(canLoadCodeFromConfig("explicit")).toBe(false);
+		expect(canLoadCodeFromConfig(null)).toBe(false);
+	});
+
+	test("allows non-global config plugin entries when explicitly trusted", () => {
+		process.env[TRUST_PROJECT_CONFIG_ENV] = "1";
+
+		expect(canLoadCodeFromConfig("project")).toBe(true);
+		expect(canLoadCodeFromConfig("explicit")).toBe(true);
 	});
 });
 

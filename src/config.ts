@@ -3,6 +3,10 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { parseRetentionDuration } from "./artifacts.ts";
 
+export const TRUST_PROJECT_CONFIG_ENV = "BROWSE_TRUST_PROJECT_CONFIG";
+
+export type ConfigSource = "explicit" | "project" | "global";
+
 export type SuccessCondition =
 	| { urlContains: string }
 	| { urlPattern: string }
@@ -165,7 +169,10 @@ export type ConfigContext = {
  * 3. Global fallback at ~/.browse/config.json
  * Returns null if no config file is found.
  */
-export function resolveConfigPath(explicitPath?: string): string | null {
+export function resolveConfigPathWithSource(explicitPath?: string): {
+	path: string | null;
+	source: ConfigSource | null;
+} {
 	if (explicitPath) {
 		const resolved = resolve(explicitPath);
 		if (!existsSync(resolved)) {
@@ -173,7 +180,7 @@ export function resolveConfigPath(explicitPath?: string): string | null {
 				`Config file not found: ${resolved} (specified via --config)`,
 			);
 		}
-		return resolved;
+		return { path: resolved, source: "explicit" };
 	}
 
 	// Walk upward from cwd
@@ -181,7 +188,7 @@ export function resolveConfigPath(explicitPath?: string): string | null {
 	while (true) {
 		const candidate = join(dir, "browse.config.json");
 		if (existsSync(candidate)) {
-			return candidate;
+			return { path: candidate, source: "project" };
 		}
 		const parent = dirname(dir);
 		if (parent === dir) break; // reached filesystem root
@@ -191,10 +198,23 @@ export function resolveConfigPath(explicitPath?: string): string | null {
 	// Global fallback
 	const globalConfig = join(homedir(), ".browse", "config.json");
 	if (existsSync(globalConfig)) {
-		return globalConfig;
+		return { path: globalConfig, source: "global" };
 	}
 
-	return null;
+	return { path: null, source: null };
+}
+
+export function resolveConfigPath(explicitPath?: string): string | null {
+	return resolveConfigPathWithSource(explicitPath).path;
+}
+
+export function isProjectConfigTrusted(): boolean {
+	const value = process.env[TRUST_PROJECT_CONFIG_ENV];
+	return value === "1" || value === "true";
+}
+
+export function canLoadCodeFromConfig(source: ConfigSource | null): boolean {
+	return source === "global" || isProjectConfigTrusted();
 }
 
 export function loadConfig(path: string): {

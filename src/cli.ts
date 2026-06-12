@@ -3,8 +3,9 @@ import { connect } from "node:net";
 import { readToken } from "./auth.ts";
 import type { BrowserName } from "./config.ts";
 import {
+	canLoadCodeFromConfig,
 	loadConfig,
-	resolveConfigPath,
+	resolveConfigPathWithSource,
 	VALID_BROWSER_NAMES,
 } from "./config.ts";
 import { startDaemon } from "./daemon.ts";
@@ -31,9 +32,10 @@ async function loadPluginHelp(
 ): Promise<Record<string, PluginHelpEntry>> {
 	const entries: Record<string, PluginHelpEntry> = {};
 	try {
-		const resolvedPath = resolveConfigPath(configPath);
+		const { path: resolvedPath, source } =
+			resolveConfigPathWithSource(configPath);
 		let plugins: string[] | undefined;
-		if (resolvedPath) {
+		if (resolvedPath && canLoadCodeFromConfig(source)) {
 			const { config } = loadConfig(resolvedPath);
 			plugins = config?.plugins;
 		}
