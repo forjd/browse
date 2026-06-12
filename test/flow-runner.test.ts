@@ -675,9 +675,9 @@ describe("runFlow", () => {
 		expect(screenshots[0]).toContain("flow-screenshot-test-step1-");
 	});
 
-	test("handles screenshot step with custom path", async () => {
+	test("handles screenshot step with custom filename", async () => {
 		const flow: FlowConfig = {
-			steps: [{ screenshot: "/tmp/browse-test-custom-screenshot.png" }],
+			steps: [{ screenshot: "browse-test-custom-screenshot.png" }],
 		};
 		const { results, screenshots } = await runFlow(
 			"custom-path",
@@ -687,10 +687,45 @@ describe("runFlow", () => {
 			false,
 		);
 		expect(results[0].passed).toBe(true);
-		expect(results[0].screenshotPath).toBe(
-			"/tmp/browse-test-custom-screenshot.png",
+		expect(results[0].screenshotPath).toContain(
+			".bun-browse/screenshots/browse-test-custom-screenshot.png",
 		);
-		expect(screenshots).toEqual(["/tmp/browse-test-custom-screenshot.png"]);
+		expect(screenshots[0]).toBe(results[0].screenshotPath);
+	});
+
+	test("rejects screenshot step path traversal", async () => {
+		const deps = createMockDeps();
+		const flow: FlowConfig = {
+			steps: [{ screenshot: "../../owned.png" }],
+		};
+		const { results, screenshots } = await runFlow(
+			"custom-path",
+			flow,
+			{},
+			deps,
+			false,
+		);
+
+		expect(results[0].passed).toBe(false);
+		expect(results[0].error).toContain("simple filenames");
+		expect(screenshots).toHaveLength(0);
+		expect(deps.page.screenshot).not.toHaveBeenCalled();
+	});
+
+	test("sanitizes generated screenshot filenames", async () => {
+		const flow: FlowConfig = {
+			steps: [{ screenshot: true }],
+		};
+		const { results, screenshots } = await runFlow(
+			"../flow/name",
+			flow,
+			{},
+			createMockDeps(),
+			false,
+		);
+
+		expect(results[0].passed).toBe(true);
+		expect(screenshots[0]).toContain("flow-flow-name-step1-");
 	});
 
 	test("records error when screenshot fails", async () => {

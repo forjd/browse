@@ -101,7 +101,7 @@ type FlowStep =
   | { click: string }                    // Element name (accessible name)
   | { fill: Record<string, string> }     // field name → value
   | { select: Record<string, string> }   // field name → option
-  | { screenshot: true | string }        // true = auto-path, string = custom path
+  | { screenshot: true | string }        // true = auto-path, string = filename in screenshots dir
   | { console: "error" | "warning" | "all" }
   | { network: true }
   | { wait: WaitCondition }

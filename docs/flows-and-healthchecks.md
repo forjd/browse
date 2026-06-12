@@ -124,7 +124,7 @@ All 14 step types are listed below.
 | `click` | Click element by accessible name | `{ "click": "Submit" }` |
 | `fill` | Fill inputs by accessible name | `{ "fill": { "Email": "test@example.com" } }` |
 | `select` | Select dropdown by accessible name | `{ "select": { "Country": "United Kingdom" } }` |
-| `screenshot` | Capture page | `{ "screenshot": true }` or `{ "screenshot": "/path/to/file.png" }` |
+| `screenshot` | Capture page | `{ "screenshot": true }` or `{ "screenshot": "file.png" }` |
 | `console` | Check console messages | `{ "console": "error" }` or `"warning"` or `"all"` |
 | `network` | Check network requests | `{ "network": true }` |
 | `wait` | Wait for condition | `{ "wait": { "urlContains": "/dashboard" } }` |
@@ -338,7 +338,7 @@ The webhook is fire-and-forget — network errors or non-2xx responses are silen
 ### Screenshots in Flows
 
 - `{ "screenshot": true }` auto-generates a path: `~/.bun-browse/screenshots/flow-<name>-step<N>-<timestamp>.png`
-- `{ "screenshot": "/path/to/file.png" }` saves to a specific path
+- `{ "screenshot": "file.png" }` saves with that filename inside `~/.bun-browse/screenshots/`
 
 ## Healthchecks
 

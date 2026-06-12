@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, extname, isAbsolute, join } from "node:path";
 import type { Page } from "playwright";
 import type { RingBuffer } from "./buffers.ts";
 import { evaluateAssertCondition } from "./commands/assert.ts";
@@ -80,9 +80,45 @@ function interpolateStep(
 	return walk(raw) as FlowStep;
 }
 
-function generateFlowScreenshotPath(flowName: string, stepNum: number): string {
+const VALID_SCREENSHOT_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+
+function screenshotDir(): string {
 	const dir = join(homedir(), ".bun-browse", "screenshots");
 	mkdirSync(dir, { recursive: true });
+	return dir;
+}
+
+function safeFilenamePart(value: string): string {
+	const safe = value
+		.replace(/[^a-zA-Z0-9_-]+/g, "-")
+		.replace(/^-+|-+$/g, "")
+		.slice(0, 80);
+	return safe || "flow";
+}
+
+function resolveFlowScreenshotPath(
+	flowName: string,
+	stepNum: number,
+	customName?: string,
+): string {
+	const dir = screenshotDir();
+	if (customName !== undefined) {
+		const name = customName.trim();
+		if (
+			!name ||
+			isAbsolute(name) ||
+			name.includes("/") ||
+			name.includes("\\") ||
+			name !== basename(name) ||
+			name.includes("..") ||
+			!VALID_SCREENSHOT_EXTENSIONS.has(extname(name).toLowerCase())
+		) {
+			throw new Error(
+				"Flow screenshot paths must be simple filenames ending in .png, .jpg, .jpeg, or .webp.",
+			);
+		}
+		return join(dir, name);
+	}
 
 	const now = new Date();
 	const pad = (n: number, len = 2) => String(n).padStart(len, "0");
@@ -98,7 +134,10 @@ function generateFlowScreenshotPath(flowName: string, stepNum: number): string {
 		pad(now.getMilliseconds(), 3),
 	].join("");
 
-	return join(dir, `flow-${flowName}-step${stepNum}-${timestamp}.png`);
+	return join(
+		dir,
+		`flow-${safeFilenamePart(flowName)}-step${stepNum}-${timestamp}.png`,
+	);
 }
 
 function stepDescription(step: FlowStep): string {
@@ -589,10 +628,11 @@ export async function runFlow(
 			} else if ("select" in step) {
 				await findAndSelect(deps.page, step.select);
 			} else if ("screenshot" in step) {
-				const path =
-					typeof step.screenshot === "string"
-						? step.screenshot
-						: generateFlowScreenshotPath(flowName, stepNum);
+				const path = resolveFlowScreenshotPath(
+					flowName,
+					stepNum,
+					typeof step.screenshot === "string" ? step.screenshot : undefined,
+				);
 				const res = await handleScreenshot(deps.page, [path]);
 				if (res.ok) {
 					screenshotPath = path;
