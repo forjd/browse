@@ -6,6 +6,7 @@
  * valid FlowConfig JSON.
  */
 
+import { randomUUID } from "node:crypto";
 import type { FlowConfig, FlowStep } from "./config.ts";
 
 /** Raw event from the injected browser script. */
@@ -178,6 +179,11 @@ let rawSteps: RawStep[] = [];
 let flowName = "recorded-flow";
 let outputPath = "";
 let detectedBaseUrl = "";
+let recordNonce = "";
+
+const MAX_RECORDED_EVENT_BYTES = 16 * 1024;
+const MAX_RECORDED_STRING_LENGTH = 4096;
+const RECORDED_EVENT_TYPES = new Set(["click", "fill", "select", "navigation"]);
 
 export function isRecording(): boolean {
 	return recording;
@@ -194,6 +200,7 @@ export function startSession(name: string, output: string): void {
 	flowName = name || "recorded-flow";
 	outputPath = output;
 	detectedBaseUrl = "";
+	recordNonce = randomUUID();
 }
 
 export function stopSession(): {
@@ -218,6 +225,7 @@ export function stopSession(): {
 	recording = false;
 	paused = false;
 	rawSteps = [];
+	recordNonce = "";
 
 	return result;
 }
@@ -250,15 +258,111 @@ export function getStepCount(): number {
 	return rawSteps.length;
 }
 
+export function getRecorderNonce(): string {
+	return recordNonce;
+}
+
+function safeString(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	return value.length <= MAX_RECORDED_STRING_LENGTH ? value : undefined;
+}
+
+function validateRecordedEvent(value: unknown): RecordedEvent | null {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return null;
+	}
+	const raw = value as Record<string, unknown>;
+	if (
+		typeof raw.type !== "string" ||
+		!RECORDED_EVENT_TYPES.has(raw.type) ||
+		typeof raw.timestamp !== "number" ||
+		!Number.isFinite(raw.timestamp)
+	) {
+		return null;
+	}
+
+	const event: RecordedEvent = {
+		type: raw.type as RecordedEvent["type"],
+		timestamp: raw.timestamp,
+	};
+
+	if (raw.target !== undefined) {
+		if (
+			typeof raw.target !== "object" ||
+			raw.target === null ||
+			Array.isArray(raw.target)
+		) {
+			return null;
+		}
+		const target = raw.target as Record<string, unknown>;
+		const sanitizedTarget: NonNullable<RecordedEvent["target"]> = {};
+		for (const key of [
+			"accessibleName",
+			"ariaLabel",
+			"placeholder",
+			"testId",
+			"selector",
+		] as const) {
+			const str = safeString(target[key]);
+			if (str !== undefined) sanitizedTarget[key] = str;
+		}
+		event.target = sanitizedTarget;
+	}
+
+	if (raw.value !== undefined) {
+		const value = safeString(raw.value);
+		if (value === undefined) return null;
+		event.value = value;
+	}
+
+	if (raw.url !== undefined) {
+		const url = safeString(raw.url);
+		if (url === undefined) return null;
+		event.url = url;
+	}
+
+	return event;
+}
+
+export function parseRecordedEventPayload(raw: string): RecordedEvent | null {
+	if (
+		!recordNonce ||
+		typeof raw !== "string" ||
+		raw.length > MAX_RECORDED_EVENT_BYTES
+	) {
+		return null;
+	}
+
+	let payload: unknown;
+	try {
+		payload = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+	if (
+		typeof payload !== "object" ||
+		payload === null ||
+		Array.isArray(payload)
+	) {
+		return null;
+	}
+
+	const envelope = payload as Record<string, unknown>;
+	if (envelope.nonce !== recordNonce) return null;
+	return validateRecordedEvent(envelope.event);
+}
+
 /**
  * Returns the JavaScript to inject into the page that captures user interactions
  * and forwards them via the exposed __browseRecordEvent function.
  */
-export function getInjectedScript(): string {
+export function getInjectedScript(nonce = recordNonce): string {
+	const encodedNonce = JSON.stringify(nonce);
 	return `
 (function() {
 	if (window.__browseRecorderAttached) return;
 	window.__browseRecorderAttached = true;
+	const nonce = ${encodedNonce};
 
 	function getTargetInfo(el) {
 		if (!el || !el.tagName) return {};
@@ -314,16 +418,20 @@ export function getInjectedScript(): string {
 		return info;
 	}
 
+	function send(event) {
+		window.__browseRecordEvent(JSON.stringify({ nonce, event }));
+	}
+
 	// Click handler
 	document.addEventListener('click', function(e) {
 		const target = e.target;
 		if (!target || !target.tagName) return;
 		try {
-			window.__browseRecordEvent(JSON.stringify({
+			send({
 				type: 'click',
 				target: getTargetInfo(target),
 				timestamp: Date.now()
-			}));
+			});
 		} catch(err) {}
 	}, true);
 
@@ -334,12 +442,12 @@ export function getInjectedScript(): string {
 		const tag = target.tagName;
 		if (tag === 'INPUT' || tag === 'TEXTAREA') {
 			try {
-				window.__browseRecordEvent(JSON.stringify({
+				send({
 					type: 'fill',
 					target: getTargetInfo(target),
 					value: target.value,
 					timestamp: Date.now()
-				}));
+				});
 			} catch(err) {}
 		}
 	}, true);
@@ -349,12 +457,12 @@ export function getInjectedScript(): string {
 		const target = e.target;
 		if (!target || target.tagName !== 'SELECT') return;
 		try {
-			window.__browseRecordEvent(JSON.stringify({
+			send({
 				type: 'select',
 				target: getTargetInfo(target),
 				value: target.value,
 				timestamp: Date.now()
-			}));
+			});
 		} catch(err) {}
 	}, true);
 })();

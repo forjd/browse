@@ -5,9 +5,11 @@ import {
 	convertToFlowSteps,
 	deduplicateSteps,
 	getInjectedScript,
+	getRecorderNonce,
 	getStepCount,
 	isPaused,
 	isRecording,
+	parseRecordedEventPayload,
 	pauseSession,
 	pushEvent,
 	replaceBaseUrl,
@@ -241,6 +243,12 @@ describe("getInjectedScript", () => {
 		expect(script).toContain("__browseRecordEvent");
 	});
 
+	test("embeds recorder nonce in forwarded events", () => {
+		const script = getInjectedScript("test-nonce");
+		expect(script).toContain('const nonce = "test-nonce"');
+		expect(script).toContain("JSON.stringify({ nonce, event })");
+	});
+
 	test("includes click, input, and change listeners", () => {
 		const script = getInjectedScript();
 		expect(script).toContain("'click'");
@@ -332,6 +340,59 @@ describe("recording session state", () => {
 			{ goto: "{{base_url}}/dashboard" },
 		]);
 	});
+
+	test("parses only events with the active recorder nonce", () => {
+		startSession("test", "out.json");
+		const nonce = getRecorderNonce();
+
+		expect(
+			parseRecordedEventPayload(
+				JSON.stringify({
+					nonce: "wrong",
+					event: { type: "click", timestamp: 1000 },
+				}),
+			),
+		).toBeNull();
+
+		expect(
+			parseRecordedEventPayload(
+				JSON.stringify({
+					nonce,
+					event: {
+						type: "click",
+						target: { accessibleName: "Save", extra: "ignored" },
+						timestamp: 1000,
+					},
+				}),
+			),
+		).toEqual({
+			type: "click",
+			target: { accessibleName: "Save" },
+			timestamp: 1000,
+		});
+
+		stopSession();
+	});
+
+	test("rejects oversized recorder payloads", () => {
+		startSession("test", "out.json");
+		const nonce = getRecorderNonce();
+
+		expect(
+			parseRecordedEventPayload(
+				JSON.stringify({
+					nonce,
+					event: {
+						type: "fill",
+						value: "x".repeat(5000),
+						timestamp: 1000,
+					},
+				}),
+			),
+		).toBeNull();
+
+		stopSession();
+	});
 });
 
 // --- handleRecord command tests ---
@@ -399,6 +460,37 @@ describe("handleRecord", () => {
 		expect(page.evaluate).toHaveBeenCalled();
 
 		// Clean up
+		await handleRecord(page as any, ["stop"]);
+	});
+
+	test("exposed record callback ignores events without the active nonce", async () => {
+		const page = createMockPage();
+
+		if (isRecording()) stopSession();
+
+		await handleRecord(page as any, ["start"]);
+		const callback = page._exposed.__browseRecordEvent;
+		callback(
+			JSON.stringify({
+				type: "click",
+				target: { accessibleName: "Forged" },
+				timestamp: 1000,
+			}),
+		);
+		expect(getStepCount()).toBe(0);
+
+		callback(
+			JSON.stringify({
+				nonce: getRecorderNonce(),
+				event: {
+					type: "click",
+					target: { accessibleName: "Real" },
+					timestamp: 1000,
+				},
+			}),
+		);
+		expect(getStepCount()).toBe(1);
+
 		await handleRecord(page as any, ["stop"]);
 	});
 

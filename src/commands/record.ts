@@ -4,12 +4,13 @@ import type { Page } from "playwright";
 import type { Response } from "../protocol.ts";
 import {
 	getInjectedScript,
+	getRecorderNonce,
 	getStepCount,
 	isPaused,
 	isRecording,
+	parseRecordedEventPayload,
 	pauseSession,
 	pushEvent,
-	type RecordedEvent,
 	resumeSession,
 	startSession,
 	stopSession,
@@ -48,11 +49,9 @@ async function recordStart(page: Page, args: string[]): Promise<Response> {
 	// Expose the callback function for receiving events from injected script
 	try {
 		await page.exposeFunction("__browseRecordEvent", (raw: string) => {
-			try {
-				const event = JSON.parse(raw) as RecordedEvent;
+			const event = parseRecordedEventPayload(raw);
+			if (event) {
 				pushEvent(event);
-			} catch {
-				// ignore malformed events
 			}
 		});
 	} catch {
@@ -73,7 +72,7 @@ async function recordStart(page: Page, args: string[]): Promise<Response> {
 	page.on("framenavigated", handler);
 
 	// Inject the observer script
-	const script = getInjectedScript();
+	const script = getInjectedScript(getRecorderNonce());
 	await page.addInitScript(script);
 
 	// Also evaluate immediately for the current page
