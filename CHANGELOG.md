@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.16.4](https://github.com/forjd/browse/compare/browse-v0.16.3...browse-v0.16.4) (2026-06-12)
+
+
+### Bug Fixes
+
+* authenticate recorder events ([ba12dc6](https://github.com/forjd/browse/commit/ba12dc6bea4600a76732e8e09679c8ca10ec012e))
+* bound socket request buffers ([5caadca](https://github.com/forjd/browse/commit/5caadca95e68e1d053ecf6f2b0fdd178be97c7e5))
+* constrain crawl link traversal ([fecb237](https://github.com/forjd/browse/commit/fecb237517fcf6fbfcb6c795725260946d3214f5))
+* constrain flow screenshot filenames ([eb964b3](https://github.com/forjd/browse/commit/eb964b39f44f528edbdd58a058d035b77496ea73))
+* gate login credentials behind config trust ([a06b2c9](https://github.com/forjd/browse/commit/a06b2c9c68b34a9f645de631137d535b22c0864c))
+* harden config plugin loading ([6134ced](https://github.com/forjd/browse/commit/6134ced2e557b4b3d291606a99a743b238b07494))
+* move daemon files to private runtime dir ([e391413](https://github.com/forjd/browse/commit/e3914130b497b545d4a2ca9b6272d8097218d75e))
+* protect auth state exports ([5125807](https://github.com/forjd/browse/commit/51258071a66b9dd657b07f8e0f50c9c677910cc3))
+* reject dangerous playwright launch options ([22d42f3](https://github.com/forjd/browse/commit/22d42f36c1bc90a08bdfed0d20caeb47ee22abe8))
+* reject unsafe regex patterns ([ca53302](https://github.com/forjd/browse/commit/ca5330265bb6316963212f0480e4e475de624a87))
+* restrict tcp daemon binding ([e7fa470](https://github.com/forjd/browse/commit/e7fa470b0a7d48dcb885207199a9244d1be8b8ea))
+* sanitize doc capture filenames ([17b0d11](https://github.com/forjd/browse/commit/17b0d11c1be7e1e9bcfeb7aedf4cee0dc1aa2b1c))
+* write pid files without following symlinks ([b1ce29f](https://github.com/forjd/browse/commit/b1ce29fe770993c912c9e81ed90ec4a3dda4ee22))
+
 ## [0.16.3](https://github.com/forjd/browse/compare/browse-v0.16.2...browse-v0.16.3) (2026-06-11)
 
 
