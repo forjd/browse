@@ -1,8 +1,9 @@
 import type { Page } from "playwright";
-import type {
-	BrowseConfig,
-	ConfigContext,
-	EnvironmentConfig,
+import {
+	type BrowseConfig,
+	type ConfigContext,
+	type EnvironmentConfig,
+	TRUST_PROJECT_CONFIG_ENV,
 } from "../config.ts";
 import type { Response } from "../protocol.ts";
 import { compileSafePattern } from "../safe-pattern.ts";
@@ -49,6 +50,13 @@ export async function handleLogin(
 		return {
 			ok: false,
 			error: `Unknown environment: '${envName}'. Available: ${available}.`,
+		};
+	}
+
+	if (configCtx?.allowEnvCredentials === false) {
+		return {
+			ok: false,
+			error: `Login credentials from this config are disabled. Set ${TRUST_PROJECT_CONFIG_ENV}=1 only for config files you trust.`,
 		};
 	}
 

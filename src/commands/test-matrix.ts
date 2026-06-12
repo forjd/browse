@@ -186,10 +186,12 @@ export async function handleTestMatrix(
 			const rolePage = await isolatedContext.newPage();
 
 			// Log in with this role's environment
-			const loginResult = await handleLogin(config, rolePage, [
-				"--env",
-				envKey,
-			]);
+			const loginResult = await handleLogin(
+				config,
+				rolePage,
+				["--env", envKey],
+				configCtx,
+			);
 			if (!loginResult.ok) {
 				return {
 					role,
@@ -237,6 +239,7 @@ export async function handleTestMatrix(
 				{
 					page: rolePage,
 					config,
+					configCtx,
 					consoleBuffer,
 					networkBuffer,
 				},

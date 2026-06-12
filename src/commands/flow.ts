@@ -319,6 +319,7 @@ export async function handleFlow(
 		{
 			page,
 			config,
+			configCtx,
 			consoleBuffer: deps.consoleBuffer,
 			networkBuffer: deps.networkBuffer,
 			performWipe: deps.performWipe,

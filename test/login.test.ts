@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { handleLogin } from "../src/commands/login.ts";
-import type { BrowseConfig } from "../src/config.ts";
+import { type BrowseConfig, TRUST_PROJECT_CONFIG_ENV } from "../src/config.ts";
 
 const VALID_CONFIG: BrowseConfig = {
 	environments: {
@@ -132,6 +132,21 @@ describe("login command", () => {
 			expect(res.error).toContain("BROWSE_STAGING_USER");
 			expect(res.error).toContain("BROWSE_STAGING_PASS");
 		}
+	});
+
+	test("blocks credentials from untrusted config context", async () => {
+		const page = mockPage();
+
+		const res = await handleLogin(VALID_CONFIG, page, ["--env", "staging"], {
+			configPath: "/repo/browse.config.json",
+			allowEnvCredentials: false,
+		});
+
+		expect(res.ok).toBe(false);
+		if (!res.ok) {
+			expect(res.error).toContain(TRUST_PROJECT_CONFIG_ENV);
+		}
+		expect(page.goto).not.toHaveBeenCalled();
 	});
 
 	test("navigates to login URL and fills credentials", async () => {

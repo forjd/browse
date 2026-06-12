@@ -160,6 +160,7 @@ export type BrowseConfig = {
 export type ConfigContext = {
 	configError?: string | null;
 	configPath?: string | null;
+	allowEnvCredentials?: boolean;
 };
 
 /**

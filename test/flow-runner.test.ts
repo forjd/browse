@@ -816,6 +816,37 @@ describe("runFlow", () => {
 		expect(results[0].error).toContain("browse.config.json");
 	});
 
+	test("blocks login step credentials from untrusted config context", async () => {
+		const flow: FlowConfig = {
+			steps: [{ login: "staging" }],
+		};
+		const deps = createMockDeps(
+			{},
+			{
+				config: {
+					environments: {
+						staging: {
+							loginUrl: "https://example.com/login",
+							userEnvVar: "BROWSE_FLOW_USER",
+							passEnvVar: "BROWSE_FLOW_PASS",
+							successCondition: { urlContains: "/dashboard" },
+						},
+					},
+				},
+				configCtx: {
+					configPath: "/repo/browse.config.json",
+					allowEnvCredentials: false,
+				},
+			},
+		);
+
+		const { results } = await runFlow("login-test", flow, {}, deps, false);
+
+		expect(results[0].passed).toBe(false);
+		expect(results[0].error).toContain("Login credentials");
+		expect(deps.page.goto).not.toHaveBeenCalled();
+	});
+
 	test("handles snapshot step", async () => {
 		const flow: FlowConfig = {
 			steps: [{ snapshot: true }],

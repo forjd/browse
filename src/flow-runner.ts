@@ -13,6 +13,7 @@ import { handleSnapshot } from "./commands/snapshot.ts";
 import type {
 	BrowseConfig,
 	ClickTarget,
+	ConfigContext,
 	FillTarget,
 	FlowCondition,
 	FlowConfig,
@@ -186,6 +187,7 @@ function conditionDescription(cond: FlowCondition): string {
 export type FlowDeps = {
 	page: Page;
 	config: BrowseConfig | null;
+	configCtx?: ConfigContext;
 	consoleBuffer: RingBuffer<ConsoleEntry>;
 	networkBuffer: RingBuffer<NetworkEntry>;
 	/**
@@ -615,10 +617,12 @@ export async function runFlow(
 					throw new Error(assertResult.reason);
 				}
 			} else if ("login" in step) {
-				const res = await handleLogin(deps.config, deps.page, [
-					"--env",
-					step.login,
-				]);
+				const res = await handleLogin(
+					deps.config,
+					deps.page,
+					["--env", step.login],
+					deps.configCtx,
+				);
 				if (!res.ok) {
 					throw new Error(res.error);
 				}

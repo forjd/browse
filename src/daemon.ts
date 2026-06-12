@@ -477,7 +477,11 @@ export async function startServer(
 	} = deps;
 	const configCtx =
 		configError || configPath
-			? { configError, configPath: configPath ?? null }
+			? {
+					configError,
+					configPath: configPath ?? null,
+					allowEnvCredentials: canLoadCodeFromConfig(configSource ?? null),
+				}
 			: undefined;
 	const exitFn = options?.onExit ?? (() => process.exit(0));
 	const persistSessionState = options?.persistSessionState === true;
