@@ -31,26 +31,11 @@ export async function handleWipe(deps: WipeDeps): Promise<Response> {
 	}
 	tabRegistry.activeTabIndex = 0;
 
-	// 2. Navigate remaining tab to about:blank
+	// 2. Clear localStorage and sessionStorage. This has to happen *before* the
+	// about:blank navigation below: web storage is keyed by origin, and
+	// about:blank has an opaque one, so clearing there is a silent no-op that
+	// leaves the site's storage intact.
 	const page = tabRegistry.tabs[0].page;
-	try {
-		await page.goto("about:blank");
-	} catch (err) {
-		warnings.push(
-			`Failed to navigate to about:blank: ${err instanceof Error ? err.message : String(err)}`,
-		);
-	}
-
-	// 3. Clear cookies
-	try {
-		await context.clearCookies();
-	} catch (err) {
-		warnings.push(
-			`Failed to clear cookies: ${err instanceof Error ? err.message : String(err)}`,
-		);
-	}
-
-	// 4. Clear localStorage and sessionStorage
 	try {
 		await page.evaluate(() => {
 			try {
@@ -63,6 +48,24 @@ export async function handleWipe(deps: WipeDeps): Promise<Response> {
 	} catch (err) {
 		warnings.push(
 			`Failed to clear storage: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+
+	// 3. Clear cookies
+	try {
+		await context.clearCookies();
+	} catch (err) {
+		warnings.push(
+			`Failed to clear cookies: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+
+	// 4. Navigate remaining tab to about:blank
+	try {
+		await page.goto("about:blank");
+	} catch (err) {
+		warnings.push(
+			`Failed to navigate to about:blank: ${err instanceof Error ? err.message : String(err)}`,
 		);
 	}
 

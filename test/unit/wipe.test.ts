@@ -59,6 +59,44 @@ describe("handleWipe", () => {
 		expect(page.evaluate).toHaveBeenCalled();
 	});
 
+	test("clears storage before navigating away from the origin", async () => {
+		// Web storage is per-origin and about:blank's origin is opaque, so
+		// clearing after the navigation silently leaves the site's storage intact.
+		const order: string[] = [];
+		const mockPage = {
+			goto: mock(() => {
+				order.push("goto");
+				return Promise.resolve();
+			}),
+			evaluate: mock(() => {
+				order.push("evaluate");
+				return Promise.resolve();
+			}),
+			close: mock(() => Promise.resolve()),
+		};
+
+		await handleWipe(
+			makeMockDeps({
+				context: {
+					clearCookies: mock(() => Promise.resolve()),
+					pages: mock(() => [mockPage]),
+				} as never,
+				tabRegistry: {
+					tabs: [
+						{
+							page: mockPage as never,
+							consoleBuffer: { clear: mock(() => {}) },
+							networkBuffer: { clear: mock(() => {}) },
+						},
+					],
+					activeTabIndex: 0,
+				} as never,
+			}),
+		);
+
+		expect(order).toEqual(["evaluate", "goto"]);
+	});
+
 	test("clears console and network buffers", async () => {
 		const deps = makeMockDeps();
 		await handleWipe(deps);
