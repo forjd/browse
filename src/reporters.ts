@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CustomReporterRegistry } from "./custom-reporter.ts";
 import type { StepResult } from "./flow-runner.ts";
 
@@ -455,8 +456,9 @@ export function formatFlowCucumberJson(
 	results: StepResult[],
 	durationMs: number,
 ): string {
-	const featureId = slugify(flowName);
-	const scenarioId = `${featureId};${slugify(flowName)}`;
+	const featureId = cucumberId(flowName);
+	const uri = `${featureId}.feature`;
+	const scenarioId = `${featureId};${featureId}`;
 	const stepDurationNs = results.length
 		? Math.round((durationMs / results.length) * 1_000_000)
 		: 0;
@@ -467,8 +469,9 @@ export function formatFlowCucumberJson(
 			name: flowName,
 			description: "",
 			id: featureId,
-			uri: `${flowName}.feature`,
+			uri,
 			line: 1,
+			tags: [],
 			elements: [
 				{
 					keyword: "Scenario",
@@ -477,29 +480,65 @@ export function formatFlowCucumberJson(
 					id: scenarioId,
 					type: "scenario",
 					line: 2,
-					steps: results.map((result, index) => ({
-						keyword: index === 0 ? "Given " : "Then ",
-						name: result.description,
-						line: index + 3,
-						result: {
-							status: result.passed ? "passed" : "failed",
-							duration: stepDurationNs,
-							...(result.error ? { error_message: result.error } : {}),
-						},
-					})),
+					tags: [],
+					steps: results.map((result, index) => {
+						const line = index + 3;
+						return {
+							keyword: index === 0 ? "Given " : "Then ",
+							name: result.description,
+							line,
+							// A flow has no step-definition file, so `match.location`
+							// points at the synthesised step instead of source code.
+							match: { location: `${uri}:${line}` },
+							arguments: [],
+							result: {
+								status: result.passed ? "passed" : "failed",
+								duration: stepDurationNs,
+								...(result.error ? { error_message: result.error } : {}),
+							},
+							// Cucumber's slot for step artifacts. The path is attached as
+							// text rather than the image bytes, matching what cucumber-js
+							// writes for `attach("some string")` and keeping the report small.
+							...(result.screenshotPath
+								? {
+										embeddings: [
+											{
+												mime_type: "text/plain",
+												data: Buffer.from(result.screenshotPath).toString(
+													"base64",
+												),
+											},
+										],
+									}
+								: {}),
+						};
+					}),
 				},
 			],
 		},
 	]);
 }
 
-function slugify(value: string): string {
-	return (
-		value
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, "-")
-			.replace(/^-+|-+$/g, "") || "flow"
-	);
+/**
+ * Cucumber consumers key scenarios on `id`, so two differently-named flows must
+ * never produce the same one. A plain slug cannot promise that — `Login flow`,
+ * `login-flow` and `Login  Flow!` all collapse to `login-flow`, and any name
+ * without ASCII alphanumerics collapses to nothing at all. The id therefore
+ * keeps the readable slug only when the name already *is* that slug, and
+ * appends a short content hash whenever slugifying loses information.
+ */
+function cucumberId(value: string): string {
+	const slug = value
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+
+	if (slug === value) {
+		return slug;
+	}
+
+	const hash = createHash("sha1").update(value).digest("hex").slice(0, 8);
+	return slug ? `${slug}-${hash}` : `flow-${hash}`;
 }
 
 export function formatFlowHtml(

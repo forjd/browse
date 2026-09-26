@@ -266,6 +266,12 @@ function planUnitScaffold(
 	};
 }
 
+/**
+ * The globs below use `join()`, so they carry backslashes on Windows. That is
+ * fine and should not be "fixed": every cucumber-js line a user could install
+ * normalises them — 10/11/12 pass `windowsPathsNoEscape: true` to the `glob`
+ * package, and 13 gets the same flag from `node:fs/promises` `glob`.
+ */
 function planCucumberScaffold(dir: string): ScaffoldPlan {
 	const featureDir = join(dir, "features");
 	const stepsDir = join(dir, "step-definitions");

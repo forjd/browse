@@ -44,9 +44,11 @@ describe("additional reporters", () => {
 		expect(parsed).toHaveLength(1);
 		expect(parsed[0].keyword).toBe("Feature");
 		expect(parsed[0].name).toBe("login smoke");
-		expect(parsed[0].id).toBe("login-smoke");
-		expect(parsed[0].uri).toBe("login smoke.feature");
 		expect(parsed[0].elements).toHaveLength(1);
+		// Consumers treat `uri` as a path, so it must not carry the raw flow
+		// name's spaces or slashes.
+		expect(parsed[0].uri).toBe(`${parsed[0].id}.feature`);
+		expect(parsed[0].uri).toMatch(/^[a-z0-9-]+\.feature$/);
 
 		const steps = parsed[0].elements[0].steps;
 		expect(steps).toHaveLength(2);
@@ -60,6 +62,71 @@ describe("additional reporters", () => {
 			name: "submit",
 			result: { status: "failed", error_message: "boom" },
 		});
+	});
+
+	test("carries the keys strict cucumber consumers expect", () => {
+		const parsed = JSON.parse(formatFlowCucumberJson("smoke", RESULTS, 600));
+		// Genuine `cucumber-js --format json` always emits these, empty or not.
+		expect(parsed[0].tags).toEqual([]);
+		expect(parsed[0].elements[0].tags).toEqual([]);
+		for (const step of parsed[0].elements[0].steps) {
+			expect(step.arguments).toEqual([]);
+			expect(step.match.location).toBe(`${parsed[0].uri}:${step.line}`);
+		}
+	});
+
+	test("attaches screenshot paths as step embeddings", () => {
+		// The other reporters surface `screenshotPath`; the one aimed at
+		// dashboards must not be the only place the evidence disappears.
+		const parsed = JSON.parse(
+			formatFlowCucumberJson(
+				"shots",
+				[
+					{
+						stepNum: 1,
+						description: "screenshot",
+						passed: true,
+						screenshotPath: "shots/step-1.png",
+					},
+					{ stepNum: 2, description: "goto", passed: true },
+				],
+				200,
+			),
+		);
+		const steps = parsed[0].elements[0].steps;
+		expect(steps[0].embeddings).toEqual([
+			{
+				mime_type: "text/plain",
+				data: Buffer.from("shots/step-1.png").toString("base64"),
+			},
+		]);
+		expect(steps[1].embeddings).toBeUndefined();
+	});
+
+	test("gives differently-named flows different cucumber ids", () => {
+		const ids = [
+			"Login flow",
+			"login-flow",
+			"Login  Flow!",
+			"登录",
+			"テスト",
+			"!!!",
+		].map((name) => JSON.parse(formatFlowCucumberJson(name, RESULTS, 600))[0]);
+
+		// A plain slug collapses all six onto `login-flow` or `flow`, which makes
+		// aggregated reports merge or overwrite unrelated scenarios.
+		expect(new Set(ids.map((feature) => feature.id)).size).toBe(6);
+		expect(new Set(ids.map((feature) => feature.elements[0].id)).size).toBe(6);
+		// A name that already is its own slug keeps the readable id.
+		expect(ids[1].id).toBe("login-flow");
+		// A name with no ASCII alphanumerics still gets a usable id.
+		expect(ids[3].id).toMatch(/^flow-[0-9a-f]{8}$/);
+	});
+
+	test("keeps cucumber ids stable across runs", () => {
+		expect(
+			JSON.parse(formatFlowCucumberJson("Login flow", RESULTS, 600))[0].id,
+		).toBe(JSON.parse(formatFlowCucumberJson("Login flow", [], 0))[0].id);
 	});
 
 	test("emits cucumber json for a flow with no steps", () => {

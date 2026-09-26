@@ -90,6 +90,27 @@ export const GHERKIN_STEP_DEFINITIONS: GherkinStepDefinition[] = [
 	},
 	{
 		keyword: "When",
+		expression: "I go back",
+		params: [],
+		command: ["back"],
+		description: "Navigate back in history.",
+	},
+	{
+		keyword: "When",
+		expression: "I go forward",
+		params: [],
+		command: ["forward"],
+		description: "Navigate forward in history.",
+	},
+	{
+		keyword: "When",
+		expression: "I reload the page",
+		params: [],
+		command: ["reload"],
+		description: "Reload the current page.",
+	},
+	{
+		keyword: "When",
 		expression: "I wait for {string} to be visible",
 		params: ["selector"],
 		command: ["wait", "visible", { param: "selector" }],
@@ -97,10 +118,31 @@ export const GHERKIN_STEP_DEFINITIONS: GherkinStepDefinition[] = [
 	},
 	{
 		keyword: "When",
+		expression: "I wait for {string} to disappear",
+		params: ["selector"],
+		command: ["wait", "hidden", { param: "selector" }],
+		description: "Wait until a selector or @ref is hidden or removed.",
+	},
+	{
+		keyword: "When",
 		expression: "I wait until the page contains {string}",
 		params: ["text"],
 		command: ["wait", "text", { param: "text" }],
 		description: "Wait until page text contains a string.",
+	},
+	{
+		keyword: "When",
+		expression: "I wait until the URL contains {string}",
+		params: ["substring"],
+		command: ["wait", "url", { param: "substring" }],
+		description: "Wait until the URL contains a substring (e.g. a redirect).",
+	},
+	{
+		keyword: "When",
+		expression: "I wait for the network to be idle",
+		params: [],
+		command: ["wait", "network-idle"],
+		description: "Wait until there are no pending network requests.",
 	},
 	{
 		keyword: "Then",
@@ -132,6 +174,30 @@ export const GHERKIN_STEP_DEFINITIONS: GherkinStepDefinition[] = [
 	},
 	{
 		keyword: "Then",
+		expression: "{string} should contain text {string}",
+		params: ["selector", "text"],
+		command: [
+			"assert",
+			"element-text",
+			{ param: "selector" },
+			{ param: "text" },
+		],
+		description: "Assert one element's text contains a string.",
+	},
+	{
+		keyword: "Then",
+		expression: "{string} should appear {int} times",
+		params: ["selector", "count"],
+		command: [
+			"assert",
+			"element-count",
+			{ param: "selector" },
+			{ param: "count" },
+		],
+		description: "Assert how many elements match a selector or @ref.",
+	},
+	{
+		keyword: "Then",
 		expression: "the URL should contain {string}",
 		params: ["substring"],
 		command: ["assert", "url-contains", { param: "substring" }],
@@ -145,7 +211,9 @@ export const GHERKIN_STEP_DEFINITIONS: GherkinStepDefinition[] = [
 		description: "Assert the current URL matches a regular expression.",
 	},
 	{
-		keyword: "Then",
+		// An action rather than an assertion, so `When`/`And` is the honest
+		// keyword even though cucumber-js matches steps regardless of it.
+		keyword: "When",
 		expression: "I save a screenshot to {string}",
 		params: ["path"],
 		command: ["screenshot", { param: "path" }],
@@ -173,13 +241,27 @@ export function extractScenarioNames(featureText: string): string[] {
 	return [...matches].map((m) => m[1].trim());
 }
 
+const PARAM_TOKEN_RE = /\{([a-z]+)\}/g;
+
+/**
+ * Cucumber expression parameter types in capture order, e.g. `["string", "int"]`
+ * for `{string} should appear {int} times`. Only `{string}` reaches a step
+ * function as a string, so anything else has to be stringified before it
+ * becomes argv.
+ */
+export function stepParamTypes(definition: GherkinStepDefinition): string[] {
+	return [...definition.expression.matchAll(PARAM_TOKEN_RE)].map(
+		(match) => match[1],
+	);
+}
+
 /**
  * Resolve a step definition plus its captured Cucumber parameters into the
  * browse argv to execute.
  */
 export function resolveStepCommand(
 	definition: GherkinStepDefinition,
-	values: string[] = [],
+	values: (string | number)[] = [],
 ): string[] {
 	if (values.length !== definition.params.length) {
 		throw new Error(
@@ -198,7 +280,7 @@ export function resolveStepCommand(
 				`Step '${definition.expression}' references unknown parameter '${part.param}'.`,
 			);
 		}
-		return value;
+		return String(value);
 	});
 }
 
@@ -211,9 +293,16 @@ export function findStepDefinition(
 }
 
 function renderStepCommand(definition: GherkinStepDefinition): string {
-	const parts = definition.command.map((part) =>
-		typeof part === "string" ? JSON.stringify(part) : part.param,
-	);
+	const types = stepParamTypes(definition);
+	const parts = definition.command.map((part) => {
+		if (typeof part === "string") {
+			return JSON.stringify(part);
+		}
+		// A `{int}` capture arrives as a number, and argv elements must be
+		// strings, so non-string parameters are stringified in the generated file.
+		const type = types[definition.params.indexOf(part.param)];
+		return type === "string" ? part.param : `String(${part.param})`;
+	});
 	return `[${parts.join(", ")}]`;
 }
 
@@ -242,7 +331,6 @@ export function buildStepDefinitionsTemplate(harnessModule: string): string {
 // steps below the generated block.
 const {
 	${keywords.join(",\n\t")},
-	After,
 	Before,
 	setDefaultTimeout,
 	setWorldConstructor,
@@ -260,14 +348,22 @@ class BrowseWorld {
 
 setWorldConstructor(BrowseWorld);
 
+// Every scenario starts from a clean session. The daemon outlives the
+// cucumber-js process, so without the wipe a scenario can pass against cookies,
+// storage, or tabs a previous run left behind — green while proving nothing.
 Before(async function () {
 	await this.browse.run(["ping"]);
+	await this.browse.run(["wipe"]);
 });
 
-After(async function () {
-	// Leave the daemon running between scenarios; \`browse quit\` in a global
-	// teardown if you want a cold start per run.
-});
+// The daemon and its browser deliberately survive the run so the next one
+// starts warm. Uncomment to shut them down when the run finishes instead —
+// worth doing anywhere a stray browser process is a problem.
+//
+// const { AfterAll } = require("@cucumber/cucumber");
+// AfterAll(async function () {
+// 	await createBrowseHarness().run(["quit"]);
+// });
 
 ${GHERKIN_STEP_DEFINITIONS.map(renderStepDefinition).join("\n\n")}
 `;

@@ -107,6 +107,16 @@ describe("gherkin step definitions", () => {
 		).toEqual(["fill", "@e3", "hunter2"]);
 	});
 
+	test("stringifies non-string captures for argv", () => {
+		// `{int}` reaches the step function as a number; spawn argv must be strings.
+		expect(
+			resolveStepCommand(step("{string} should appear {int} times"), [
+				".row",
+				3,
+			]),
+		).toEqual(["assert", "element-count", ".row", "3"]);
+	});
+
 	test("rejects the wrong number of captured arguments", () => {
 		expect(() => resolveStepCommand(step("I open {string}"), [])).toThrow(
 			"expects 1 argument(s), received 0",
@@ -153,7 +163,8 @@ describe("gherkin templates", () => {
 			const matched = GHERKIN_STEP_DEFINITIONS.some((definition) => {
 				const pattern = definition.expression
 					.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-					.replace(/\\\{string\\\}/g, '"[^"]*"');
+					.replace(/\\\{string\\\}/g, '"[^"]*"')
+					.replace(/\\\{int\\\}/g, "-?\\d+");
 				return new RegExp(`^${pattern}$`).test(text);
 			});
 			expect(matched).toBe(true);
@@ -230,7 +241,7 @@ module.exports = {
 		expect(cucumber.timeoutMs).toBe(DEFAULT_STEP_TIMEOUT_MS);
 		expect(
 			cucumber.hooks.map((hook: { keyword: string }) => hook.keyword),
-		).toEqual(["Before", "After"]);
+		).toEqual(["Before"]);
 
 		for (const definition of GHERKIN_STEP_DEFINITIONS) {
 			const entry = cucumber.registered.find(
@@ -244,15 +255,33 @@ module.exports = {
 			expect(entry.arity).toBe(definition.params.length);
 		}
 
-		// Invoke one step against a fake world and check the argv it shells out.
+		// Invoke steps and the Before hook against a fake world and check the argv
+		// they shell out.
 		const world = new cucumber.world();
-		const openStep = cucumber.registered.find(
-			(candidate: { expression: string }) =>
-				candidate.expression === "I open {string}",
-		);
-		return openStep.fn.call(world, "https://example.com").then(() => {
-			expect(world.browse.calls).toEqual([["goto", "https://example.com"]]);
-			rmSync(TEST_DIR, { recursive: true, force: true });
-		});
+		const find = (expression: string) =>
+			cucumber.registered.find(
+				(candidate: { expression: string }) =>
+					candidate.expression === expression,
+			);
+
+		return find("I open {string}")
+			.fn.call(world, "https://example.com")
+			.then(() =>
+				// A `{int}` capture arrives as a number and has to be stringified
+				// before it reaches spawn.
+				find("{string} should appear {int} times").fn.call(world, ".row", 3),
+			)
+			.then(() => cucumber.hooks[0].fn.call(world))
+			.then(() => {
+				expect(world.browse.calls).toEqual([
+					["goto", "https://example.com"],
+					["assert", "element-count", ".row", "3"],
+					// The daemon outlives cucumber-js, so the hook has to wipe or a
+					// scenario can pass against a previous run's session.
+					["ping"],
+					["wipe"],
+				]);
+				rmSync(TEST_DIR, { recursive: true, force: true });
+			});
 	});
 });

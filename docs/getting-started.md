@@ -123,5 +123,5 @@ browse <command> --help    # same as above
 - [The Ref System](refs.md) — how refs work and best practices
 - [Sessions and Tabs](sessions-and-tabs.md) — isolated contexts and multi-tab workflows
 - [Configuration](configuration.md) — daemon settings, timeouts, and defaults
-- [BDD with Cucumber/Gherkin](bdd-cucumber.md) — drive Browse from `.feature` files
+- [BDD with Cucumber/Gherkin](bdd-cucumber.md) — step definitions that let `cucumber-js` drive Browse
 - [Architecture](architecture.md) — how the daemon, socket, and browser pool fit together
