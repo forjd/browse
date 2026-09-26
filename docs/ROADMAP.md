@@ -1,6 +1,6 @@
 # Browse CLI — New Roadmap (2026)
 
-**Current Version:** 0.12.x  
+**Current Version:** 0.16.4 <!-- x-release-please-version -->  
 **Status:** Feature-complete for core use cases. All 20 Phase 7 features implemented.  
 **Focus:** Stability, performance, ecosystem, and enterprise readiness.
 
