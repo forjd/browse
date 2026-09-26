@@ -519,6 +519,20 @@ browse wipe
 
 Clear cookies, localStorage, sessionStorage, tabs, and buffers without stopping the daemon.
 
+Storage is cleared for **every origin the session stored data on**, not just the one the open tab happens to be on. A suite that visits `https://a.example` and then `https://b.example` gets both cleared.
+
+How much is cleared depends on the browser engine, because only Chromium exposes a protocol for clearing an origin's storage without loading it:
+
+| Engine    | Cleared                                                                     |
+| --------- | --------------------------------------------------------------------------- |
+| `chrome`  | localStorage, sessionStorage, IndexedDB, cache storage, service workers      |
+| `firefox` | localStorage, sessionStorage                                                  |
+| `webkit`  | localStorage, sessionStorage                                                  |
+
+sessionStorage is scoped to a tab rather than to the browser profile, so it is only cleared for origins the remaining tab loads during the wipe.
+
+Origins are discovered from the browser context's own storage snapshot, which lists origins holding localStorage. An origin that holds *only* IndexedDB or cache storage and never wrote localStorage is not discoverable this way and is left alone.
+
 ---
 
 ## Sessions
