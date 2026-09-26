@@ -5,10 +5,10 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
-		"check": "biome check .",
-		"check:fix": "biome check --fix .",
-		"format": "biome format --fix .",
-		"lint": "biome lint .",
+		"check": "bunx biome check .",
+		"check:fix": "bunx biome check --fix .",
+		"format": "bunx biome format --fix .",
+		"lint": "bunx biome lint .",
 		"build": "bun build --compile ./src/cli.ts --outfile dist/browse --external electron --external chromium-bidi",
 		"test": "bun test",
 		"test:coverage": "bun test --coverage",
@@ -18,7 +18,7 @@
 		"bench:regression": "bun run benchmarks/performance-regression.ts",
 		"bench:competitive": "bun run benchmarks/competitive.ts",
 		"bench:workloads": "bun run benchmarks/workloads.ts",
-		"prepare": "git rev-parse --git-dir >/dev/null 2>&1 && lefthook install || true"
+		"prepare": "git rev-parse --git-dir >/dev/null 2>&1 && bunx lefthook install || true"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.6",
