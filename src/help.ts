@@ -193,8 +193,20 @@ Pages are defined in browse.config.json.`,
 	},
 	wipe: {
 		summary: "Clear all session data",
-		usage:
-			"browse wipe\n\nClears cookies, localStorage, sessionStorage, tabs, and buffers without stopping the daemon.",
+		usage: `browse wipe
+
+Clears cookies, localStorage, sessionStorage, tabs, and buffers without stopping the daemon.
+
+Storage is cleared for every origin the session stored data on, not just the one
+the open tab is on.
+
+Coverage depends on the browser engine:
+  chrome   localStorage, sessionStorage, IndexedDB, cache storage, service workers
+  firefox  localStorage, sessionStorage
+  webkit   localStorage, sessionStorage
+
+sessionStorage is only cleared for origins the remaining tab loads during the
+wipe, since it is scoped to a tab rather than to the browser profile.`,
 	},
 	benchmark: {
 		summary: "Measure command latency",
