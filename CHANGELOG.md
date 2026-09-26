@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.5](https://github.com/forjd/browse/compare/browse-v0.16.4...browse-v0.16.5) (2026-09-26)
+
+
+### Bug Fixes
+
+* run biome and lefthook via bunx in package.json scripts ([86e5b37](https://github.com/forjd/browse/commit/86e5b373f5e85f2b5b05eec57b0523e4090ae03f))
+
 ## [0.16.4](https://github.com/forjd/browse/compare/browse-v0.16.3...browse-v0.16.4) (2026-06-12)
 
 
