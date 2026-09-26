@@ -5,7 +5,7 @@ import {
 	buildCucumberConfigTemplate,
 	buildFeatureTemplate,
 	buildStepDefinitionsTemplate,
-	FAILING_EXAMPLE_TAG,
+	FAILING_EXAMPLE_PROFILE,
 } from "./gherkin-runner.ts";
 import type { Response } from "./protocol.ts";
 
@@ -275,7 +275,7 @@ function planCucumberScaffold(dir: string): ScaffoldPlan {
 	}).join(" ");
 	const failingCommand = buildCucumberCommand(undefined, {
 		config: configPath,
-		tags: FAILING_EXAMPLE_TAG,
+		profile: FAILING_EXAMPLE_PROFILE,
 	}).join(" ");
 
 	return {
@@ -295,7 +295,12 @@ function planCucumberScaffold(dir: string): ScaffoldPlan {
 			},
 			{
 				path: configPath,
-				contents: buildCucumberConfigTemplate(stepsDir, featureDir),
+				// cucumber-js only expands directories to `.js`, so the support
+				// code glob has to name the `.cjs` extension explicitly.
+				contents: buildCucumberConfigTemplate(
+					join(stepsDir, "*.cjs"),
+					featureDir,
+				),
 			},
 		],
 		nextSteps: [

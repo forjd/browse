@@ -156,6 +156,19 @@ describe("framework runner — cucumber", () => {
 		expect(steps).toContain('require("../browse-harness.cjs")');
 		expect(steps).toContain('When("I open {string}", async function (url) {');
 
+		// cucumber-js only expands a bare directory to `.js`, so the generated
+		// config must glob the `.cjs` step files explicitly.
+		const config = readFileSync(
+			join(TEST_DIR, "tests", "cucumber.cjs"),
+			"utf-8",
+		);
+		expect(config).toContain(
+			`require: [${JSON.stringify(join("tests", "step-definitions", "*.cjs"))}]`,
+		);
+		expect(config).toContain(
+			`paths: [${JSON.stringify(join("tests", "features"))}]`,
+		);
+
 		if (result.ok) {
 			expect(result.data).toContain(
 				"npm install --save-dev @cucumber/cucumber",
@@ -163,7 +176,7 @@ describe("framework runner — cucumber", () => {
 			expect(result.data).toContain(
 				`cucumber-js --config ${join("tests", "cucumber.cjs")}`,
 			);
-			expect(result.data).toContain("--tags @failing-example");
+			expect(result.data).toContain("--profile failing");
 		}
 	});
 

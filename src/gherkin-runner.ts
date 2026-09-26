@@ -2,6 +2,7 @@ const SCENARIO_RE = /^\s*Scenario(?: Outline)?:\s*(.+)$/gm;
 
 export type CucumberCommandOptions = {
 	config?: string;
+	profile?: string;
 	require?: string[];
 	format?: string;
 	tags?: string;
@@ -159,6 +160,7 @@ export function buildCucumberCommand(
 	return [
 		"cucumber-js",
 		...(options.config ? ["--config", options.config] : []),
+		...(options.profile ? ["--profile", options.profile] : []),
 		...(featurePath ? [featurePath] : []),
 		...(options.require?.flatMap((path) => ["--require", path]) ?? []),
 		...(options.format ? ["--format", options.format] : []),
@@ -222,6 +224,12 @@ ${definition.keyword}(${JSON.stringify(definition.expression)}, async function (
 });`;
 }
 
+/**
+ * Cucumber's default step timeout is 5s, which a cold `browse` daemon start
+ * regularly exceeds. Generated step files raise it so a fresh scaffold passes.
+ */
+export const DEFAULT_STEP_TIMEOUT_MS = 60_000;
+
 export function buildStepDefinitionsTemplate(harnessModule: string): string {
 	const keywords = [
 		...new Set(GHERKIN_STEP_DEFINITIONS.map((step) => step.keyword)),
@@ -236,9 +244,13 @@ const {
 	${keywords.join(",\n\t")},
 	After,
 	Before,
+	setDefaultTimeout,
 	setWorldConstructor,
 } = require("@cucumber/cucumber");
 const { createBrowseHarness } = require("${harnessModule}");
+
+// A cold daemon start takes longer than Cucumber's 5s default.
+setDefaultTimeout(${DEFAULT_STEP_TIMEOUT_MS});
 
 class BrowseWorld {
 	constructor() {
@@ -262,11 +274,15 @@ ${GHERKIN_STEP_DEFINITIONS.map(renderStepDefinition).join("\n\n")}
 }
 
 /**
- * Tag on the intentionally-failing starter scenario. The generated Cucumber
- * config excludes it so a fresh scaffold is green, and `--tags @failing-example`
- * gives you a one-command failing run to check reporting wiring.
+ * Tag on the intentionally-failing starter scenario. The generated config's
+ * default profile excludes it so a fresh scaffold is green, and the
+ * `failing` profile runs only that scenario so you can check how a red run
+ * reports.
  */
 export const FAILING_EXAMPLE_TAG = "@failing-example";
+
+/** Cucumber profile in the generated config that runs only the failing example. */
+export const FAILING_EXAMPLE_PROFILE = "failing";
 
 export function buildFeatureTemplate(): string {
 	return `Feature: Browse smoke test
@@ -282,8 +298,8 @@ export function buildFeatureTemplate(): string {
     Then the page should contain "Example Domain"
     And the URL should contain "example.com"
 
-  # Excluded from the default profile. Run it on its own to see a failing
-  # report: cucumber-js --tags '${FAILING_EXAMPLE_TAG}'
+  # Excluded from the default profile. Run the '${FAILING_EXAMPLE_PROFILE}' profile
+  # to see how a red run reports.
   ${FAILING_EXAMPLE_TAG}
   Scenario: A missing string fails the run
     When I open "https://example.com"
@@ -295,13 +311,18 @@ export function buildCucumberConfigTemplate(
 	stepsGlob: string,
 	featureGlob: string,
 ): string {
-	return `module.exports = {
-	default: {
-		paths: [${JSON.stringify(featureGlob)}],
-		require: [${JSON.stringify(stepsGlob)}],
-		tags: "not ${FAILING_EXAMPLE_TAG}",
-		format: ["progress", "html:reports/cucumber.html"],
-	},
+	return `const shared = {
+	paths: [${JSON.stringify(featureGlob)}],
+	require: [${JSON.stringify(stepsGlob)}],
+	format: ["progress", "html:reports/cucumber.html"],
+};
+
+module.exports = {
+	default: { ...shared, tags: "not ${FAILING_EXAMPLE_TAG}" },
+	// Runs only the intentionally-failing starter scenario. Cucumber ANDs a
+	// config 'tags' with a CLI --tags, so this needs its own profile rather
+	// than a --tags override.
+	${FAILING_EXAMPLE_PROFILE}: { ...shared, tags: "${FAILING_EXAMPLE_TAG}" },
 };
 `;
 }

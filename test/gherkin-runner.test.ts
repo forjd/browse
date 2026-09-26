@@ -6,7 +6,9 @@ import {
 	buildCucumberConfigTemplate,
 	buildFeatureTemplate,
 	buildStepDefinitionsTemplate,
+	DEFAULT_STEP_TIMEOUT_MS,
 	extractScenarioNames,
+	FAILING_EXAMPLE_PROFILE,
 	FAILING_EXAMPLE_TAG,
 	findStepDefinition,
 	GHERKIN_STEP_DEFINITIONS,
@@ -35,7 +37,7 @@ describe("gherkin runner", () => {
 		expect(
 			buildCucumberCommand("features/login.feature", {
 				config: "tests/cucumber.cjs",
-				require: ["tests/step-definitions"],
+				require: ["tests/step-definitions/*.cjs"],
 				format: "json:reports/cucumber.json",
 				tags: FAILING_EXAMPLE_TAG,
 			}),
@@ -45,7 +47,7 @@ describe("gherkin runner", () => {
 			"tests/cucumber.cjs",
 			"features/login.feature",
 			"--require",
-			"tests/step-definitions",
+			"tests/step-definitions/*.cjs",
 			"--format",
 			"json:reports/cucumber.json",
 			"--tags",
@@ -160,12 +162,26 @@ describe("gherkin templates", () => {
 
 	test("config template excludes the failing example by default", () => {
 		const config = buildCucumberConfigTemplate(
-			"tests/step-definitions",
+			"tests/step-definitions/*.cjs",
 			"tests/features",
 		);
 		expect(config).toContain('paths: ["tests/features"]');
-		expect(config).toContain('require: ["tests/step-definitions"]');
-		expect(config).toContain(`tags: "not ${FAILING_EXAMPLE_TAG}"`);
+		expect(config).toContain('require: ["tests/step-definitions/*.cjs"]');
+		expect(config).toContain(
+			`default: { ...shared, tags: "not ${FAILING_EXAMPLE_TAG}" }`,
+		);
+		// Cucumber ANDs a config `tags` with a CLI `--tags`, so the failing
+		// example needs its own profile rather than a --tags override.
+		expect(config).toContain(
+			`${FAILING_EXAMPLE_PROFILE}: { ...shared, tags: "${FAILING_EXAMPLE_TAG}" }`,
+		);
+	});
+
+	test("step definitions template raises the Cucumber step timeout", () => {
+		// cucumber-js defaults to 5s, which a cold daemon start exceeds.
+		const steps = buildStepDefinitionsTemplate("../browse-harness.cjs");
+		expect(steps).toContain(`setDefaultTimeout(${DEFAULT_STEP_TIMEOUT_MS})`);
+		expect(DEFAULT_STEP_TIMEOUT_MS).toBeGreaterThan(5_000);
 	});
 
 	test("step definitions template registers every step against a real Cucumber API", () => {
@@ -193,6 +209,7 @@ module.exports = {
 	Then: record("Then"),
 	Before: (fn) => hooks.push({ keyword: "Before", fn }),
 	After: (fn) => hooks.push({ keyword: "After", fn }),
+	setDefaultTimeout: (ms) => { module.exports.timeoutMs = ms; },
 	setWorldConstructor: (ctor) => { module.exports.world = ctor; },
 };
 `,
@@ -210,6 +227,7 @@ module.exports = {
 		require(join(TEST_DIR, "browse.steps.cjs"));
 
 		expect(cucumber.registered).toHaveLength(GHERKIN_STEP_DEFINITIONS.length);
+		expect(cucumber.timeoutMs).toBe(DEFAULT_STEP_TIMEOUT_MS);
 		expect(
 			cucumber.hooks.map((hook: { keyword: string }) => hook.keyword),
 		).toEqual(["Before", "After"]);

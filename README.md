@@ -355,14 +355,26 @@ browse healthcheck --var base_url=https://staging.example.com
 
 ### Test runner integration
 
-Generate starter Browse tests for an existing Vitest or Jest suite:
+Generate starter Browse tests for an existing Vitest, Jest, or Cucumber suite:
 
 ```bash
 browse framework init vitest
 browse framework init jest --dir qa
+browse framework init cucumber
 ```
 
 This creates a small `browse-harness.cjs` helper plus a runner-specific sample test that shells out to `browse`. Set `BROWSE_BIN=./dist/browse` if you want the generated tests to target a local build instead of a globally installed binary.
+
+The `cucumber` runner scaffolds a `.feature` file plus ready-made Gherkin step definitions, so BDD scenarios drive Browse through `cucumber-js`:
+
+```gherkin
+Scenario: The example homepage loads
+  When I open "https://example.com"
+  Then the page should contain "Example Domain"
+  And the URL should contain "example.com"
+```
+
+See the **[BDD with Cucumber/Gherkin guide](docs/bdd-cucumber.md)** for the full step reference, custom steps, and the `--reporter cucumber` flow output.
 
 ---
 
@@ -642,7 +654,7 @@ Browse has 90+ commands. Here are the most commonly used:
 | `security` | Security audit |
 | `flow <name>` | Run configured flow |
 | `flow init <template>` | Scaffold a built-in flow template |
-| `framework init <runner>` | Scaffold Vitest/Jest Browse tests |
+| `framework init <runner>` | Scaffold Vitest/Jest/Cucumber Browse tests |
 | `session create <name>` | Create named session |
 | `status` | Daemon status (`--json`, `--watch`, `--exit-code`, `--metrics`) |
 | `quit` | Stop the daemon |
@@ -656,7 +668,7 @@ Browse has 90+ commands. Here are the most commonly used:
 - Auth (`login`, `auth-state`)
 - Visual regression (`vrt`, `diff`)
 - CI/CD (`ci-init`, `test-matrix`)
-- Test runners (`framework init vitest\|jest`)
+- Test runners (`framework init vitest\|jest\|cucumber`)
 - And more...
 
 ---

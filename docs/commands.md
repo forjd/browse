@@ -767,7 +767,7 @@ Execute a named flow. Flows can be defined inline in `browse.config.json` or as 
 |------|-------------|
 | `--var k=v` | Pass variables (repeatable) |
 | `--continue-on-error` | Continue executing steps after a failure |
-| `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, or `html` |
+| `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, `html`, or `cucumber` |
 | `--junit-property key=value` | Add JUnit testsuite metadata (repeatable, requires `--reporter junit`) |
 | `--dry-run` | Preview steps without executing them |
 | `--stream` | Output real-time NDJSON with one object per step |
@@ -1408,10 +1408,10 @@ browse video clean --older-than 24h --dry-run
 ### framework init
 
 ```
-browse framework init <vitest|jest> [--dir <path>] [--force]
+browse framework init <vitest|jest|cucumber> [--dir <path>] [--force]
 ```
 
-Generate a small Browse harness plus a starter spec for a local Vitest or Jest suite.
+Generate a small Browse harness plus a starter spec for a local Vitest, Jest, or Cucumber suite.
 
 | Flag | Description |
 |------|-------------|
@@ -1423,10 +1423,13 @@ Generate a small Browse harness plus a starter spec for a local Vitest or Jest s
 ```bash
 browse framework init vitest
 browse framework init jest --dir qa
+browse framework init cucumber
 browse framework init vitest --force
 ```
 
 Generated files include a `browse-harness.cjs` helper that shells out to the Browse binary. Set `BROWSE_BIN=./dist/browse` if you want the starter tests to use a local build.
+
+The `cucumber` runner additionally scaffolds a `.feature` file, ready-made Gherkin step definitions, and a `cucumber.cjs` config with `default` and `failing` profiles. Browse does not execute `.feature` files itself — `cucumber-js` stays in charge of parsing, tags, hooks, and reporting. See the [BDD with Cucumber/Gherkin guide](bdd-cucumber.md) for a runnable example and the full step reference.
 
 ---
 
@@ -1661,7 +1664,7 @@ Roles must correspond to environment names in `browse.config.json`.
 | `--roles <r1,r2,...>` | Comma-separated list of roles (minimum 2) |
 | `--flow <name>` | Flow to execute (from `browse.config.json`) |
 | `--env <name>` | Environment prefix (tries `<env>-<role>` then `<role>`) |
-| `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, or `html` |
+| `--reporter <format>` | Output format: `junit`, `json`, `markdown`, `tap`, `allure`, `html`, or `cucumber` |
 | `--junit-property key=value` | Add JUnit testsuite metadata (repeatable, requires `--reporter junit`) |
 
 **Examples:**
