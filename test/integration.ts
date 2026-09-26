@@ -12,6 +12,7 @@ import {
 	type Server as HttpServer,
 } from "node:http";
 import { join } from "node:path";
+import { readToken } from "../src/auth.ts";
 import { startDaemon } from "../src/daemon.ts";
 import type { Response } from "../src/protocol.ts";
 import { sendSocketRequest } from "./support/socket-command.ts";
@@ -48,7 +49,13 @@ function sendCommand(
 	cmd: string,
 	args: string[] = [],
 ): Promise<Response> {
-	return sendSocketRequest<Response>(socketPath, { cmd, args });
+	// startDaemon() generates an auth token and rejects unauthenticated
+	// requests, so read it back the same way the CLI does.
+	return sendSocketRequest<Response>(socketPath, {
+		cmd,
+		args,
+		token: readToken(),
+	});
 }
 
 let testIndex = 0;
@@ -1301,6 +1308,93 @@ async function testAssertElementText() {
 	}
 }
 
+/**
+ * Serves `/set`, which writes a marker into localStorage, and `/read`, which
+ * touches storage not at all so it can be revisited to inspect it. Two of these
+ * on different ports give us two real origins to wipe across.
+ */
+function startStorageHttpServer(
+	marker: string,
+): Promise<{ server: HttpServer; port: number }> {
+	return new Promise((resolve) => {
+		const server = createHttpServer((req, res) => {
+			const script =
+				req.url === "/set"
+					? `<script>localStorage.setItem("marker", "${marker}");</script>`
+					: "";
+			res.writeHead(200, { "Content-Type": "text/html" });
+			res.end(`<!DOCTYPE html>
+<html><head><title>Storage ${marker}</title></head>
+<body><h1>${marker}</h1>${script}</body></html>`);
+		});
+		server.listen(0, "127.0.0.1", () => {
+			const addr = server.address();
+			const port = typeof addr === "object" && addr ? addr.port : 0;
+			resolve({ server, port });
+		});
+	});
+}
+
+async function testWipeClearsEveryOrigin() {
+	console.log("\nwipe clears storage for every origin visited:");
+	const a = await startStorageHttpServer("origin-a");
+	const b = await startStorageHttpServer("origin-b");
+	const paths = testPaths();
+	const daemon = await startDaemon({
+		...paths,
+		idleTimeoutMs: 60_000,
+		headless: true,
+	});
+
+	const originA = `http://127.0.0.1:${a.port}`;
+	const originB = `http://127.0.0.1:${b.port}`;
+	const readMarker = () =>
+		sendCommand(paths.socketPath, "eval", ['localStorage.getItem("marker")']);
+
+	try {
+		await sendCommand(paths.socketPath, "goto", [`${originA}/set`]);
+		// Land on B last, so A is the origin a single-page wipe would miss.
+		await sendCommand(paths.socketPath, "goto", [`${originB}/set`]);
+
+		assertEqual(
+			await readMarker(),
+			{ ok: true, data: "origin-b" },
+			"origin B holds its marker before the wipe",
+		);
+		await sendCommand(paths.socketPath, "goto", [`${originA}/read`]);
+		assertEqual(
+			await readMarker(),
+			{ ok: true, data: "origin-a" },
+			"origin A holds its marker before the wipe",
+		);
+
+		await sendCommand(paths.socketPath, "goto", [`${originB}/read`]);
+		assertEqual(
+			await sendCommand(paths.socketPath, "wipe"),
+			{ ok: true, data: "Session wiped." },
+			"wipe reports a clean sweep",
+		);
+
+		await sendCommand(paths.socketPath, "goto", [`${originA}/read`]);
+		assertEqual(
+			await readMarker(),
+			{ ok: true, data: "null" },
+			"origin A storage is gone after the wipe",
+		);
+
+		await sendCommand(paths.socketPath, "goto", [`${originB}/read`]);
+		assertEqual(
+			await readMarker(),
+			{ ok: true, data: "null" },
+			"origin B storage is gone after the wipe",
+		);
+	} finally {
+		await daemon.shutdown();
+		a.server.close();
+		b.server.close();
+	}
+}
+
 // ─── Run all ──────────────────────────────────────────────────────
 
 async function main() {
@@ -1351,6 +1445,9 @@ async function main() {
 		await testFlowList();
 		await testFlowMissingVariables();
 		await testHealthcheckBasic();
+
+		// Session
+		await testWipeClearsEveryOrigin();
 	} finally {
 		rmSync(TEST_DIR, { recursive: true, force: true });
 	}

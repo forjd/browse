@@ -206,7 +206,10 @@ Coverage depends on the browser engine:
   webkit   localStorage, sessionStorage
 
 sessionStorage is only cleared for origins the remaining tab loads during the
-wipe, since it is scoped to a tab rather than to the browser profile.`,
+wipe, since it is scoped to a tab rather than to the browser profile.
+
+Origins are found from stored localStorage, so an origin holding only IndexedDB
+or cache storage is not found and is left alone.`,
 	},
 	benchmark: {
 		summary: "Measure command latency",
