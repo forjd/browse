@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CustomReporterRegistry } from "./custom-reporter.ts";
 import type { StepResult } from "./flow-runner.ts";
 
@@ -29,6 +30,7 @@ export const FLOW_REPORTERS = [
 	"tap",
 	"allure",
 	"html",
+	"cucumber",
 ] as const;
 
 export type FlowReporter = (typeof FLOW_REPORTERS)[number];
@@ -44,6 +46,7 @@ const FLOW_REPORTER_DESCRIPTIONS: Record<FlowReporter, string> = {
 	tap: "TAP 13",
 	allure: "Allure-compatible JSON",
 	html: "interactive HTML report",
+	cucumber: "Cucumber JSON for BDD dashboards",
 };
 
 export const FLOW_REPORTER_NAMES = FLOW_REPORTERS.join(", ");
@@ -443,6 +446,101 @@ export function formatFlowAllureJson(
 	});
 }
 
+/**
+ * Render flow results as Cucumber JSON so BDD dashboards that already ingest
+ * `cucumber-js --format json` can read Browse flows too. Each flow becomes a
+ * feature with one scenario; each step becomes a Gherkin step.
+ */
+export function formatFlowCucumberJson(
+	flowName: string,
+	results: StepResult[],
+	durationMs: number,
+): string {
+	const featureId = cucumberId(flowName);
+	const uri = `${featureId}.feature`;
+	const scenarioId = `${featureId};${featureId}`;
+	const stepDurationNs = results.length
+		? Math.round((durationMs / results.length) * 1_000_000)
+		: 0;
+
+	return JSON.stringify([
+		{
+			keyword: "Feature",
+			name: flowName,
+			description: "",
+			id: featureId,
+			uri,
+			line: 1,
+			tags: [],
+			elements: [
+				{
+					keyword: "Scenario",
+					name: flowName,
+					description: "",
+					id: scenarioId,
+					type: "scenario",
+					line: 2,
+					tags: [],
+					steps: results.map((result, index) => {
+						const line = index + 3;
+						return {
+							keyword: index === 0 ? "Given " : "Then ",
+							name: result.description,
+							line,
+							// A flow has no step-definition file, so `match.location`
+							// points at the synthesised step instead of source code.
+							match: { location: `${uri}:${line}` },
+							arguments: [],
+							result: {
+								status: result.passed ? "passed" : "failed",
+								duration: stepDurationNs,
+								...(result.error ? { error_message: result.error } : {}),
+							},
+							// Cucumber's slot for step artifacts. The path is attached as
+							// text rather than the image bytes, matching what cucumber-js
+							// writes for `attach("some string")` and keeping the report small.
+							...(result.screenshotPath
+								? {
+										embeddings: [
+											{
+												mime_type: "text/plain",
+												data: Buffer.from(result.screenshotPath).toString(
+													"base64",
+												),
+											},
+										],
+									}
+								: {}),
+						};
+					}),
+				},
+			],
+		},
+	]);
+}
+
+/**
+ * Cucumber consumers key scenarios on `id`, so two differently-named flows must
+ * never produce the same one. A plain slug cannot promise that — `Login flow`,
+ * `login-flow` and `Login  Flow!` all collapse to `login-flow`, and any name
+ * without ASCII alphanumerics collapses to nothing at all. The id therefore
+ * keeps the readable slug only when the name already *is* that slug, and
+ * appends a short content hash whenever slugifying loses information.
+ */
+function cucumberId(value: string): string {
+	const slug = value
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+
+	if (slug === value) {
+		return slug;
+	}
+
+	const hash = createHash("sha1").update(value).digest("hex").slice(0, 8);
+	return slug ? `${slug}-${hash}` : `flow-${hash}`;
+}
+
 export function formatFlowHtml(
 	flowName: string,
 	results: StepResult[],
@@ -505,6 +603,8 @@ export function formatFlowReporter(
 				return formatFlowAllureJson(flowName, results, durationMs);
 			case "html":
 				return formatFlowHtml(flowName, results, durationMs);
+			case "cucumber":
+				return formatFlowCucumberJson(flowName, results, durationMs);
 		}
 
 		const exhaustive: never = reporter;

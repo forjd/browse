@@ -193,8 +193,23 @@ Pages are defined in browse.config.json.`,
 	},
 	wipe: {
 		summary: "Clear all session data",
-		usage:
-			"browse wipe\n\nClears cookies, localStorage, sessionStorage, tabs, and buffers without stopping the daemon.",
+		usage: `browse wipe
+
+Clears cookies, localStorage, sessionStorage, tabs, and buffers without stopping the daemon.
+
+Storage is cleared for every origin the session stored data on, not just the one
+the open tab is on.
+
+Coverage depends on the browser engine:
+  chrome   localStorage, sessionStorage, IndexedDB, cache storage, service workers
+  firefox  localStorage, sessionStorage
+  webkit   localStorage, sessionStorage
+
+sessionStorage is only cleared for origins the remaining tab loads during the
+wipe, since it is scoped to a tab rather than to the browser profile.
+
+Origins are found from stored localStorage, so an origin holding only IndexedDB
+or cache storage is not found and is left alone.`,
 	},
 	benchmark: {
 		summary: "Measure command latency",
@@ -543,12 +558,17 @@ Flags:
 		].join("\n"),
 	},
 	framework: {
-		summary: "Scaffold Browse tests for Vitest or Jest",
+		summary: "Scaffold Browse tests for Vitest, Jest, or Cucumber",
 		usage: [
-			"browse framework init <vitest|jest> [--dir <path>] [--force]",
+			"browse framework init <vitest|jest|cucumber> [--dir <path>] [--force]",
 			"",
 			"Creates a small Browse test harness plus a starter spec for the chosen test",
 			"runner so you can execute Browse flows inside an existing test suite.",
+			"",
+			"The cucumber runner additionally scaffolds a .feature file, ready-made",
+			"Gherkin step definitions that shell out to Browse, and a cucumber.cjs",
+			"config. Browse does not execute .feature files itself — cucumber-js stays",
+			"in charge of parsing, tags, hooks, and reporting.",
 			"",
 			"Flags:",
 			"  --dir <path>   Output directory for generated files (default: tests)",
@@ -557,6 +577,7 @@ Flags:
 			"Examples:",
 			"  browse framework init vitest",
 			"  browse framework init jest --dir qa",
+			"  browse framework init cucumber --dir features",
 		].join("\n"),
 	},
 	form: {

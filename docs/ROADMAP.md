@@ -88,7 +88,7 @@ The original 6-phase roadmap (Foundation → Snapshot → Screenshot → Auth �
 ### Framework Integrations
 
 - [x] **Jest/Vitest runner** ([#167](https://github.com/forjd/browse/issues/167)) — `browse framework init` now scaffolds native Vitest/Jest starter tests
-- [ ] **Cucumber/Gherkin** ([#168](https://github.com/forjd/browse/issues/168)) — BDD-style test definitions
+- [x] **Cucumber/Gherkin** ([#168](https://github.com/forjd/browse/issues/168)) — `browse framework init cucumber` scaffolds a `.feature` file plus step definitions that drive Browse through `cucumber-js`; `--reporter cucumber` emits Cucumber JSON for flows
 - [x] **GitHub Actions** ([#169](https://github.com/forjd/browse/issues/169)) — Official composite action with built-in Bun and Playwright caching
 - [x] **Docker optimisation** ([#170](https://github.com/forjd/browse/issues/170)) — Multi-stage Docker builds now copy only compile inputs, cache Bun installs, and ship with a recommended `.dockerignore`
 

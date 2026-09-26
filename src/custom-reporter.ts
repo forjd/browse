@@ -6,7 +6,8 @@ export type ReporterFormat =
 	| "markdown"
 	| "tap"
 	| "allure"
-	| "html";
+	| "html"
+	| "cucumber";
 
 export type ReporterRenderContext = {
 	flowName: string;

@@ -1,14 +1,57 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
 	buildCucumberCommand,
+	buildCucumberConfigTemplate,
+	buildFeatureTemplate,
+	buildStepDefinitionsTemplate,
+	DEFAULT_STEP_TIMEOUT_MS,
 	extractScenarioNames,
+	FAILING_EXAMPLE_PROFILE,
+	FAILING_EXAMPLE_TAG,
+	findStepDefinition,
+	GHERKIN_STEP_DEFINITIONS,
+	resolveStepCommand,
 } from "../src/gherkin-runner.ts";
+
+const TEST_DIR = join(import.meta.dir, ".tmp-gherkin-runner");
+
+function step(expression: string) {
+	const definition = findStepDefinition(expression);
+	if (!definition) {
+		throw new Error(`Missing step definition: ${expression}`);
+	}
+	return definition;
+}
 
 describe("gherkin runner", () => {
 	test("builds cucumber-js command", () => {
 		expect(buildCucumberCommand("features/login.feature")).toEqual([
 			"cucumber-js",
 			"features/login.feature",
+		]);
+	});
+
+	test("builds cucumber-js command with config, require, format, and tags", () => {
+		expect(
+			buildCucumberCommand("features/login.feature", {
+				config: "tests/cucumber.cjs",
+				require: ["tests/step-definitions/*.cjs"],
+				format: "json:reports/cucumber.json",
+				tags: FAILING_EXAMPLE_TAG,
+			}),
+		).toEqual([
+			"cucumber-js",
+			"--config",
+			"tests/cucumber.cjs",
+			"features/login.feature",
+			"--require",
+			"tests/step-definitions/*.cjs",
+			"--format",
+			"json:reports/cucumber.json",
+			"--tags",
+			"@failing-example",
 		]);
 	});
 
@@ -21,5 +64,224 @@ Feature: Login
     Given credentials are wrong
 `);
 		expect(names).toEqual(["Successful login", "Failed login"]);
+	});
+});
+
+describe("gherkin step definitions", () => {
+	test("maps navigation and assertion steps to browse argv", () => {
+		expect(resolveStepCommand(step("browse is ready"))).toEqual(["ping"]);
+		expect(
+			resolveStepCommand(step("I open {string}"), ["https://example.com"]),
+		).toEqual(["goto", "https://example.com"]);
+		expect(
+			resolveStepCommand(step("the page should contain {string}"), [
+				"Example Domain",
+			]),
+		).toEqual(["assert", "text-contains", "Example Domain"]);
+		expect(
+			resolveStepCommand(step("the URL should contain {string}"), [
+				"example.com",
+			]),
+		).toEqual(["assert", "url-contains", "example.com"]);
+		expect(
+			resolveStepCommand(step("I wait for {string} to be visible"), [
+				"#results",
+			]),
+		).toEqual(["wait", "visible", "#results"]);
+	});
+
+	test("substitutes parameters by name, not position", () => {
+		// The Gherkin phrasing puts the option before the ref, while `browse
+		// select` takes the ref first.
+		expect(
+			resolveStepCommand(step("I select {string} in {string}"), [
+				"Bristol",
+				"@e12",
+			]),
+		).toEqual(["select", "@e12", "Bristol"]);
+		expect(
+			resolveStepCommand(step("I fill {string} with {string}"), [
+				"@e3",
+				"hunter2",
+			]),
+		).toEqual(["fill", "@e3", "hunter2"]);
+	});
+
+	test("stringifies non-string captures for argv", () => {
+		// `{int}` reaches the step function as a number; spawn argv must be strings.
+		expect(
+			resolveStepCommand(step("{string} should appear {int} times"), [
+				".row",
+				3,
+			]),
+		).toEqual(["assert", "element-count", ".row", "3"]);
+	});
+
+	test("rejects the wrong number of captured arguments", () => {
+		expect(() => resolveStepCommand(step("I open {string}"), [])).toThrow(
+			"expects 1 argument(s), received 0",
+		);
+	});
+
+	test("declares one parameter per capture group", () => {
+		for (const definition of GHERKIN_STEP_DEFINITIONS) {
+			const captures = definition.expression.match(/\{[a-z]+\}/g) ?? [];
+			expect(definition.params).toHaveLength(captures.length);
+			expect(new Set(definition.params).size).toBe(definition.params.length);
+		}
+	});
+
+	test("every step resolves without unknown parameter references", () => {
+		for (const definition of GHERKIN_STEP_DEFINITIONS) {
+			const values = definition.params.map((_, index) => `value${index}`);
+			expect(() => resolveStepCommand(definition, values)).not.toThrow();
+		}
+	});
+});
+
+describe("gherkin templates", () => {
+	test("feature template has a passing scenario and a tagged failing one", () => {
+		const feature = buildFeatureTemplate();
+		expect(extractScenarioNames(feature)).toEqual([
+			"The example homepage loads",
+			"A missing string fails the run",
+		]);
+		expect(feature).toContain(FAILING_EXAMPLE_TAG);
+	});
+
+	test("feature template only uses generated step phrasings", () => {
+		const feature = buildFeatureTemplate();
+		const stepLines = feature
+			.split("\n")
+			.map((line) => line.trim())
+			.filter((line) => /^(Given|When|Then|And) /.test(line));
+
+		expect(stepLines.length).toBeGreaterThan(0);
+
+		for (const line of stepLines) {
+			const text = line.replace(/^(Given|When|Then|And) /, "");
+			const matched = GHERKIN_STEP_DEFINITIONS.some((definition) => {
+				const pattern = definition.expression
+					.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+					.replace(/\\\{string\\\}/g, '"[^"]*"')
+					.replace(/\\\{int\\\}/g, "-?\\d+");
+				return new RegExp(`^${pattern}$`).test(text);
+			});
+			expect(matched).toBe(true);
+		}
+	});
+
+	test("config template excludes the failing example by default", () => {
+		const config = buildCucumberConfigTemplate(
+			"tests/step-definitions/*.cjs",
+			"tests/features",
+		);
+		expect(config).toContain('paths: ["tests/features"]');
+		expect(config).toContain('require: ["tests/step-definitions/*.cjs"]');
+		expect(config).toContain(
+			`default: { ...shared, tags: "not ${FAILING_EXAMPLE_TAG}" }`,
+		);
+		// Cucumber ANDs a config `tags` with a CLI `--tags`, so the failing
+		// example needs its own profile rather than a --tags override.
+		expect(config).toContain(
+			`${FAILING_EXAMPLE_PROFILE}: { ...shared, tags: "${FAILING_EXAMPLE_TAG}" }`,
+		);
+	});
+
+	test("step definitions template raises the Cucumber step timeout", () => {
+		// cucumber-js defaults to 5s, which a cold daemon start exceeds.
+		const steps = buildStepDefinitionsTemplate("../browse-harness.cjs");
+		expect(steps).toContain(`setDefaultTimeout(${DEFAULT_STEP_TIMEOUT_MS})`);
+		expect(DEFAULT_STEP_TIMEOUT_MS).toBeGreaterThan(5_000);
+	});
+
+	test("step definitions template registers every step against a real Cucumber API", () => {
+		rmSync(TEST_DIR, { recursive: true, force: true });
+		const stubDir = join(TEST_DIR, "node_modules", "@cucumber", "cucumber");
+		mkdirSync(stubDir, { recursive: true });
+		writeFileSync(
+			join(stubDir, "package.json"),
+			JSON.stringify({ name: "@cucumber/cucumber", main: "index.cjs" }),
+		);
+		// Records registrations so we can assert on expressions and arity the
+		// way cucumber-js validates them.
+		writeFileSync(
+			join(stubDir, "index.cjs"),
+			`const registered = [];
+const hooks = [];
+function record(keyword) {
+	return (expression, fn) => registered.push({ keyword, expression, arity: fn.length, fn });
+}
+module.exports = {
+	registered,
+	hooks,
+	Given: record("Given"),
+	When: record("When"),
+	Then: record("Then"),
+	Before: (fn) => hooks.push({ keyword: "Before", fn }),
+	After: (fn) => hooks.push({ keyword: "After", fn }),
+	setDefaultTimeout: (ms) => { module.exports.timeoutMs = ms; },
+	setWorldConstructor: (ctor) => { module.exports.world = ctor; },
+};
+`,
+		);
+		writeFileSync(
+			join(TEST_DIR, "browse-harness.cjs"),
+			"module.exports = { createBrowseHarness: () => ({ calls: [], run(args) { this.calls.push(args); return Promise.resolve({ code: 0, stdout: '', stderr: '' }); } }) };\n",
+		);
+		writeFileSync(
+			join(TEST_DIR, "browse.steps.cjs"),
+			buildStepDefinitionsTemplate("./browse-harness.cjs"),
+		);
+
+		const cucumber = require(join(stubDir, "index.cjs"));
+		require(join(TEST_DIR, "browse.steps.cjs"));
+
+		expect(cucumber.registered).toHaveLength(GHERKIN_STEP_DEFINITIONS.length);
+		expect(cucumber.timeoutMs).toBe(DEFAULT_STEP_TIMEOUT_MS);
+		expect(
+			cucumber.hooks.map((hook: { keyword: string }) => hook.keyword),
+		).toEqual(["Before"]);
+
+		for (const definition of GHERKIN_STEP_DEFINITIONS) {
+			const entry = cucumber.registered.find(
+				(candidate: { expression: string }) =>
+					candidate.expression === definition.expression,
+			);
+			expect(entry).toBeDefined();
+			expect(entry.keyword).toBe(definition.keyword);
+			// cucumber-js rejects step functions whose arity does not match the
+			// number of captured parameters.
+			expect(entry.arity).toBe(definition.params.length);
+		}
+
+		// Invoke steps and the Before hook against a fake world and check the argv
+		// they shell out.
+		const world = new cucumber.world();
+		const find = (expression: string) =>
+			cucumber.registered.find(
+				(candidate: { expression: string }) =>
+					candidate.expression === expression,
+			);
+
+		return find("I open {string}")
+			.fn.call(world, "https://example.com")
+			.then(() =>
+				// A `{int}` capture arrives as a number and has to be stringified
+				// before it reaches spawn.
+				find("{string} should appear {int} times").fn.call(world, ".row", 3),
+			)
+			.then(() => cucumber.hooks[0].fn.call(world))
+			.then(() => {
+				expect(world.browse.calls).toEqual([
+					["goto", "https://example.com"],
+					["assert", "element-count", ".row", "3"],
+					// The daemon outlives cucumber-js, so the hook has to wipe or a
+					// scenario can pass against a previous run's session.
+					["ping"],
+					["wipe"],
+				]);
+				rmSync(TEST_DIR, { recursive: true, force: true });
+			});
 	});
 });
