@@ -102,7 +102,94 @@ describe("framework runner", () => {
 		expect(result).toEqual({
 			ok: false,
 			error:
-				"Usage: browse framework init <vitest|jest> [--dir <path>] [--force]",
+				"Usage: browse framework init <vitest|jest|cucumber> [--dir <path>] [--force]",
 		});
+	});
+
+	test("returns usage for an unknown runner", async () => {
+		const result = await handleFrameworkCommand(["init", "mocha"], {
+			cwd: TEST_DIR,
+		});
+		expect(result).toEqual({
+			ok: false,
+			error:
+				"Usage: browse framework init <vitest|jest|cucumber> [--dir <path>] [--force]",
+		});
+	});
+});
+
+describe("framework runner — cucumber", () => {
+	test("builds cucumber command", () => {
+		expect(buildFrameworkCommand("cucumber", "features/login.feature")).toEqual(
+			["cucumber-js", "features/login.feature"],
+		);
+	});
+
+	test("scaffolds a feature, step definitions, harness, and config", async () => {
+		const result = await handleFrameworkCommand(["init", "cucumber"], {
+			cwd: TEST_DIR,
+		});
+
+		expect(result.ok).toBe(true);
+		for (const relativePath of [
+			join("tests", "browse-harness.cjs"),
+			join("tests", "features", "browse.feature"),
+			join("tests", "step-definitions", "browse.steps.cjs"),
+			join("tests", "cucumber.cjs"),
+		]) {
+			expect(existsSync(join(TEST_DIR, relativePath))).toBe(true);
+		}
+
+		const feature = readFileSync(
+			join(TEST_DIR, "tests", "features", "browse.feature"),
+			"utf-8",
+		);
+		expect(feature).toContain("Feature: Browse smoke test");
+		expect(feature).toContain('When I open "https://example.com"');
+
+		const steps = readFileSync(
+			join(TEST_DIR, "tests", "step-definitions", "browse.steps.cjs"),
+			"utf-8",
+		);
+		expect(steps).toContain('require("@cucumber/cucumber")');
+		// Steps sit one level below the harness.
+		expect(steps).toContain('require("../browse-harness.cjs")');
+		expect(steps).toContain('When("I open {string}", async function (url) {');
+
+		if (result.ok) {
+			expect(result.data).toContain(
+				"npm install --save-dev @cucumber/cucumber",
+			);
+			expect(result.data).toContain(
+				`cucumber-js --config ${join("tests", "cucumber.cjs")}`,
+			);
+			expect(result.data).toContain("--tags @failing-example");
+		}
+	});
+
+	test("honours --dir and refuses to overwrite without --force", async () => {
+		const first = await handleFrameworkCommand(
+			["init", "cucumber", "--dir", "bdd"],
+			{ cwd: TEST_DIR },
+		);
+		expect(first.ok).toBe(true);
+		expect(
+			existsSync(join(TEST_DIR, "bdd", "features", "browse.feature")),
+		).toBe(true);
+
+		const second = await handleFrameworkCommand(
+			["init", "cucumber", "--dir", "bdd"],
+			{ cwd: TEST_DIR },
+		);
+		expect(second).toEqual({
+			ok: false,
+			error: `${join("bdd", "browse-harness.cjs")} already exists. Use --force to overwrite generated files.`,
+		});
+
+		const forced = await handleFrameworkCommand(
+			["init", "cucumber", "--dir", "bdd", "--force"],
+			{ cwd: TEST_DIR },
+		);
+		expect(forced.ok).toBe(true);
 	});
 });

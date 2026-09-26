@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { StepResult } from "../src/flow-runner.ts";
 import {
 	formatFlowAllureJson,
+	formatFlowCucumberJson,
 	formatFlowHtml,
+	formatFlowReporter,
 	formatFlowTap,
 } from "../src/reporters.ts";
 
@@ -33,6 +35,42 @@ describe("additional reporters", () => {
 		expect(parsed.name).toBe("smoke");
 		expect(parsed.status).toBe("failed");
 		expect(parsed.steps).toHaveLength(2);
+	});
+
+	test("formats cucumber json with one feature and one scenario", () => {
+		const parsed = JSON.parse(
+			formatFlowCucumberJson("login smoke", RESULTS, 600),
+		);
+		expect(parsed).toHaveLength(1);
+		expect(parsed[0].keyword).toBe("Feature");
+		expect(parsed[0].name).toBe("login smoke");
+		expect(parsed[0].id).toBe("login-smoke");
+		expect(parsed[0].uri).toBe("login smoke.feature");
+		expect(parsed[0].elements).toHaveLength(1);
+
+		const steps = parsed[0].elements[0].steps;
+		expect(steps).toHaveLength(2);
+		expect(steps[0]).toMatchObject({
+			keyword: "Given ",
+			name: "goto",
+			result: { status: "passed", duration: 300_000_000 },
+		});
+		expect(steps[1]).toMatchObject({
+			keyword: "Then ",
+			name: "submit",
+			result: { status: "failed", error_message: "boom" },
+		});
+	});
+
+	test("emits cucumber json for a flow with no steps", () => {
+		const parsed = JSON.parse(formatFlowCucumberJson("empty", [], 0));
+		expect(parsed[0].elements[0].steps).toEqual([]);
+	});
+
+	test("dispatches the cucumber reporter by name", () => {
+		expect(formatFlowReporter("smoke", RESULTS, 600, "cucumber")).toBe(
+			formatFlowCucumberJson("smoke", RESULTS, 600),
+		);
 	});
 
 	test("formats searchable html output", () => {

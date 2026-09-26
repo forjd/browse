@@ -543,12 +543,17 @@ Flags:
 		].join("\n"),
 	},
 	framework: {
-		summary: "Scaffold Browse tests for Vitest or Jest",
+		summary: "Scaffold Browse tests for Vitest, Jest, or Cucumber",
 		usage: [
-			"browse framework init <vitest|jest> [--dir <path>] [--force]",
+			"browse framework init <vitest|jest|cucumber> [--dir <path>] [--force]",
 			"",
 			"Creates a small Browse test harness plus a starter spec for the chosen test",
 			"runner so you can execute Browse flows inside an existing test suite.",
+			"",
+			"The cucumber runner additionally scaffolds a .feature file, ready-made",
+			"Gherkin step definitions that shell out to Browse, and a cucumber.cjs",
+			"config. Browse does not execute .feature files itself — cucumber-js stays",
+			"in charge of parsing, tags, hooks, and reporting.",
 			"",
 			"Flags:",
 			"  --dir <path>   Output directory for generated files (default: tests)",
@@ -557,6 +562,7 @@ Flags:
 			"Examples:",
 			"  browse framework init vitest",
 			"  browse framework init jest --dir qa",
+			"  browse framework init cucumber --dir features",
 		].join("\n"),
 	},
 	form: {

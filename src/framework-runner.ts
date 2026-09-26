@@ -1,12 +1,31 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import {
+	buildCucumberCommand,
+	buildCucumberConfigTemplate,
+	buildFeatureTemplate,
+	buildStepDefinitionsTemplate,
+	FAILING_EXAMPLE_TAG,
+} from "./gherkin-runner.ts";
 import type { Response } from "./protocol.ts";
 
-export type FrameworkRunner = "jest" | "vitest";
+export type FrameworkRunner = "jest" | "vitest" | "cucumber";
+
+export const FRAMEWORK_RUNNERS: FrameworkRunner[] = [
+	"vitest",
+	"jest",
+	"cucumber",
+];
 
 const DEFAULT_OUTPUT_DIR = "tests";
 const FRAMEWORK_USAGE =
-	"Usage: browse framework init <vitest|jest> [--dir <path>] [--force]";
+	"Usage: browse framework init <vitest|jest|cucumber> [--dir <path>] [--force]";
+
+function isFrameworkRunner(
+	value: string | undefined,
+): value is FrameworkRunner {
+	return FRAMEWORK_RUNNERS.includes(value as FrameworkRunner);
+}
 
 type FrameworkCommandOptions = {
 	cwd?: string;
@@ -80,7 +99,9 @@ module.exports = { createBrowseHarness };
 `;
 }
 
-function buildFrameworkTestTemplate(runner: FrameworkRunner): string {
+function buildFrameworkTestTemplate(
+	runner: Exclude<FrameworkRunner, "cucumber">,
+): string {
 	if (runner === "vitest") {
 		return `const { afterAll, beforeAll, describe, expect, test } = require("vitest");
 const { createBrowseHarness } = require("./browse-harness.cjs");
@@ -134,7 +155,7 @@ function parseFrameworkArgs(args: string[]): {
 	}
 
 	const runner = args[1];
-	if (runner !== "vitest" && runner !== "jest") {
+	if (!isFrameworkRunner(runner)) {
 		return { force: false, error: FRAMEWORK_USAGE };
 	}
 
@@ -173,27 +194,27 @@ export async function handleFrameworkCommand(
 	}
 
 	const cwd = options.cwd ?? process.cwd();
-	const outputDir = join(cwd, parsed.dir);
-	const harnessPath = join(outputDir, "browse-harness.cjs");
-	const testFileName = `browse.${parsed.runner}.test.cjs`;
-	const testFilePath = join(outputDir, testFileName);
+	const runner = parsed.runner;
+	const plan =
+		runner === "cucumber"
+			? planCucumberScaffold(parsed.dir)
+			: planUnitScaffold(runner, parsed.dir);
 
-	for (const [absolutePath, relativePath] of [
-		[harnessPath, join(parsed.dir, "browse-harness.cjs")],
-		[testFilePath, join(parsed.dir, testFileName)],
-	] as const) {
-		if (existsSync(absolutePath) && !parsed.force) {
+	for (const file of plan.files) {
+		if (existsSync(join(cwd, file.path)) && !parsed.force) {
 			return {
 				ok: false,
-				error: `${relativePath} already exists. Use --force to overwrite generated files.`,
+				error: `${file.path} already exists. Use --force to overwrite generated files.`,
 			};
 		}
 	}
 
 	try {
-		mkdirSync(outputDir, { recursive: true });
-		writeFileSync(harnessPath, buildHarnessTemplate());
-		writeFileSync(testFilePath, buildFrameworkTestTemplate(parsed.runner));
+		for (const file of plan.files) {
+			const absolutePath = join(cwd, file.path);
+			mkdirSync(dirname(absolutePath), { recursive: true });
+			writeFileSync(absolutePath, file.contents);
+		}
 	} catch (error) {
 		return {
 			ok: false,
@@ -201,22 +222,88 @@ export async function handleFrameworkCommand(
 		};
 	}
 
-	const runnerCommand = buildFrameworkCommand(
-		parsed.runner,
-		join(parsed.dir, testFileName),
-	).join(" ");
-
 	return {
 		ok: true,
 		data: [
-			`Created ${join(parsed.dir, "browse-harness.cjs")}`,
-			`Created ${join(parsed.dir, testFileName)}`,
+			...plan.files.map((file) => `Created ${file.path}`),
 			"",
 			"Next steps:",
-			`1. Install ${parsed.runner} if it is not already available in your project.`,
-			`2. Run ${runnerCommand}`,
-			"3. Optionally set BROWSE_BIN=./dist/browse to target a local build.",
+			...plan.nextSteps.map((step, index) => `${index + 1}. ${step}`),
 		].join("\n"),
+	};
+}
+
+type ScaffoldFile = { path: string; contents: string };
+
+type ScaffoldPlan = { files: ScaffoldFile[]; nextSteps: string[] };
+
+function planUnitScaffold(
+	runner: Exclude<FrameworkRunner, "cucumber">,
+	dir: string,
+): ScaffoldPlan {
+	const testFileName = `browse.${runner}.test.cjs`;
+	const runnerCommand = buildFrameworkCommand(
+		runner,
+		join(dir, testFileName),
+	).join(" ");
+
+	return {
+		files: [
+			{
+				path: join(dir, "browse-harness.cjs"),
+				contents: buildHarnessTemplate(),
+			},
+			{
+				path: join(dir, testFileName),
+				contents: buildFrameworkTestTemplate(runner),
+			},
+		],
+		nextSteps: [
+			`Install ${runner} if it is not already available in your project.`,
+			`Run ${runnerCommand}`,
+			"Optionally set BROWSE_BIN=./dist/browse to target a local build.",
+		],
+	};
+}
+
+function planCucumberScaffold(dir: string): ScaffoldPlan {
+	const featureDir = join(dir, "features");
+	const stepsDir = join(dir, "step-definitions");
+	const configPath = join(dir, "cucumber.cjs");
+	const runCommand = buildCucumberCommand(undefined, {
+		config: configPath,
+	}).join(" ");
+	const failingCommand = buildCucumberCommand(undefined, {
+		config: configPath,
+		tags: FAILING_EXAMPLE_TAG,
+	}).join(" ");
+
+	return {
+		files: [
+			{
+				path: join(dir, "browse-harness.cjs"),
+				contents: buildHarnessTemplate(),
+			},
+			{
+				path: join(featureDir, "browse.feature"),
+				contents: buildFeatureTemplate(),
+			},
+			{
+				path: join(stepsDir, "browse.steps.cjs"),
+				// Steps live one directory deeper than the harness.
+				contents: buildStepDefinitionsTemplate("../browse-harness.cjs"),
+			},
+			{
+				path: configPath,
+				contents: buildCucumberConfigTemplate(stepsDir, featureDir),
+			},
+		],
+		nextSteps: [
+			"Install the Cucumber runner: npm install --save-dev @cucumber/cucumber",
+			`Run ${runCommand}`,
+			`See a failing report with ${failingCommand}`,
+			"Optionally set BROWSE_BIN=./dist/browse to target a local build.",
+		],
 	};
 }
 
@@ -229,6 +316,9 @@ export function buildFrameworkCommand(
 	}
 	if (runner === "jest") {
 		return ["jest", "--runInBand", ...(target ? [target] : [])];
+	}
+	if (runner === "cucumber") {
+		return buildCucumberCommand(target);
 	}
 	throw new Error(`Unsupported framework: ${runner}`);
 }

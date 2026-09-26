@@ -29,6 +29,7 @@ export const FLOW_REPORTERS = [
 	"tap",
 	"allure",
 	"html",
+	"cucumber",
 ] as const;
 
 export type FlowReporter = (typeof FLOW_REPORTERS)[number];
@@ -44,6 +45,7 @@ const FLOW_REPORTER_DESCRIPTIONS: Record<FlowReporter, string> = {
 	tap: "TAP 13",
 	allure: "Allure-compatible JSON",
 	html: "interactive HTML report",
+	cucumber: "Cucumber JSON for BDD dashboards",
 };
 
 export const FLOW_REPORTER_NAMES = FLOW_REPORTERS.join(", ");
@@ -443,6 +445,63 @@ export function formatFlowAllureJson(
 	});
 }
 
+/**
+ * Render flow results as Cucumber JSON so BDD dashboards that already ingest
+ * `cucumber-js --format json` can read Browse flows too. Each flow becomes a
+ * feature with one scenario; each step becomes a Gherkin step.
+ */
+export function formatFlowCucumberJson(
+	flowName: string,
+	results: StepResult[],
+	durationMs: number,
+): string {
+	const featureId = slugify(flowName);
+	const scenarioId = `${featureId};${slugify(flowName)}`;
+	const stepDurationNs = results.length
+		? Math.round((durationMs / results.length) * 1_000_000)
+		: 0;
+
+	return JSON.stringify([
+		{
+			keyword: "Feature",
+			name: flowName,
+			description: "",
+			id: featureId,
+			uri: `${flowName}.feature`,
+			line: 1,
+			elements: [
+				{
+					keyword: "Scenario",
+					name: flowName,
+					description: "",
+					id: scenarioId,
+					type: "scenario",
+					line: 2,
+					steps: results.map((result, index) => ({
+						keyword: index === 0 ? "Given " : "Then ",
+						name: result.description,
+						line: index + 3,
+						result: {
+							status: result.passed ? "passed" : "failed",
+							duration: stepDurationNs,
+							...(result.error ? { error_message: result.error } : {}),
+						},
+					})),
+				},
+			],
+		},
+	]);
+}
+
+function slugify(value: string): string {
+	return (
+		value
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, "-")
+			.replace(/^-+|-+$/g, "") || "flow"
+	);
+}
+
 export function formatFlowHtml(
 	flowName: string,
 	results: StepResult[],
@@ -505,6 +564,8 @@ export function formatFlowReporter(
 				return formatFlowAllureJson(flowName, results, durationMs);
 			case "html":
 				return formatFlowHtml(flowName, results, durationMs);
+			case "cucumber":
+				return formatFlowCucumberJson(flowName, results, durationMs);
 		}
 
 		const exhaustive: never = reporter;
